@@ -4,6 +4,9 @@
 #include "Components/WidgetComponent.h"
 #include "Components/SceneComponent.h" // 新增：引入SceneComponent头文件
 #include "Components/ProgressBar.h"
+#include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
+#include "GameFramework/Pawn.h"
 
 ADestructibleProp::ADestructibleProp()
 {
@@ -98,7 +101,11 @@ void ADestructibleProp::BeginPlay()
 	}
 
 	// 3. 【关键修改 2】：与组件的实际初始状态（隐藏）保持绝对一致
-	bWasHealthBarVisible = true;
+	if (HealthBarWidgetComp)
+	{
+		HealthBarWidgetComp->SetVisibility(false);
+	}
+	bWasHealthBarVisible = false;
 
 	// 4. 启动定时器定期检测玩家距离
 	if (DetectionInterval > 0.0f)
@@ -231,24 +238,24 @@ void ADestructibleProp::CheckPlayerDistance()
 	}
 
 	// 2. 查找最近的玩家
-	APlayerController* PC = GetWorld()->GetFirstPlayerController();
-
-	// 【关键修改 4】：如果在游戏第一帧玩家还未生成（或者玩家死亡），强制保持隐藏
-	if (!PC || !PC->GetPawn())
+	bool bShouldBeVisible = false;
+	if (UWorld* World = GetWorld())
 	{
-		if (bWasHealthBarVisible)
+		const float DetectionRadiusSquared = DetectionRadius * DetectionRadius;
+		const FVector PropLocation = GetActorLocation();
+
+		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
 		{
-			if (HealthBarWidgetComp) HealthBarWidgetComp->SetVisibility(false);
-			bWasHealthBarVisible = false;
+			APlayerController* CandidatePC = It->Get();
+			APawn* CandidatePawn = CandidatePC ? CandidatePC->GetPawn() : nullptr;
+
+			if (CandidatePawn && FVector::DistSquared(PropLocation, CandidatePawn->GetActorLocation()) <= DetectionRadiusSquared)
+			{
+				bShouldBeVisible = true;
+				break;
+			}
 		}
-		return;
 	}
-
-	// 3. 计算玩家到物体的距离
-	float Distance = FVector::Dist(GetActorLocation(), PC->GetPawn()->GetActorLocation());
-
-	// 4. 判断是否在检测范围内
-	bool bShouldBeVisible = (Distance <= DetectionRadius);
 
 	// 5. 【性能核心】：只有状态发生改变时，才调用底层UI的显示/隐藏（避免每0.5秒重复调用）
 	if (bShouldBeVisible != bWasHealthBarVisible)
