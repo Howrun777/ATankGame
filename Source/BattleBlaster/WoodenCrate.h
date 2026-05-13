@@ -1,0 +1,25 @@
+#pragma once
+#include "CoreMinimal.h"
+#include "DestructibleProp.h"
+#include "WoodenCrate.generated.h"
+
+class UNiagaraSystem;
+class USoundBase;
+
+UCLASS()
+class BATTLEBLASTER_API AWoodenCrate : public ADestructibleProp
+{
+	GENERATED_BODY()
+
+protected:
+	virtual void HandleDestruction() override;
+
+	UPROPERTY(EditAnywhere, Category = "Effects")
+	UNiagaraSystem* BreakEffect; // 破碎特效（木屑飞溅）
+
+	UPROPERTY(EditAnywhere, Category = "Effects")
+	USoundBase* BreakSound; // 破碎音效
+
+	UPROPERTY(EditAnywhere, Category = "Effects")
+	float TimeToDisappear = 3.0f; // 特效播放完后，多久彻底销毁
+};

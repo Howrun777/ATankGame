@@ -1,0 +1,77 @@
+# Unreal Engine generated folders
+/Binaries/
+/DerivedDataCache/
+/Intermediate/
+/Saved/
+
+# Generated folders inside plugins
+/Plugins/*/Binaries/
+/Plugins/*/DerivedDataCache/
+/Plugins/*/Intermediate/
+/Plugins/*/Saved/
+
+# Local developer-only Unreal content
+/Content/Developers/
+
+# IDE and generated project files
+/.vs/
+*.sln
+*.suo
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.opendb
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+
+# Xcode generated files
+*.xcodeproj
+*.xcworkspace
+*.xcuserdata
+*.pbxuser
+*.mode1v3
+*.mode2v3
+
+# Build products and debug symbols
+*.obj
+*.o
+*.lo
+*.slo
+*.d
+*.gch
+*.pch
+*.dll
+*.dylib
+*.so
+*.lib
+*.a
+*.la
+*.lai
+*.exe
+*.out
+*.app
+*.pdb
+*.ilk
+*.exp
+
+# Packaged or cooked game output
+*.pak
+*.ucas
+*.utoc
+
+# Logs, caches, and temporary files
+*.log
+*.tmp
+*.temp
+*.bak
+*.cache
+*.swp
+*.swo
+*.utrace
+
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
