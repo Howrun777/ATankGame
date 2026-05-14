@@ -1,5 +1,6 @@
 
 #include "BasePawn.h"
+#include "BattleBlasterCollisionChannels.h"
 #include "Kismet/GameplayStatics.h"
 #include "TankPlayerController.h"
 #include "HealthComponent.h"
@@ -12,6 +13,8 @@ ABasePawn::ABasePawn()
 	CapsuleComp = CreateDefaultSubobject<UCapsuleComponent>(TEXT("CapsuleComp"));
 	SetRootComponent(CapsuleComp); // 设置为根
 	CapsuleComp->InitCapsuleSize(55.f, 100.f);
+	CapsuleComp->SetCollisionObjectType(ECC_Pawn);
+	CapsuleComp->SetCollisionResponseToChannel(BB_COLLISION_PROJECTILE, ECR_Block);
 
 	// 2. 创建底座网格，并附加到胶囊体上
 	BaseMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BaseMesh"));

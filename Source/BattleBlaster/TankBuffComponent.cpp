@@ -9,6 +9,7 @@
  */
 
 #include "TankBuffComponent.h"
+#include "BattleBlasterCollisionChannels.h"
 #include "Tank.h"
 #include "HealthComponent.h"
 #include "TankPlayerController.h"
@@ -258,6 +259,7 @@ void UTankBuffComponent::ApplySustainedBuffEffect(EBuffType BuffType)
 			// 这样既能穿透物理实体（不会被挡住），又能触发场景里陷阱和防御塔的警戒网！
 			RootComp->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Overlap);
 			RootComp->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Overlap);
+			RootComp->SetCollisionResponseToChannel(BB_COLLISION_PROJECTILE, ECR_Block);
 
 			UE_LOG(LogTemp, Warning, TEXT("物理穿墙已开启：已将碰撞改为 Overlap，保持雷达检测有效"));
 		}
@@ -349,6 +351,7 @@ void UTankBuffComponent::RemoveSustainedBuffEffect(EBuffType BuffType)
 			{
 				RootComp->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
 				RootComp->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Block);
+				RootComp->SetCollisionResponseToChannel(BB_COLLISION_PROJECTILE, ECR_Block);
 			}
 			// ==========================================
 
@@ -496,6 +499,7 @@ void UTankBuffComponent::OnEscapedFromGeometry()
 		{
 			RootComp->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
 			RootComp->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Block);
+			RootComp->SetCollisionResponseToChannel(BB_COLLISION_PROJECTILE, ECR_Block);
 		}
 		// ==========================================
 	}

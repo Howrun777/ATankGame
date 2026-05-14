@@ -1,4 +1,5 @@
 #include "Tank.h"
+#include "BattleBlasterCollisionChannels.h"
 #include "Blueprint/UserWidget.h"
 
 
@@ -130,6 +131,11 @@ ATank::ATank()
 void ATank::BeginPlay()
 {
 	Super::BeginPlay();
+	if (CapsuleComp)
+	{
+		CapsuleComp->SetCollisionObjectType(ECC_Pawn);
+		CapsuleComp->SetCollisionResponseToChannel(BB_COLLISION_PROJECTILE, ECR_Block);
+	}
 	BaseSpeed = Speed;
 
 	// === 优先从 PlayerState 读取已保存的出生点 ===

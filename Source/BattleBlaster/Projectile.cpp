@@ -1,5 +1,6 @@
 
 #include "Projectile.h"
+#include "BattleBlasterCollisionChannels.h"
 
 
 
@@ -28,6 +29,10 @@ AProjectile::AProjectile()
     ProjectileMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ProjectileMesh"));
     // 将网格体组件设为Actor的根组件（根组件决定Actor的位置/旋转/缩放，所有子组件附着到根组件）
     SetRootComponent(ProjectileMesh);
+    ProjectileMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    ProjectileMesh->SetCollisionObjectType(BB_COLLISION_PROJECTILE);
+    ProjectileMesh->SetCollisionResponseToAllChannels(ECR_Block);
+    ProjectileMesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
 
     // 创建炮弹移动组件（Unreal内置的弹道运动组件，自动处理抛物线、速度等物理运动）
     ProjectileMovementComp = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileMovementComp"));
@@ -48,6 +53,12 @@ AProjectile::AProjectile()
 void AProjectile::BeginPlay()
 {
 	Super::BeginPlay();
+	if (ProjectileMesh)
+	{
+		ProjectileMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		ProjectileMesh->SetCollisionObjectType(BB_COLLISION_PROJECTILE);
+		ProjectileMesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+	}
 	
 	ProjectileMesh->OnComponentHit.AddDynamic(this, &AProjectile::OnHit);
 

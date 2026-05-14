@@ -1,4 +1,5 @@
 #include "TurretProjectile.h"
+#include "BattleBlasterCollisionChannels.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "HealthComponent.h"
@@ -26,6 +27,10 @@ ATurretProjectile::ATurretProjectile()
 	// 创建碰撞组件
 	ProjectileMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ProjectileMesh"));
 	RootComponent = ProjectileMesh;
+	ProjectileMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	ProjectileMesh->SetCollisionObjectType(BB_COLLISION_PROJECTILE);
+	ProjectileMesh->SetCollisionResponseToAllChannels(ECR_Block);
+	ProjectileMesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
 	ProjectileMesh->SetNotifyRigidBodyCollision(true);
 
 	// 创建移动组件
@@ -47,6 +52,11 @@ ATurretProjectile::ATurretProjectile()
 void ATurretProjectile::BeginPlay()
 {
 	Super::BeginPlay();
+	if (ProjectileMesh)
+	{
+		ProjectileMesh->SetCollisionObjectType(BB_COLLISION_PROJECTILE);
+		ProjectileMesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+	}
 	LifeTime = 0.0f;
 	// 💡新增：让炮弹的物理碰撞彻底忽略炮塔，防止炮弹把炮塔挤开
 	if (GetOwner() && ProjectileMesh)
