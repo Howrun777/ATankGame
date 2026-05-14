@@ -1,680 +1,1099 @@
-# BattleBlaster 开发者指南 — 架构与系统说明
+# BattleBlaster 开发者指南
 
-> **适用版本**：基于当前代码库（2026-03-25）  
-> **目标读者**：接手本项目的新程序、想深入理解架构的在职同事  
-> **前置知识**：熟悉 Unreal Engine 5 C++ 开发，了解 Gameplay 框架（GameMode、GameState、PlayerState、Controller、Component）
+> 基于当前代码库整理：2026-05-15
+> 目标：给继续开发本项目的人一张真实的代码地图，同时给后续按功能模块整理 `Source/BattleBlaster` 提供迁移建议。
 
 ---
 
-## 1. 核心类继承关系图（Class Hierarchy）
+## 0. 先说结论
 
-### 1.1 Pawn / Actor 体系
+当前项目的 `Source/BattleBlaster` 目录确实已经变成了一个扁平的大目录，但它不是“改不了了”。真正需要谨慎的是两件事：
 
-```
+1. **不要第一步就重命名 UCLASS / USTRUCT / UENUM 名字。** 只移动 `.h/.cpp` 文件并更新 `#include`，风险比重命名类小得多。
+2. **不要把代码文件分类成 Header/Source/UI 这种文件类型结构。** 这个项目更适合按玩法功能模块分类：开发 MOBA 时，MOBA 的 GameMode、GameState、PlayerState、UI、Turret 应该靠在一起。
+
+特别纠正一个容易误判的点：
+
+- `ATower` 是游戏里的 NPC / 敌方塔楼，继承自 `ABasePawn`，当前主要被 `TankStageGameMode` 和 AI 目标系统使用。它不是 Defense 模式代码。
+- `ATurret` 才是 MOBA 防御塔，继承自 `ADestructibleProp`，由 `TankMOBAGameState` 注册和管理。
+- `ADefenseGameMode` 当前还没有实际玩法代码，只有空类。
+
+---
+
+## 1. 真实类图
+
+### 1.1 Pawn / Actor
+
+```text
 APawn
-└── ABasePawn                          （战斗体系基类）
-    ├── ATank                          （玩家/AI 坦克）
-    └── ATower                         （敌人塔楼，PvE 用）
-        └── [注意] ATurret             （MOBA 防御塔，继承自 ADestructibleProp，非 ABasePawn）
+└── ABasePawn
+    ├── ATank                         玩家 / AI 坦克
+    └── ATower                        NPC 塔楼敌人，继承 BasePawn
 
-AActor                                 （所有可放置物体的根类）
-├── AProjectile                        （玩家炮弹）
-├── ATurretProjectile                  （MOBA 塔的追踪弹）
-├── ABuffPickup                        （地图可拾取 Buff）
-├── ADestructibleProp                  （可破坏物基类）
-│   ├── AExplosiveBarrel               （油桶）
-│   ├── AWoodenCrate                   （木箱）
-│   └── ATurret                        （MOBA 防御塔，继承 ADestructibleProp）
-├── ARisingGate                        （升降闸门）
-├── ASpikeTrap                         （尖刺陷阱）
-├── ASlideTrack                        （滑动轨道）
-└── ATeleportPortal                   （传送门）
+AActor
+├── AProjectile                       Tank / Tower 使用的普通炮弹
+├── ATurretProjectile                 MOBA Turret 使用的追踪弹
+├── ABuffPickup                       地图 Buff 拾取物
+├── ADestructibleProp                 可破坏物基类
+│   ├── AExplosiveBarrel              爆炸油桶
+│   ├── AWoodenCrate                  木箱
+│   └── ATurret                       MOBA 防御塔，继承 DestructibleProp
+├── ARisingGate                       升降门
+├── ASlideTrack                       滑道 / 加减速轨道
+├── ASpikeTrap                        尖刺陷阱
+└── ATeleportPortal                   传送门
 ```
 
-**ABasePawn 职责**：封装所有坦克类共有的组件和逻辑。
-- `UCapsuleComponent* CapsuleComp` — 碰撞体
-- `UStaticMeshComponent* BaseMesh` — 坦克底座
-- `UStaticMeshComponent* TurretMesh` — 炮塔（独立旋转）
-- `USceneComponent* ProjectileSpawnPoint` — 炮弹生成点
-- `UHealthComponent* HealthComp` — 生命值管理
-- `TSubclassOf<AProjectile> ProjectileClass` — 炮弹类引用
-- `float Fire_LastTime` — 上次开火时间（控制射速）
+### 1.2 Controller
 
-**ATank 扩展**（继承 ABasePawn）：
-- `UTankBuffComponent* BuffComp` — Buff 状态管理
-- `USpringArmComponent* SpringArmComp` + `UCameraComponent* CameraComp` — 第三人称相机
-- `UCameraComponent* ScopeCameraComp` — 开镜时使用的炮管相机
-- Enhanced Input 动作映射（MoveAction、FireAction、IA_Aim_Toggle、IA_Aim_Hold 等）
-- Buff 标记（`bHasInfiniteAmmo`、`bHasDamageBoost` 等，均为 bool）
-- 击杀奖励：`AmmoReward`（默认 10）、`HealthReward`（默认 25）
+```text
+APlayerController
+├── ATankPlayerController             战斗内玩家控制器，管理 HUD、暂停、回城、MOBA 死亡/淘汰 UI
+└── AUIPlayerController               菜单控制器，记录输入设备映射
 
-**ATower 扩展**（继承 ABasePawn）：
-- `USphereComponent* DetectionSphere` — 警戒网
-- `TArray<ATank*> TargetsInRange` — 范围内目标列表
-- 敌人塔楼的复活逻辑（多玩家模式下 60 秒后满血重生）
-- 难度系数扩展（`CurrentDifficultyMultiplier`）
-
----
-
-### 1.2 Controller 体系
-
-```
-AController
-├── APlayerController                  （玩家控制器基类）
-│   ├── ATankPlayerController          （战斗 UI 管理、输入处理）
-│   └── AUIPlayerController            （菜单导航专用）
-└── AAIController                     （AI 控制器基类）
-    ├── AAIBotPlayerController         （完整战斗 AI，含状态机）
-    └── ABotTankController             （简单随机移动 AI）
+AAIController
+├── AAIBotPlayerController            完整战斗 AI，带目标列表、状态机、预测射击
+└── ABotTankController                简单随机移动 AI
 ```
 
-**ATankPlayerController 职责**：
-不直接控制坦克移动（移动由 Enhanced Input System 绑定到 Pawn），而是负责：
-- 在 `BeginPlay` 中创建所有 HUD Widget 实例（HUDWidget、AmmoWidget、BuffListWidget、PassWidget、KDAWidget）
-- 响应 Tank 的事件来刷新 UI（`UpdateHealthHUD`、`UpdateKDA`）
-- 管理暂停菜单、死亡界面、观战系统的显示/隐藏
-- 在 `Tick` 中每帧更新 ReturnProgressWidget（返回出生点进度条）
+### 1.3 GameMode / GameState / PlayerState
 
-**AAIBotPlayerController 职责**（最复杂的 AI 类）：
-- 完整状态机：`EAICombatState = { Idle, Chase, Strafe, KeepDistance, Flee, TakeCover, Ambush }`
-- 战术动作：`ETacticalMoveType = { CircleLeft, CircleRight, ForwardStrafe, BackwardStrafe, RandomStrafe }`
-- 威胁评估：维护 `AttackTargetList[]`，选择最优目标
-- 预测射击：计算提前量
-- 躲避行为：DodgeChance、PredictDodgeInterval
-- 感知回调：`OnAttackedBy()` 接收伤害时更新仇恨目标
-
-**ABotTankController 职责**：
-仅提供随机方向移动（`DirectionChangeInterval = 2.0s`），用于不需要复杂 AI 的简单坦克行为场景。
-
----
-
-### 1.3 GameState / PlayerState 体系
-
-#### GameState 继承链（每个游戏模式一份）
-
-```
-AGameState
-└── ATankGameState                     （所有模式的基类）
-    ├── ATankBattleGameState            （自由死斗模式）
-    ├── ATankStageGameState             （关卡闯关模式）
-    ├── ATankMOBAGameState              （MOBA 对战模式）
-    └── ATeamBattleGameState            （团队死斗模式）
-```
-
-- `ATankGameState`：记录 `MatchTimeSeconds`、`CountdownSeconds`、`EGameStatus`（Waiting/Countdown/Playing/Ended）
-- `ATankBattleGameState`：记录 `WinnerIndex`、`TargetScore`、`PlayerScores[]`（每人独立分数）
-- `ATankStageGameState`：记录 `RemainingTowerCount`、`CurrentWave`/`TotalWaves`、`bIsVictory`
-- `ATankMOBAGameState`：记录 `AllTowers[]`、`CoreTurretCountByCamp[]`（每阵营主塔数）、`OuterTurretCountByCamp[]`
-- `ATeamBattleGameState`：记录 `TeamScores[]`（红=0、蓝=1）、`WinnerCampIndex`
-
-#### PlayerState 继承链
-
-```
-APlayerState
-└── ATankPlayerState                   （通用玩家状态）
-    ├── ATankBattlePlayerState          （死斗：无敌标记、复活时间）
-    ├── ATankStagePlayerState           （闯关：剩余生命、关卡分）
-    ├── ATankMOBAPlayerState            （MOBA：阵营索引、永久淘汰标记）
-    └── ATeamBattlePlayerState          （团队：红/蓝阵营、团队得分贡献）
-```
-
-- `ATankPlayerState` 是核心基类：KDA（`KillCount`/`DeathCount`/`AssistCount`）、`AttackerQueue[]`（7 秒仇人追踪）、`CurrentAmmo`、`RecordAttacker()`、`ProcessDeath()`、`HandleKillConfirmed()`（子类重写）
-- `ATankMOBAPlayerState`：`bIsEliminated`（永久淘汰）、`CalculateRespawnDelay()`（随时间递增的复活延迟，上限 10 秒）
-
----
-
-### 1.4 模式类的派生关系
-
-```
+```text
 AGameMode
-├── ABattleBlasterGameMode             （2.5 自由死斗）
-├── ATankStageGameMode                 （2.3 关卡闯关）
-├── ATankMOBAGameMode                  （2.2 MOBA 对战）
-├── ATeamBattleGameMode                （2.1 团队死斗）
-├── ADefenseGameMode                   （2.4 防守模式，占位空壳）
-├── ATestGameMode                      （测试用）
-└── AMainMenuGameMode                  （主菜单）
-```
+├── AMainMenuGameMode                 主菜单
+├── ABattleBlasterGameMode            多人自由死斗
+├── ATeamBattleGameMode               2v2 团队死斗
+├── ATankMOBAGameMode                 MOBA 模式
+├── ATankStageGameMode                单人闯关 / PVE
+├── ADefenseGameMode                  Defense 占位空类
+└── ATestGameMode                     测试 UI 模式
 
-每个 GameMode 的核心职责都是：
-1. 在 `BeginPlay` 中生成玩家坦克和出生点
-2. 绑定死亡事件到 `HandleTankKilled`
-3. 驱动复活逻辑
-4. 判定胜负条件
-5. 显示/隐藏结算 UI
+AGameState
+└── ATankGameState
+    ├── ATankBattleGameState
+    ├── ATeamBattleGameState
+    ├── ATankMOBAGameState
+    └── ATankStageGameState
 
----
-
-## 2. 组件化设计（Component Pattern）
-
-### 2.1 UHealthComponent — 生命值、受击与死亡广播
-
-**注册位置**：`ABasePawn::SetupPlayerInputComponent()` 或直接在 ABasePawn 构造函数中 `HealthComp = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComp"))`
-
-**核心数据**：
-```cpp
-UPROPERTY(EditAnywhere, Category = "Health")
-float MaxHealth = 200.0f;
-
-UPROPERTY(VisibleAnywhere, Category = "Health")
-float CurrentHealth;
-
-UPROPERTY(EditAnywhere, Category = "Shield")
-float MaxShield = 100.0f;
-
-UPROPERTY(VisibleAnywhere, Category = "Shield")
-float CurrentShield;
-```
-
-**两个核心 Multicast Delegate**：
-
-```cpp
-// 生命值变化时广播（护盾优先扣减）
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_SixParams(FOnHealthChangedSignature,
-    UHealthComponent*, HealthComp,
-    float, Health,
-    float, HealthDelta,
-    const class UDamageType*, DamageType,
-    class AController*, InstigatedBy,
-    AActor*, DamageCauser);
-
-// 死亡时广播
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnDeathSignature,
-    UHealthComponent*, HealthComp,
-    class AController*, InstigatedBy,
-    AActor*, DamageCauser);
-```
-
-**护盾扣减逻辑（ApplyDamage）**：
-```
-当前护盾 > 0 → 优先扣护盾，护盾扣完后才开始扣生命
-当前护盾 = 0 → 直接扣生命
-护盾不影响生命上限显示（护盾耗尽时 HealthBar 始终显示 100%）
-```
-
-**受击处理流程**：
-```
-ApplyDamage()
-  → 当前护盾 > 0？
-      是 → CurrentShield -= Damage，HealthDelta = 0，广播 OnHealthChanged
-      否 → CurrentHealth -= Damage，HealthDelta = -Damage，广播 OnHealthChanged
-  → CurrentHealth <= 0？
-      是 → 广播 OnDeath → 触发 Owner 的 HandleDestruction()
-```
-
-**子类使用方式**：
-```cpp
-// 在 ATank 的 BeginPlay 中：
-HealthComp->OnHealthChanged.AddDynamic(this, &ATank::HandleHealthChanged);
-HealthComp->OnDeath.AddDynamic(this, &ATank::HandleDeath);
-
-// ATank::HandleDeath 内部：
-// 1. 调用父类 ABasePawn::HandleDeath()（销毁炮弹特效等）
-// 2. 计算 KillerTank（通过 AttackerQueue[0]）
-// 3. 播放死亡特效和音效
-// 4. 隐藏 Tank 5 秒（5 秒后物理体重生）
-// 5. 广播 OnKilled（GameMode 监听）
-// 6. 调用 PlayerState->ProcessDeath()
-// 7. 记录最后伤害来源
+APlayerState
+└── ATankPlayerState
+    ├── ATankBattlePlayerState
+    ├── ATeamBattlePlayerState
+    ├── ATankMOBAPlayerState
+    └── ATankStagePlayerState
 ```
 
 ---
 
-### 2.2 UTankBuffComponent — Buff 状态管理
+## 2. 全局入口与跨关卡数据
 
-**Owner 引用**：
+### 2.1 模块配置
+
+`BattleBlaster.Build.cs` 当前依赖：
+
+- `Core`, `CoreUObject`, `Engine`
+- `InputCore`, `EnhancedInput`, `ApplicationCore`
+- `UMG`, `Slate`, `SlateCore`
+- `Niagara`
+- `AIModule`
+
+这说明项目核心方向很明确：本地分屏、UMG UI、Niagara 表现、AI Controller。
+
+### 2.2 `UBattleBlasterGameInstance`
+
+`UBattleBlasterGameInstance` 是菜单和关卡之间传递数据的中心。它不属于某一个模式，而是跨关卡保存运行期状态。
+
+主要职责：
+
+- 多人设置：`TargetPlayerCount`, `TargetMatchScore`
+- 坦克选择：`SelectedTankClasses`
+- 手柄 / AI 配置：`ConnectedGamepadCount`, `AIControlledPlayerIndices`, `RegisterPlayerDeviceMapping`
+- 单人闯关进度：`CurrentLevelIndex`, `BestLevelRecord`, `CampaignLevelNames`
+- 难度：`DifficultyCoefficientK`, `GetDifficultyMultiplier`
+- 单人跨关携带状态：`FPlayerCarryState`
+- 多人死斗历史榜：`MultiBattleHistory`
+- 菜单返回目标：`ReturnToMenuType`, `PendingMainMenuWidgetClass`
+
+注意：`GameInstance` 数据只在本次进程内存在。持久化由两个 SaveGame 类负责：
+
+- `UBattleBlasterSaveGame`：当前关卡、历史最高关卡。
+- `UBattleBlasterHistorySaveGame`：多人死斗历史战绩前 50 条。
+
+### 2.3 碰撞通道
+
+项目新增了一个自定义 Object Channel：
+
 ```cpp
-UPROPERTY()
-TWeakObjectPtr<ATank> OwnerTank;
+#define BB_COLLISION_PROJECTILE ECC_GameTraceChannel1
 ```
 
-**数据结构**：
-```cpp
-TMap<EBuffType, FActiveBuffUIInfo> ActiveBuffs;
-// EBuffType = { None, Heal, Ammo, Speed, Pierce, Ghost, Damage, DoubleShot, Shield, RandomIcon }
-// FActiveBuffUIInfo = { Type, Icon, RemainingTime }
-```
+配置位置：
 
-**一次性 Buff（立刻生效，无持续时间）**：
-| Buff | 效果 |
-|------|------|
-| **Heal** | 生命值恢复至 MaxHealth |
-| **Shield** | 添加 MaxHealth×50% 的护盾值 |
+- `Source/BattleBlaster/BattleBlasterCollisionChannels.h`
+- `Config/DefaultEngine.ini`
 
-**持续性 Buff（通过 Timer 管理）**：
-| Buff | 持续时间 | 效果 |
-|------|---------|------|
-| **Ammo** | 30s | 弹药无限（UI 显示 9999） |
-| **Speed** | 30s | 移速 200%，最后 10 秒线性衰减至 100% |
-| **Damage** | 30s | 炮弹伤害 ×2，炮弹外观替换 |
-| **Pierce** | 30s | 炮弹可穿透墙体和敌人 |
-| **DoubleShot** | 30s | 每次开火 2 发，偏移 50cm |
-| **Ghost** | 30s | 可穿越墙体；结束时若卡墙触发窒息状态 |
+约定：
 
-**Ghost 窒息系统（最危险的边界情况）**：
-```
-Ghost Buff 结束
-  → 检查 Tank 是否在墙体内部（LineTraceByObject）
-  → 是 → 进入窒息状态：
-        每隔 SuffocationDamageInterval（1s）扣 SuffocationDamagePerTick（10）点生命
-        最多持续 MaxSuffocationTime（999s）
-        显示 SuffocationWidget
-        播放 SuffocationSound
-  → 否 → 正常退出 Ghost
-```
-
-**AddBuff 内部流程**：
-```
-AddBuff(Type, Duration, Icon)
-  1. 若为一次性（Heal/Shield）：立刻执行效果
-  2. 若为持续性：
-     - 若已存在该 Buff：叠加时间（RemainingTime += Duration）
-     - 若不存在：新建 ActiveBuffs[Type]，启动定时器
-  3. 通知 UI 更新（BuffListWidget 刷新）
-```
-
-**RestoreBuffs**：复活时从 GameMode 保存的 `PlayerSavedBuffs[]` 恢复所有激活 Buff 的类型、剩余时间、图标。
+- `Projectile` 通道用于炮弹。
+- `ATank` / `ABasePawn` 的胶囊体必须 `Block` 这个通道。
+- `AProjectile` 和 `ATurretProjectile` 默认 `BlockAll`，因此炮弹相撞会阻挡。这是当前设计特性，不应该随手取消。
+- 穿墙 Buff 只让炮弹忽略 `WorldStatic` / `WorldDynamic` / `PhysicsBody`，不能忽略 `Pawn`。
+- Ghost Mode 只改变坦克对世界几何的响应，不能让坦克忽略 `Projectile`。
 
 ---
 
-## 3. 游戏模式与状态管理
+## 3. 共享战斗层
 
-### 3.1 UBattleBlasterGameInstance — 全局单例
+### 3.1 `ABasePawn`
 
-`UBattleBlasterGameInstance` 是整个游戏进程中**唯一**存在的非 Actor 实例（通过 `GetGameInstance()` 随时获取），承担以下全局职责：
+`ABasePawn` 是坦克和 NPC Tower 的共同父类。
 
-**跨关卡状态继承**（`FPlayerCarryState`）：
+组件：
+
+- `UCapsuleComponent* CapsuleComp`
+- `UStaticMeshComponent* BaseMesh`
+- `UStaticMeshComponent* TurretMesh`
+- `USceneComponent* ProjectileSpawnPoint`
+- `UHealthComponent* HealthComp`
+
+核心函数：
+
+- `RotateTurret(FVector LookAtTarget)`：让炮塔水平旋转到目标方向。
+- `Fire()`：按 `Fire_Interval` 冷却生成 `AProjectile`。
+- `HandleDestruction()`：播放死亡 Niagara、音效、CameraShake。
+
+当前 `ABasePawn` 构造函数里已经设置：
+
 ```cpp
-// 当前生命值（跨关继承）
-float Health;
-// 当前弹药数（跨关继承）
-int32 Ammo;
-// 7 种 Buff 是否激活（跨关继承）
-bool bHasInfiniteAmmo, bHasDamageBoost, bHasBulletPierce,
-     bHasDoubleShot, bIsGhostMode, bHasSpeedBoost, bHasShield;
-// 每种 Buff 剩余持续时间
-float BuffTimeRemaining[6];
-// 每种 Buff 对应图标
-UTexture2D* BuffIcons[6];
+CapsuleComp->SetCollisionObjectType(ECC_Pawn);
+CapsuleComp->SetCollisionResponseToChannel(BB_COLLISION_PROJECTILE, ECR_Block);
 ```
 
-**游戏设置（菜单 → 游戏的数据传递）**：
-```cpp
-int32 TargetPlayerCount;           // 目标玩家数（默认 2）
-int32 TargetMatchScore;            // 胜利目标分数（默认 7）
-TArray<TSubclassOf<ATank>> SelectedTankClasses;  // 各槽位选择的坦克类
-int32 ConnectedGamepadCount;       // 检测到的手柄数量
+这意味着所有继承 `ABasePawn` 的单位都应该被炮弹命中，包括 `ATank` 和 `ATower`。
+
+### 3.2 `ATank`
+
+`ATank` 是玩家和 AI 都使用的坦克 Pawn。
+
+扩展组件：
+
+- `UTankBuffComponent* BuffComp`
+- `USpringArmComponent* SpringArmComp`
+- `UCameraComponent* CameraComp`
+- `UCameraComponent* ScopeCameraComp`
+- `UFloatingPawnMovement* PawnMovementComponent`
+
+主要系统：
+
+- Enhanced Input：移动、转向、开火、炮塔旋转、开镜。
+- 开镜：键鼠切换、手柄按住，使用 `AddToPlayerScreen()` 适配分屏。
+- 弹药：`CurrentAmmo`, `MaxAmmo`, `SetAmmo()` 同步到 PlayerState。
+- Buff 标记：无限子弹、伤害提升、子弹穿墙、双发、Ghost。
+- 回城协作：移动和开火都会检查 `ATankPlayerController::bIsHoldingReturnToSpawn`。
+- AI 移动入口：`MoveAI()` 和 `MoveWithAI()`。
+
+真实死亡链路：
+
+```text
+HealthComponent::OnDeath
+  -> ATank::HandleDeath
+      -> CachedKiller = InstigatedBy Pawn 或 DamageCauser
+      -> HandleDestruction()
+      -> ATankPlayerState::ProcessDeath()
+          -> DeathCount++
+          -> 从 AttackerQueue 结算 Killer / Assist
+          -> KillerTank->HandleKillReward()
+          -> DeadTank->OnKilled.Broadcast(DeadTank, KillerTank)
 ```
 
-**存档管理**：
-```cpp
-// 战役进度存档（当前关卡、历史最高）
-// 历史战绩存档（MultiBattleHistory 前 50 条）
-```
+也就是说，当前真正广播 `OnKilled` 的地方是 `ATankPlayerState::ProcessDeath()`，不是 `ATank::HandleDeath()` 直接广播。
 
-**关卡管理**：
-```cpp
-TArray<FName> CampaignLevelNames;     // 关卡名称列表
-int32 CurrentLevelIndex;               // 当前关卡序号（从 1 开始）
-int32 DifficultyCoefficientK;          // 难度系数（默认 1.2）
-```
+### 3.3 `UHealthComponent`
 
-**计时**：`CampaignAccumulatedTime` — 跨关累计游戏时长（精确到秒）
+`UHealthComponent` 是通用生命组件，不写 Tank 专属逻辑。
 
-**重要提示**：GameInstance 中的数据在**进程退出后不持久化**。持久化依赖 `UBattleBlasterSaveGame` 和 `UBattleBlasterHistorySaveGame`。
+数据：
 
----
+- `MaxHealth`
+- `CurrentHealth`
+- `MaxShield`
+- `CurrentShield`
 
-### 3.2 各 GameMode 的游戏进程驱动方式
+事件：
 
-所有模式共享以下通用模式：
+- `OnHealthChanged`
+- `OnDeath`
 
-```
+运行方式：
+
+```text
 BeginPlay
-  → 读取 GameInstance 中的配置（TargetPlayerCount、TargetMatchScore 等）
-  → 初始化 GameState（InitializePlayerData）
-  → 查找 PlayerStart 出生点（Tag: P0/P1/P2/P3）
-  → Spawn 坦克 + Controller（真人或 AI）
-  → 创建 HUD / ScoreBoard UI
-  → 启动开场倒计时（Get Ready! → 3 → 2 → 1 → GO!）
-  → 比赛计时（MatchTimerHandle，每秒 +1）
+  -> Owner->OnTakeAnyDamage.AddDynamic(OnDamageTaken)
 
-比赛过程中：
-  Tank 死亡 → OnKilled → GameMode::HandleTankKilled → 更新分数 → 胜负判定 / 复活
-
-比赛结束：
-  触发胜利特效（Niagara）→ 停止比赛计时 → 显示结算 Widget
+ApplyDamage / ApplyRadialDamage
+  -> Owner::TakeDamage
+  -> OnTakeAnyDamage
+  -> UHealthComponent::OnDamageTaken
+      -> 先扣 Shield
+      -> 再扣 Health
+      -> Broadcast OnHealthChanged
+      -> Health <= 0 时 Broadcast OnDeath
 ```
+
+`Heal()` 和 `AddShield()` 也会广播 `OnHealthChanged`，所以 UI 依赖这个事件刷新是合理的。
+
+### 3.4 `AProjectile`
+
+`AProjectile` 是普通炮弹，当前由 `ATank` 和 `ATower` 使用。
+
+核心行为：
+
+- `ProjectileMesh` 是根组件。
+- ObjectType 是 `BB_COLLISION_PROJECTILE`。
+- 默认 `BlockAll`，并且 `Block Pawn`。
+- `BeginPlay()` 绑定 `OnComponentHit`。
+- 默认生命周期 6 秒。
+
+命中处理：
+
+```text
+OnHit
+  -> 空目标 / 自己：Destroy
+  -> 命中 Owner：Destroy
+  -> AttackerTank vs VictimTank 阵营检查
+      -> MOBA：同 PlayerIndex 不伤害
+      -> TeamBattle：同红蓝阵营不伤害
+  -> 命中 APawn：ApplyDamage，然后 Destroy
+  -> 命中 ADestructibleProp：ApplyDamage，然后 Destroy
+  -> 命中墙/障碍：
+      -> 无 Pierce：播放命中特效并 Destroy
+      -> 有 Pierce：通常不会进这里，因为已忽略世界碰撞
+```
+
+Pierce Mode 当前只忽略：
+
+- `ECC_WorldStatic`
+- `ECC_WorldDynamic`
+- `ECC_PhysicsBody`
+
+并保留：
+
+- `ECC_Pawn = Block`
+
+所以玩家子弹穿墙时仍然应该击中 Tank / Tower。
+
+### 3.5 `ATurretProjectile`
+
+`ATurretProjectile` 是 MOBA 防御塔专用追踪弹。
+
+特点：
+
+- ObjectType 也是 `BB_COLLISION_PROJECTILE`。
+- 默认 `BlockAll`。
+- 持有 `TargetActor`, `Damage`, `Speed`, `CampIndex`。
+- `Tick()` 中持续把速度方向指向目标。
+- `OnHit()` 对 APawn 做阵营判断后 ApplyDamage。
+
+它不处理穿墙 Buff，因为它不是玩家 Tank 的普通炮弹。
+
+### 3.6 `UTankBuffComponent`
+
+Buff 类型来自 `BuffTypes.h`：
+
+- `Heal`
+- `Ammo`
+- `Speed`
+- `Pierce`
+- `Ghost`
+- `Damage`
+- `DoubleShot`
+- `Shield`
+- `RandomIcon`
+
+一次性 Buff：
+
+- `Heal`：`HealthComp->ResetHealth()`
+- `Shield`：添加 `MaxHealth * 0.5f` 护盾
+
+持续性 Buff：
+
+- `Ammo`：`bHasInfiniteAmmo = true`，UI 显示 9999。
+- `Speed`：速度变为 `BaseSpeed * 2`，最后 10 秒线性衰减。
+- `Pierce`：`bHasBulletPierce = true`，Tank 开火时调用 `Projectile->EnablePierceMode()`。
+- `Ghost`：`bIsGhostMode = true`，世界几何改为 Overlap，但 Projectile 保持 Block。
+- `Damage`：炮弹伤害翻倍并换强化表现。
+- `DoubleShot`：每次发两发，左右偏移。
+
+Ghost 结束时有两条路径：
+
+```text
+不在墙里
+  -> bIsGhostMode = false
+  -> WorldStatic / WorldDynamic 恢复 Block
+  -> Projectile 继续 Block
+
+卡在墙里
+  -> 保持 bIsGhostMode = true
+  -> 进入窒息状态
+  -> 定时扣血
+  -> 离开墙体后 OnEscapedFromGeometry()
+      -> 恢复世界碰撞
+      -> Projectile 继续 Block
+```
+
+### 3.7 `ATankPlayerState`
+
+这是 KDA 和死亡归因的核心。
+
+关键数据：
+
+- `PlayerIndex`
+- `TeamID`
+- `IsAlive`
+- `HomeSpawnLocation`, `HomeSpawnRotation`
+- `CurrentAmmo`
+- `KillCount`, `DeathCount`, `AssistCount`
+- `CurrentBuffs`
+- `AttackerQueue`
+
+`RecordAttacker(ATank* Attacker)` 会把最近攻击者放到队头。`ProcessDeath()` 中：
+
+- 自己死亡数 +1。
+- 队头攻击者算 Killer。
+- 其他有效攻击者算 Assist。
+- Killer 触发 `HandleKillConfirmed()` 和 `HandleKillReward()`。
+- 刷新相关真人玩家 KDA UI。
+- 广播 `DeadTank->OnKilled` 给 GameMode。
+
+各模式 PlayerState 的差异：
+
+- `ATankBattlePlayerState`：无敌状态、复活时间。
+- `ATeamBattlePlayerState`：红蓝阵营、团队贡献，重写 `HandleKillConfirmed()` 给团队加分。
+- `ATankMOBAPlayerState`：CampIndex、死亡、等待复活、永久淘汰、复活时间增长。
+- `ATankStagePlayerState`：剩余生命、关卡分、PVE 击杀数。
 
 ---
 
-## 4. 所有系统工作流（Workflow）
+## 4. 共享 AI 层
 
-### 4.1 伤害与死亡结算流（完整链路）
+### 4.1 `AAIBotPlayerController`
 
-```
-① AProjectile::OnHit()           （炮弹命中某个 Actor）
-  └─ UGameplayStatics::ApplyDamage(Target, Damage, InstigatedController, this, DamageTypeClass)
-       ├─ 命中 ATank
-       │    └─ ATank::TakeDamage()（继承自 AActor::TakeDamage）
-       │         ├─ 检查 friendly fire（若是友军炮弹则忽略伤害）
-       │         └─ HealthComp->ApplyDamage(Damage, InstigatedController, DamageCauser)
-       │              ├─ ATank::HandleHealthChanged()
-       │              │    ├─ ATankPlayerController::UpdateHealthHUD()
-       │              │    ├─ ATankPlayerController::TriggerDamageVibration()
-       │              │    └─ ATank::NotifyAttackedBy(KillerController)
-       │              │         └─ AAIBotPlayerController::OnAttackedBy()
-       │              │              └─ 更新仇恨目标，开始反击
-       │              │
-       │              └─ 若 CurrentHealth <= 0 → 广播 HealthComp->OnDeath
-       │
-       ├─ 命中 ADestructibleProp（油桶/木箱）
-       │    └─ DestructibleProp->HealthComp->ApplyDamage()
-       │         └─ HealthComp->OnDeath 广播
-       │              └─ ADestructibleProp::OnPropDestroyed()（自定义行为）
-       │                   ├─ AExplosiveBarrel::HandleDestruction() → 范围伤害
-       │                   ├─ AWoodenCrate::HandleDestruction() → 破碎特效
-       │                   └─ ATurret::HandleDestruction() → 通知 MOBAGameState
-       │
-       └─ 命中 ATower（敌人塔楼）
-            └─ ATower::TakeDamage()
-                 └─ ATower::HealthComp->ApplyDamage()
-                      └─ ATower::HandleTowerDeath()
-                           └─ ATankStageGameMode::HandleTowerDestroyed()
-                                └─ ATankStageGameState::DecreaseTowerCount()
-                                     └─ 检查是否全部塔楼已摧毁 → 通关
+这是当前项目的主要 AI。
 
-② ATank::HandleDeath()（由 HealthComp->OnDeath 触发）
-  ├─ ABasePawn::HandleDestruction()         （销毁炮弹、停止武器音频）
-  ├─ 计算 KillerTank（通过 ATankPlayerState::AttackerQueue[0]）
-  ├─ 播放死亡特效 + 音效 + CameraShake
-  ├─ 5 秒后隐藏 + 物理体重生（5s 后调用 DestroyActor）
-  ├─ ATank::OnKilled.Broadcast(DeadTank, KillerTank)
-  │    └─ 各 GameMode::HandleTankKilled()  ← 核心结算点
-  │         ├─ 保存死亡玩家的 Buff 信息
-  │         ├─ 若有凶手（KillerTank != nullptr 且 KillerIndex != VictimIndex）
-  │         │    └─ BBGameState->AddPlayerScore(KillerIndex, +1)
-  │         │         ATankMOBAPlayerState->HandleKillConfirmed()（空实现）
-  │         │         ATeamBattlePlayerState->HandleKillConfirmed() → TeamGameState->AddTeamScore()
-  │         │    否则（自杀/塔杀）
-  │         │         BBGameState->AddPlayerScore(VictimIndex, -1)（最低 0）
-  │         ├─ 更新比分板 UI（ScoresDisplayWidget）
-  │         ├─ 胜负判定（遍历所有玩家分数 >= TargetScore？）
-  │         │    ├─ 有胜者 → 触发胜利特效 → 弹出 GameOverWidget
-  │         │    └─ 无胜者 → 启动复活倒计时（RespawnPlayer，2s 后）
-  │         └─ ATankPlayerState::ProcessDeath()（在 HandleDeath 内调用）
-  │              ├─ 记录死亡（DeathCount++）
-  │              ├─ ATankPlayerState::RefreshKDAUI()
-  │              │    └─ ATankPlayerController::UpdateKDA()
-  │              ├─ 若有凶手 → AssistCount 记录到助攻者
-  │              └─ ATankPlayerState::HandleKillConfirmed()（子类重写）
-  │
-  └─ ATankPlayerState::ProcessDeath()（上面第 7 步）
-       ├─ ATankBattlePlayerState::HandleKillConfirmed() → 空实现（分数已由 GameMode 处理）
-       ├─ ATankStagePlayerState::HandleKillConfirmed() → 空实现（PvE 不记分）
-       ├─ ATankMOBAPlayerState::HandleKillConfirmed() → 空实现（塔杀不计分）
-       └─ ATeamBattlePlayerState::HandleKillConfirmed()
-            └─ 检查跨阵营击杀 → TeamGameState->AddTeamScore(KillerCamp, +1)
+默认攻击过滤类型：
 
-③ ATank::RespawnPlayer()（复活流程）
-  ├─ 在己方出生点 Spawn 新 Tank
-  ├─ 找到原来的 Controller（通过 PlayerIndex 匹配 PlayerState）→ Possess 新 Tank
-  ├─ 若为 AI Controller → 重置战斗状态（CurrentCombatState = Idle, CurrentTarget = nullptr）
-  ├─ 设置生命值 = MaxHealth × 0.5
-  ├─ 设置弹药 = max(默认弹药 × 0.5, 死亡前保存的弹药)
-  ├─ 恢复保存的 Buff（PlayerSavedBuffs 数组）
-  ├─ 开启无敌状态（SetCanBeDamaged(false)，持续 3 秒）
-  ├─ 播放复活 Niagara 特效
-  └─ 3 秒后 EndInvincibility() → SetCanBeDamaged(true)
+- `ATank`
+- `ATower`
+- `ATurret`
 
-### 4.1.1 MOBA 模式游戏结束判定逻辑（2026-04-01 修订）
+重点机制：
 
-**核心设计原则**：死亡 ≠ 淘汰，复活期间不会触发游戏结束检查。
+- `bWantsPlayerState = true`，让 AI 也有 PlayerState，能参与 KDA / 分数逻辑。
+- `AttackTargetList` 保存候选目标。
+- `IsEnemy()` 在团队模式下检查红蓝阵营；非 Tank 目标默认视为敌对。
+- `RefreshTargetFromAttackList()` 固定频率清理无效目标并选择最近目标。
+- `OnAttackedBy()` 让 AI 受到攻击后把攻击者加入目标列表。
+- 战斗状态机：Idle、Chase、Strafe、KeepDistance、Flee、TakeCover、Ambush。
+- 难度档位：Easy、Normal、Hard、Insane。
 
-#### 游戏结束触发时机
+对分类很重要的一点：AI 同时知道 `ATower` 和 `ATurret`，所以它不属于某个单一玩法模式。更适合放到共享 AI 模块。
 
-当玩家**被击杀** 时，会尝试检擦一次游戏是否结束。触发点在 `ATankMOBAGameMode::HandleTankKilled()` 的 else 分支（核心塔已摧毁时）。
+### 4.2 `ABotTankController`
 
-#### 玩家死亡 vs 淘汰的区分
-
-| 场景 | 玩家状态 | 核心塔状态 | 后续行为 |
-|------|---------|-----------|---------|
-| 玩家死亡，核心塔存活 | 死亡（`Dead=true`，`WaitingForRespawn=true`） | 存活 | 进入复活等待倒计时，计时结束后复活 |
-| 玩家死亡，核心塔已摧毁 | 淘汰（`Eliminated=true`，`WaitingForRespawn=false`） | 已摧毁 | 显示淘汰界面，触发游戏结束检查 |
-
-#### 游戏结束判定条件（必须同时满足）
-
-1. **场上只剩 1 个核心塔存活**（`GetAliveCoreTurretCount() == 1`）
-2. **除了获胜阵营外，所有玩家都已被淘汰**（`IsEliminated() == true`）
-
-#### 关键实现代码位置
-
-- `TankMOBAGameMode.cpp` - `HandleTankKilled()`：玩家死亡时判断是否淘汰
-- `TankMOBAGameMode.cpp` - `CheckGameOver()`：判定游戏是否结束
-- `TankMOBAGameState.cpp` - `OnTurretDestroyed()`：**不再直接判定游戏结束**
-
-#### 典型场景分析
-
-| 场景 | 玩家B状态 | 核心塔B | 游戏是否结束 |
-|------|-----------|---------|-------------|
-| A击杀B，B核心塔存活 | 死亡（等待复活） | 存活 | ❌ 不结束 |
-| A击杀B后摧毁B核心塔 | 死亡（等待复活）→ 计时结束复活 → 再次死亡 → 淘汰 | 已摧毁 | ❌ 不结束（B复活后） |
-| B复活后再次死亡 | 淘汰 | 已摧毁 | ✅ 检查通过后结束 |
+简单 AI，用于轻量场景。它不承担复杂战斗判断。
 
 ---
 
+## 5. 玩法模式
 
+### 5.1 主菜单模块
 
----
+相关文件：
 
-### 4.2 UI 刷新机制
+- `MainMenuGameMode`
+- `MainMenuWidget`
+- `MutiPlayerMenuWidget`
+- `MutiBattleMenuWidget`
+- `TeamBattleMenuWidget`
+- `MOBASetupWidget`
+- `TankStageStartWidget`
+- `SelectMapWidget`
+- `GameSettingsMenuWidget`
+- `PauseMenuWidget`
+- `UIPlayerController`
 
-BattleBlaster 的 UI 刷新采用两种互补模式：**Delegate 绑定**（事件驱动）和 **Tick 每帧刷新**（持续显示）。
+主菜单流程：
 
-#### 4.2.1 事件驱动型 Delegate 绑定
-
-```
-ATankPlayerController 中的绑定（事件驱动，无性能开销）：
-┌─────────────────────────────────────────────────────────────┐
-│ HealthComp->OnHealthChanged.AddDynamic(                    │
-│     this, &ATankPlayerController::UpdateHealthHUD);         │
-│                                                              │
-│ HealthComp->OnDeath.AddDynamic(                             │
-│     this, &ATankPlayerController::OnPlayerDeath);           │
-│                                                              │
-│ Tank->OnKilled.AddDynamic(                                 │
-│     this, &ATankPlayerController::OnTankKilled);            │
-│                                                              │
-│ PS->RefreshKDAUI.AddUObject(                               │
-│     PC, &ATankPlayerController::UpdateKDA);                  │
-└─────────────────────────────────────────────────────────────┘
-```
-
-**各 Widget 的刷新方式**：
-
-| Widget | 刷新方式 | 刷新函数 | 触发条件 |
-|--------|---------|---------|---------|
-| `UHUDWidget` | Delegate | `SetHealthBarPercent()`、`SetShieldBarPercent()` | HealthComp.OnHealthChanged |
-| `UBulletsWidget` | Delegate | `SetAmmoText()` | ATank::OnAmmoChanged（广播） |
-| `UBuffListWidget` | Delegate + Tick | `UpdateBuffList()`（Tick 每帧） | Buff 变化时 + 每帧检查持续时间 |
-| `UKDAWidget` | Delegate | `UpdateKDA()`、`SetColor()` | PlayerState.RefreshKDAUI |
-| `UScoresDisplayWidget` | Delegate | `UpdateScores()`、`UpdateMatchTimer()` | GameMode 处理击杀后 |
-| `UDeathScreenWidget` | Delegate | `UpdateRespawnCountdown()`（Tick） | ATankPlayerState 的复活计时器 |
-| `UEliminatedScreenWidget` | Delegate | `Show()`、`Hide()` | MOBAGameMode::HandleElimination() |
-| `UPassWidget` | Tick | 每帧读取 ATankStageGameState | ATankStageGameState 属性变化 |
-| `UMultiBattleGameOverWidget` | 一次性构建 | `InitResultData()`（GameMode 调用一次） | 胜负确定后 |
-
-#### 4.2.2 Tick 每帧刷新型
-
-以下 Widget 在 `NativeTick` 中每帧刷新（因为需要实时显示动态数据）：
-
-- **`UBuffListWidget`**：每帧遍历 `ActiveBuffs`，更新每个 `UBuffSlotWidget` 的倒计时文本，若某 Buff 剩余时间 <= 0 则移除
-- **`UPassWidget`**：每帧读取 `ATankStageGameState::CurrentStageId`、`RemainingLives`、当前时间
-- **`UDeathScreenWidget`**：每帧更新复活倒计时文本（精确到 0.01 秒）
-
-#### 4.2.3 数据流向总结图
-
-```
-底层数据（代码层）
-│
-├─ UHealthComponent::CurrentHealth/Health
-│    └─ OnHealthChanged → ATankPlayerController::UpdateHealthHUD()
-│         └─ HUDWidget->SetHealthBarPercent() / SetShieldBarPercent()
-│
-├─ ATankPlayerState::KillCount/DeathCount/AssistCount
-│    └─ ATankPlayerState::RefreshKDAUI → ATankPlayerController::UpdateKDA()
-│         └─ KDAWidget->UpdateKDA()
-│
-├─ ATankBattleGameState::PlayerScores[i]
-│    └─ ABattleBlasterGameMode::HandleTankKilled() → ScoresWidgetInstance->UpdateScores()
-│         └─ ScoresDisplayWidget->UpdateScores() / UpdateScoresFour()
-│
-├─ ATankStageGameState::RemainingTowerCount
-│    └─ 每帧 PassWidget->NativeTick() 读取
-│         └─ 显示当前关卡 / 剩余敌人 / 生命
-│
-└─ UTankBuffComponent::ActiveBuffs
-     └─ 每帧 BuffListWidget->NativeTick() 遍历
-          └─ 每帧调用每个 BuffSlotWidget->UpdateSlot()
+```text
+AMainMenuGameMode::BeginPlay
+  -> 禁用分屏
+  -> 最多创建 4 个 LocalPlayer 供菜单输入使用
+  -> 按 GameInstance::ReturnToMenuType 选择打开：
+      -> MainMenuWidget
+      -> SinglePlayerSelectWidget
+      -> PendingMainMenuWidgetClass
+  -> UI Only 输入模式
 ```
 
----
+多人设置菜单流程：
 
-## 5. 新手开发避坑指南
+```text
+MainMenuWidget
+  -> MutiPlayerMenuWidget
+      -> MutiBattleMenuWidget
+      -> TeamBattleMenuWidget
+      -> MOBASetupWidget
+```
 
-### 5.1 高耦合度模块（修改时极易出错）
+这些设置 Widget 会写入 `GameInstance`：
 
-#### ⚠️ ATank::HandleDeath — 所有结算逻辑的交叉点
+- `TargetPlayerCount`
+- `TargetMatchScore`
+- `ConnectedGamepadCount`
+- `AIControlledPlayerIndices`
+- `SelectedTankClasses`
 
-这是全项目**最中心**的函数，串联了：
-- 死亡特效
-- 伤害归属（AttackerQueue）
-- GameMode 结算分数
-- PlayerState KDA 更新
-- UI 显示/隐藏
-- 复活延迟
+`SelectMapWidget` 最后用 `OpenLevel(LevelName, true, OptionsString)` 进入关卡，并把目标 GameMode 写进 `OptionsString`。
 
-**问题**：如果要在死亡时新增任何行为（如触发 Buff、触发成就、触发特殊音效），最安全的做法是**在 HandleDeath 末尾通过事件广播**，而不是直接改 HandleDeath 本身。直接修改容易破坏已有的结算顺序。
+### 5.2 自由死斗：`ABattleBlasterGameMode`
 
-#### ⚠️ ABasePawn::TakeDamage — 伤害入口的多种判断分支
+职责：
 
-`ATank::TakeDamage` 继承自 `AActor::TakeDamage`，目前包含：
-- 友军伤害检测（`CanDealDamage`）
-- 无敌状态检测
-- 伤害数值应用
+- 从 GameInstance 读取玩家数、分数、AI 配置、坦克选择。
+- 创建足够 LocalPlayer。
+- 三人模式用四宫格视口，并给多余视口加黑屏 Widget。
+- 查找 `PlayerStartTag = P0/P1/P2/P3` 的出生点。
+- Spawn `ATank`，真人用 PlayerController Possess，AI 用 `AAIBotPlayerController` Possess。
+- 绑定 `NewTank->OnKilled` 到 `HandleTankKilled()`。
+- 创建全局 `ScreenMessage` 和 `ScoresDisplayWidget`。
+- 倒计时后开始比赛。
 
-如果要在某个模式中修改伤害规则（如 MOBA 模式中塔的伤害逻辑），**不要只改 ABasePawn::TakeDamage**，而应该在对应的 GameMode 中重写或拦截：
+击杀流程：
+
+```text
+HandleTankKilled(DeadTank, KillerTank)
+  -> 保存死者 Buff
+  -> Killer 有效且不是自己：Killer +1 分
+  -> 自杀：Victim -1 分
+  -> 刷新比分 UI
+  -> 达到 TargetScore：胜利，显示 MultiBattleGameOverWidget
+  -> 未结束：定时 RespawnPlayer(PlayerIndex)
+```
+
+复活：
+
+- 按 PlayerIndex 找出生点。
+- 使用该玩家选择的 TankClass。
+- 找原 Controller 重新 Possess。
+- 生命值和弹药按 `RespawnHealthPercent` / `RespawnAmmoPercent` 恢复。
+- 恢复死亡前 Buff。
+- 播放复活特效。
+- 短暂无敌。
+
+### 5.3 团队死斗：`ATeamBattleGameMode`
+
+团队死斗固定 4 人，阵营规则：
+
+- 玩家 0 / 2 是红队。
+- 玩家 1 / 3 是蓝队。
+
+核心差异：
+
+- 固定 `TeamBattlePlayerCount = 4`。
+- 使用 `TeamScores[0]` 和 `TeamScores[1]`。
+- `CanDealDamage()` 禁止友军伤害。
+- `ATeamBattlePlayerState::HandleKillConfirmed()` 跨阵营击杀才给团队加分。
+- GameMode 内也有 `AddTeamScore()` 和胜负检查。
+
+复活、Buff 保存、黑屏视口、分数 UI 的结构和自由死斗很像，所以将来可以考虑抽一个本地多人对战基类，但第一轮整理不建议立刻抽象。
+
+### 5.4 MOBA：`ATankMOBAGameMode`
+
+MOBA 模块包含：
+
+- `TankMOBAGameMode`
+- `TankMOBAGameState`
+- `TankMOBAPlayerState`
+- `Turret`
+- `TurretProjectile`
+- `MOBASetupWidget`
+- `MOBAGameOverWidget`
+- `MOBATopStateUI`
+- `DeathScreenWidget`
+- `EliminatedScreenWidget`
+
+玩家规则：
+
+- 每个玩家一个独立 Camp。
+- `CampIndex` 和 `PlayerIndex` 在 MOBA 中基本对应。
+- 死亡不等于淘汰。
+- 核心塔被摧毁后，该阵营玩家再次死亡才会进入永久淘汰。
+
+防御塔：
+
+- `ATurret` 继承 `ADestructibleProp`。
+- `CampIndex` 表示所属阵营。
+- `bIsCoreTurret` 表示主防御塔。
+- `BeginPlay()` 注册到 `ATankMOBAGameState`。
+- 外塔存活时，核心塔 `IsDamageImmune()`。
+- 同阵营 Tank 攻击防御塔会治疗，不造成伤害。
+- 被摧毁后替换为废墟 Mesh，并通知 GameState。
+
+结束条件：
+
+```text
+CheckGameOver()
+  -> 只剩 1 个核心塔存活
+  -> 除获胜阵营外，其他玩家都 IsEliminated()
+  -> SetGameOver(true)
+  -> SetWinningCampIndex()
+  -> 延迟显示 MOBAGameOverWidget
+```
+
+`TankMOBAGameState::OnTurretDestroyed()` 会更新塔数量，但当前设计不是核心塔一倒就直接结束。
+
+### 5.5 单人闯关 / PVE：`ATankStageGameMode`
+
+单人闯关模块包含：
+
+- `TankStageGameMode`
+- `TankStageGameState`
+- `TankStagePlayerState`
+- `TankStageStartWidget`
+- `TankStageOverWidget`
+- `PassWidget`
+- `Tower`
+
+关卡开始：
+
+```text
+BeginPlay
+  -> GameInstance::MarkCampaignLevelStart
+  -> 随机选择 PlayerStart
+  -> 读取 SelectedTankClasses[0]
+  -> Spawn 玩家 Tank 并 Possess
+  -> 绑定玩家 OnKilled
+  -> 扫描全部 ATower
+  -> 绑定 Tower HealthComp::OnDeath 到 HandleTowerDestroyed
+  -> 应用难度系数到 Tower
+  -> 开场倒计时
+```
+
+`ATower` 在这个模式下是 PVE 敌人：
+
+- 检测范围内 `ATank`。
+- 选择最近存活 Tank。
+- 用 `Visibility` LineTrace 检查路径是否被挡。
+- 开火生成 `AProjectile`。
+- 死亡时调用 `HandleDestruction()`。
+- 在 `TankStageGameMode` 中禁止复活。
+- `ApplyDifficultyMultiplier()` 会增强生命、射程、攻速，并同步 DetectionSphere 半径。
+
+胜利条件：
+
+- `HandleTowerDestroyed()` 统计剩余 Tower。
+- 全部 Tower 被摧毁则通关。
+- 通关前保存玩家携带状态。
+- `GameInstance::LoadNextLevel()` 随机关卡列表进入下一关。
+
+失败 / 复活：
+
+- 玩家死亡会增加死亡次数。
+- 未达到最大死亡次数：延迟复活。
+- 达到上限：显示 GameOver。
+
+### 5.6 Defense：`ADefenseGameMode`
+
+当前只有空类：
 
 ```cpp
-// ATankMOBAGameMode 中的做法：
-void ATankMOBAGameMode::HandleTankKilled(ATank* DeadTank, ATank* KillerTank)
+class BATTLEBLASTER_API ADefenseGameMode : public AGameMode
 {
-    // 先按默认流程处理复活和分数
-    Super::HandleTankKilled(DeadTank, KillerTank);
-    // 再处理 MOBA 特殊逻辑：例如某阵营全灭判定
-}
+    GENERATED_BODY()
+};
 ```
 
-#### ⚠️ AAIBotPlayerController::Tick — 每帧执行的复杂状态机
+所以现在不要把 `Tower`、`Turret` 或任何已有模式逻辑归到 Defense 下。等 Defense 真正写代码时，建议单独建立 `Modes/Defense`。
 
-这个 AI 控制器在 `Tick` 中做了大量工作：移动计算、瞄准更新、武器冷却检查、战术动作执行等。修改时注意：
-- 不要在 Tick 中进行 Spawn/Actor 创建（应在事件触发时做）
-- 战术动作（CircleLeft/CircleRight）和主移动方向是**叠加关系**，不是替代关系
+### 5.7 Test：`ATestGameMode`
 
-#### ⚠️ UTankBuffComponent::AddBuff — Ghost 窒息系统的边界情况
-
-Ghost Buff 结束时会做线检测（`LineTraceByObject`），判断坦克是否在墙内。这个检测依赖碰撞体设置，如果新地图的墙体使用了非标准碰撞通道，可能导致检测失效（坦克卡在墙内但不触发窒息）。建议在测试新地图时专门测试 Ghost Buff。
-
-#### ⚠️ 多模式共存时的 GameState/PlayerState 类混用
-
-BattleBlaster 有 4 套 GameState 和 5 套 PlayerState 子类。在切换模式时，UE 的 GameMode/GameState/PlayerState 类映射由 `DefaultEngine.ini` 或 `Project Settings → Maps & Modes` 中的 `GameMode Override` 控制。**如果在编辑器中直接改地图的 World Settings 而忘记更新 GameModeOverride，会导致类型不匹配**（如 MOBA 地图使用了 BattleBlasterGameMode），引发 Crash 或空指针。
+测试模式只负责创建测试 UI，不参与主玩法架构。
 
 ---
 
-### 5.2 修改建议
+## 6. 地图交互物与可破坏物
 
-#### ① 扩展 GameMode 的正确姿势
+### 6.1 `ADestructibleProp`
 
-新增一个模式或修改现有模式时，**始终在对应的 Mode 类中重写**，不要在基类改：
+可破坏物基类。
+
+组件：
+
+- `DefaultSceneRoot`
+- `PropMesh`
+- `HealthComp`
+- `HealthBarWidgetComp`
+
+逻辑：
+
+- `HealthComp->OnDeath` 绑定 `OnPropDestroyed()`。
+- `TakeDamage()` 更新血条并记录最后攻击者。
+- `CheckPlayerDistance()` 遍历所有 PlayerController，只要任意本地玩家在范围内就显示血条。
+- 死亡后关闭碰撞并隐藏血条。
+
+当前这个类已经适配本地分屏：不再只检查 Player 0。
+
+### 6.2 `AExplosiveBarrel`
+
+继承 `ADestructibleProp`。
+
+死亡时：
+
+- 隐藏模型。
+- 关闭碰撞。
+- 播放爆炸 Niagara 和音效。
+- 用 `ApplyRadialDamageWithFalloff()` 造成范围伤害。
+- 通过 `LastAttacker` 尽量把击杀归属给引爆者。
+- 最后 Destroy。
+
+### 6.3 `AWoodenCrate`
+
+继承 `ADestructibleProp`。
+
+死亡时：
+
+- 关闭碰撞。
+- 隐藏模型。
+- 播放破碎效果和音效。
+- `SetLifeSpan(TimeToDisappear)`。
+
+### 6.4 `ASpikeTrap`
+
+尖刺陷阱不是只针对 Tank，而是针对拥有 `UHealthComponent` 的 Actor。
+
+特点：
+
+- `DetectionSphere` 唤醒陷阱。
+- 状态机：Dormant、Hidden、Thrusting、Active、Retracting。
+- 用 `TSet<AActor*>` 记录范围内对象，避免重复 overlap 计数错误。
+- 每轮刺出只伤害一次。
+- `EndPlay()` 清理计时器和集合。
+
+### 6.5 `ASlideTrack`
+
+滑道 / 加减速轨道。
+
+特点：
+
+- 默认关闭 Tick，玩家进入 DetectionSphere 后唤醒。
+- `BoxComp` 检测 Tank 是否在轨道上。
+- 可配置状态切换：加速 / 减速。
+- 离开轨道时会检查是否仍在其他滑道上，避免重叠滑道导致速度错误恢复。
+
+### 6.6 `ARisingGate`
+
+升降门。
+
+特点：
+
+- `TriggerBox` 检测 `ATank`。
+- 有玩家进入则 Rising。
+- 玩家离开则 Lowering。
+- Tick 中用 `VInterpConstantTo` 移动 GateMesh。
+
+### 6.7 `ATeleportPortal`
+
+传送门。
+
+特点：
+
+- `PortalPairID` 相同的两个门互为目标。
+- 任意进入 Trigger 的 Actor 都可以传送，不再限制 Tank / Projectile。
+- 会重定向 `UProjectileMovementComponent` 的速度。
+- 对模拟物理的 Actor 会重定向线速度。
+- 用 `IgnoredActors` 防止刚传过去又传回来。
+- 两端 Portal 同时进入冷却。
+
+---
+
+## 7. UI 分层
+
+### 7.1 战斗内共享 UI
+
+适合放到共享 UI 模块：
+
+- `HUDWidget`
+- `BulletsWidget`
+- `BuffListWidget`
+- `BuffSlotWidget`
+- `KDAWidget`
+- `ScoresDisplayWidget`
+- `ScreenMessage`
+- `PauseMenuWidget`
+- `ReturnToSpawnWidget`
+- `GameSettingsMenuWidget`
+
+创建位置多在 `ATankPlayerController`。分屏玩家自己的 UI 应使用 `AddToPlayerScreen()`，全局 UI 才用 `AddToViewport()`。
+
+### 7.2 模式专属 UI
+
+自由死斗：
+
+- `MutiBattleMenuWidget`
+- `MultiBattleGameOverWidget`
+
+团队死斗：
+
+- `TeamBattleMenuWidget`
+- `TeamBattleGameOverWidget`
+
+MOBA：
+
+- `MOBASetupWidget`
+- `MOBAGameOverWidget`
+- `MOBATopStateUI`
+- `DeathScreenWidget`
+- `EliminatedScreenWidget`
+
+单人闯关：
+
+- `TankStageStartWidget`
+- `TankStageOverWidget`
+- `PassWidget`
+
+主菜单：
+
+- `MainMenuWidget`
+- `MutiPlayerMenuWidget`
+- `SelectMapWidget`
+
+---
+
+## 8. 常见开发任务该改哪里
+
+### 8.1 新增一个 Buff
+
+需要看这些文件：
+
+- `BuffTypes.h`
+- `TankBuffComponent.h/.cpp`
+- `Tank.h/.cpp`
+- `Projectile.cpp`，如果影响炮弹行为。
+- `BuffPickup.h/.cpp`，如果需要地图拾取生成。
+- `BuffListWidget` / `BuffSlotWidget`，如果 UI 需要特殊显示。
+
+注意：
+
+- 只影响玩家状态的 Buff 放 `TankBuffComponent`。
+- 影响炮弹生成时属性的 Buff 放 `ATank::Fire()`。
+- 影响炮弹命中结果的 Buff 放 `AProjectile::OnHit()`。
+- 如果要支持复活保留 Buff，确认 `GetAllActiveBuffs()` 和 `RestoreBuffs()` 覆盖它。
+
+### 8.2 新增一个模式
+
+建议创建一组：
+
+- `XXXGameMode`
+- `XXXGameState`
+- `XXXPlayerState`
+- `XXXSetupWidget`
+- `XXXGameOverWidget`
+
+入口流程参考：
+
+```text
+菜单 Widget
+  -> 写入 GameInstance
+  -> SelectMapWidget / OpenLevel Options
+  -> GameMode::BeginPlay 读取 GameInstance
+  -> Spawn / Possess / Bind OnKilled
+```
+
+不要把模式特有逻辑写进 `ATank` 或 `ATankPlayerState` 基类，除非多个模式真的共享。
+
+### 8.3 新增一个地图机关
+
+参考：
+
+- 简单触发：`RisingGate`
+- 持续影响玩家：`SlideTrack`
+- 周期伤害：`SpikeTrap`
+- 任意 Actor 传送：`TeleportPortal`
+- 可破坏：`DestructibleProp`
+
+如果机关要伤害玩家，优先用 `UGameplayStatics::ApplyDamage()`，让 `UHealthComponent` 统一处理扣血和死亡事件。
+
+### 8.4 修改 AI
+
+主要文件：
+
+- `AIBotPlayerController.h/.cpp`
+- `Tank.cpp` 的 AI 移动入口
+- `TankPlayerState` 的攻击者记录，如果你需要更准确仇恨来源
+
+注意：
+
+- AI 现在会攻击 `ATank`、`ATower`、`ATurret`。
+- 团队模式下 `IsEnemy()` 会过滤同队 Tank。
+- 如果新增可攻击目标，要把它加入 `AttackFilterTypes` 或蓝图默认值。
+
+### 8.5 修改碰撞规则
+
+先检查：
+
+- `BattleBlasterCollisionChannels.h`
+- `DefaultEngine.ini`
+- `BasePawn.cpp`
+- `Tank.cpp`
+- `Projectile.cpp`
+- `TurretProjectile.cpp`
+- `TankBuffComponent.cpp`
+
+当前项目最重要的碰撞设计：
+
+- 炮弹互相碰撞是游戏特色。
+- 玩家无论是否 Ghost，都应该被炮弹击中。
+- 玩家炮弹无论是否 Pierce，都应该击中 Pawn。
+- Pierce 只能穿世界，不能穿玩家。
+
+---
+
+## 9. 推荐目录分类
+
+第一阶段建议只移动文件，不重命名类。推荐结构：
+
+```text
+Source/BattleBlaster/
+├── Core/
+│   ├── BattleBlaster.h/.cpp
+│   ├── BattleBlaster.Build.cs
+│   ├── BattleBlasterCollisionChannels.h
+│   ├── BattleBlasterGameInstance.h/.cpp
+│   ├── BattleBlasterSaveGame.h/.cpp
+│   └── BattleBlasterHistorySaveGame.h/.cpp
+│
+├── Shared/
+│   ├── Pawns/
+│   │   ├── BasePawn.h/.cpp
+│   │   └── Tank.h/.cpp
+│   ├── Combat/
+│   │   ├── HealthComponent.h/.cpp
+│   │   └── Projectile.h/.cpp
+│   ├── Buffs/
+│   │   ├── BuffTypes.h
+│   │   ├── BuffPickup.h/.cpp
+│   │   └── TankBuffComponent.h/.cpp
+│   ├── AI/
+│   │   ├── AIBotPlayerController.h/.cpp
+│   │   └── BotTankController.h/.cpp
+│   ├── NPC/
+│   │   └── Tower.h/.cpp
+│   ├── World/
+│   │   ├── DestructibleProp.h/.cpp
+│   │   ├── ExplosiveBarrel.h/.cpp
+│   │   ├── WoodenCrate.h/.cpp
+│   │   ├── RisingGate.h/.cpp
+│   │   ├── SlideTrack.h/.cpp
+│   │   ├── SpikeTrap.h/.cpp
+│   │   └── TeleportPortal.h/.cpp
+│   └── UI/
+│       ├── HUDWidget.h/.cpp
+│       ├── BulletsWidget.h/.cpp
+│       ├── BuffListWidget.h/.cpp
+│       ├── BuffSlotWidget.h/.cpp
+│       ├── KDAWidget.h/.cpp
+│       ├── ScoresDisplayWidget.h/.cpp
+│       ├── ScreenMessage.h/.cpp
+│       ├── PauseMenuWidget.h/.cpp
+│       ├── ReturnToSpawnWidget.h/.cpp
+│       └── GameSettingsMenuWidget.h/.cpp
+│
+├── Controllers/
+│   ├── TankPlayerController.h/.cpp
+│   └── UIPlayerController.h/.cpp
+│
+└── Modes/
+    ├── MainMenu/
+    │   ├── MainMenuGameMode.h/.cpp
+    │   ├── MainMenuWidget.h/.cpp
+    │   ├── MutiPlayerMenuWidget.h/.cpp
+    │   └── SelectMapWidget.h/.cpp
+    ├── FreeForAll/
+    │   ├── BattleBlasterGameMode.h/.cpp
+    │   ├── TankBattleGameState.h/.cpp
+    │   ├── TankBattlePlayerState.h/.cpp
+    │   ├── MutiBattleMenuWidget.h/.cpp
+    │   └── MultiBattleGameOverWidget.h/.cpp
+    ├── TeamBattle/
+    │   ├── TeamBattleGameMode.h/.cpp
+    │   ├── TeamBattleGameState.h/.cpp
+    │   ├── TeamBattlePlayerState.h/.cpp
+    │   ├── TeamBattleMenuWidget.h/.cpp
+    │   └── TeamBattleGameOverWidget.h/.cpp
+    ├── MOBA/
+    │   ├── TankMOBAGameMode.h/.cpp
+    │   ├── TankMOBAGameState.h/.cpp
+    │   ├── TankMOBAPlayerState.h/.cpp
+    │   ├── Turret.h/.cpp
+    │   ├── TurretProjectile.h/.cpp
+    │   ├── MOBASetupWidget.h/.cpp
+    │   ├── MOBAGameOverWidget.h/.cpp
+    │   ├── MOBATopStateUI.h/.cpp
+    │   ├── DeathScreenWidget.h/.cpp
+    │   └── EliminatedScreenWidget.h/.cpp
+    ├── Stage/
+    │   ├── TankStageGameMode.h/.cpp
+    │   ├── TankStageGameState.h/.cpp
+    │   ├── TankStagePlayerState.h/.cpp
+    │   ├── TankStageStartWidget.h/.cpp
+    │   ├── TankStageOverWidget.h/.cpp
+    │   └── PassWidget.h/.cpp
+    ├── Defense/
+    │   └── DefenseGameMode.h/.cpp
+    └── Test/
+        └── TestGameMode.h/.cpp
+```
+
+为什么 `Tower` 放 `Shared/NPC`，而不是 `Modes/Stage`：
+
+- 代码上 `ATower` 是 `ABasePawn` 派生的 NPC 战斗单位。
+- `AAIBotPlayerController` 默认把 `ATower` 当攻击目标。
+- `ATurret` 里也显式跳过 `ATower`，说明两者概念不同。
+- 当前 Stage 使用它最多，但未来 MOBA / Defense / 测试关也可能复用。
+
+如果你确认 `Tower` 永远只用于单人闯关，也可以放到 `Modes/Stage/NPC`。但不要放到 `Modes/Defense`。
+
+---
+
+## 10. 迁移顺序建议
+
+### 第一阶段：只整理目录，不重命名类
+
+目标：改善查找体验，降低风险。
+
+步骤：
+
+1. 先提交一次当前可工作的版本。
+2. 关闭 Unreal Editor。
+3. 按上面的目录移动 `.h/.cpp` 文件。
+4. 全项目更新 `#include`，例如：
 
 ```cpp
-// 错误：在 ATankGameState 中加死斗特有逻辑
-// 正确：在 ATankBattleGameState 中新增
-
-// 若想在多个模式间共享逻辑，使用 protected virtual 函数
-protected:
-    virtual void OnPlayerScored(int32 PlayerIndex, int32 NewScore);
+#include "Tank.h"
 ```
 
-#### ② 新增 Buff 的正确姿势
+改为：
 
-1. 在 `EBuffType` 枚举中添加新类型（如 `MyNewBuff`）
-2. 在 `UTankBuffComponent::AddBuff` 中添加 `case EBuffType::MyNewBuff:` 的处理分支
-3. 在 `ATank` 中添加对应的 `bool bHasMyNewBuff`
-4. 在 `AProjectile::OnHit` 中检查 `OwnerTank->bHasMyNewBuff` 并修改炮弹行为
-5. 在 `UTankBuffComponent::GetAllActiveBuffs()` / `RestoreBuffs()` 中序列化新 Buff
-
-#### ③ 新增伤害来源的正确姿势
-
-如果要给塔或陷阱添加伤害来源，需要：
-1. 确保伤害来源携带 `InstigatedController`（伤害归属）
-2. 如果需要仇人追踪，在 `ATankPlayerState::RecordAttacker()` 中注册
-3. 如果需要助攻判断，在 `ATankPlayerState::ProcessDeath()` 中检查 AttackerQueue
-
-**不要**在 `AProjectile::OnHit` 中直接修改 `AttackerQueue`，正确的入口是 `ATankPlayerState::RecordAttacker()`。
-
-#### ④ UI 绑定的安全检查
-
-所有 `AddDynamic` 绑定前建议加 `IsValid` 检查：
 ```cpp
-if (HealthComp && HealthComp->OnHealthChanged.IsBound())
-{
-    HealthComp->OnHealthChanged.AddDynamic(...);
-}
+#include "Shared/Pawns/Tank.h"
 ```
-虽然当前代码大部分遵循此规范，但新增 UI 绑定时务必注意。
 
-#### ⑤ 存档系统的数据一致性
+5. 重新生成 Visual Studio / Rider 工程文件。
+6. 编译项目。
+7. 打开 Unreal Editor，让蓝图重新加载 C++ 类。
+8. 跑一遍主菜单、自由死斗、团队死斗、MOBA、单人闯关。
 
-`UBattleBlasterGameInstance` 中的 `FPlayerCarryState` 和 `UBattleBlasterSaveGame` 是两套独立数据：
-- `GameInstance` 的 `FPlayerCarryState`：进程内有效，用于关卡间的状态继承
-- `SaveGame`：持久化，用于退出后重新开始时的进度恢复
+只移动 C++ 文件且不改类名时，蓝图父类一般不会丢，因为反射类名仍然是同一个。
 
-如果新增需要跨进程保存的 Buff 或属性，**同时**修改这两个类，确保一致性。
+### 第二阶段：抽重复逻辑
 
-#### ⑥ 分屏模式下的 UI 创建位置
+自由死斗和团队死斗有很多相似逻辑：
 
-所有战斗 HUD（`HUDWidget`、`AmmoWidget`、`BuffListWidget` 等）在 `ATankPlayerController::BeginPlay` 中创建，每个 PlayerController 创建自己的 UI 实例。只有 **比分板（ScoresDisplayWidget）** 和 **屏幕消息（ScreenMessage）** 是全局的（由 `PC0` 创建，所有人可见）。
+- 创建 LocalPlayer。
+- 查找 P0-P3 PlayerStart。
+- Spawn / Possess Tank。
+- AI 补位。
+- 保存 Buff。
+- 复活。
+- 黑屏第四视口。
 
-如果要给某个玩家单独显示 UI，挂在对应玩家的 `PlayerController` 上；如果要给所有人显示，放在全局 Widget 中。
+可以考虑抽一个内部基类，例如：
+
+```text
+ALocalMultiplayerTankGameModeBase
+```
+
+但建议在目录整理稳定后再做，不要和移动文件混在同一次修改里。
+
+### 第三阶段：命名规范化
+
+命名问题可以分批做：
+
+- `Muti` 可以改成 `Multi`。
+- `But` 可以改成 `Btn`。
+- `TankStage` 是否统一叫 `Stage` 或 `Campaign`。
+
+但重命名 UCLASS 会影响蓝图引用，必须加 Core Redirects。
+
+示例：
+
+```ini
+[/Script/Engine.Engine]
++ActiveClassRedirects=(OldClassName="/Script/BattleBlaster.MutiPlayerMenuWidget",NewClassName="/Script/BattleBlaster.MultiPlayerMenuWidget")
+```
+
+重命名时不要只改文件名，要同步：
+
+- 文件名
+- 类名
+- `UCLASS` 生成头文件 include
+- `.generated.h`
+- 蓝图父类
+- Core Redirects
 
 ---
 
-### 5.3 关键代码文件速查表
+## 11. 需要在 Unreal Editor 做什么
 
-| 需求 | 文件 |
-|------|------|
-| 修改坦克移动/射击逻辑 | `Tank.cpp` / `Tank.h` |
-| 修改炮弹飞行/碰撞行为 | `Projectile.cpp` |
-| 修改生命值/死亡事件 | `HealthComponent.cpp` |
-| 修改 Buff 系统 | `TankBuffComponent.cpp` + `BuffTypes.h` |
-| 修改 AI 行为 | `AIBotPlayerController.cpp` |
-| 修改多人死斗规则 | `BattleBlasterGameMode.cpp` |
-| 修改关卡闯关规则 | `TankStageGameMode.cpp` |
-| 修改 MOBA 规则 | `TankMOBAGameMode.cpp` |
-| 修改团队死斗规则 | `TeamBattleGameMode.cpp` |
-| 修改战斗 UI | `HUDWidget.cpp`、`ScoresDisplayWidget.cpp` |
-| 修改结算界面 | `MultiBattleGameOverWidget.cpp` 等 |
-| 修改主菜单 | `MainMenuWidget.cpp`（含设置按钮） |
-| 修改设置菜单 | `GameSettingsMenuWidget.cpp` |
-| 修改存档格式 | `BattleBlasterSaveGame.cpp` / `BattleBlasterHistorySaveGame.cpp` |
-| 修改全局配置 | `BattleBlasterGameInstance.cpp` |
-| 修改可破坏物行为 | `DestructibleProp.cpp`、`ExplosiveBarrel.cpp` |
-| 修改陷阱行为 | `SpikeTrap.cpp`、`SlideTrack.cpp`、`RisingGate.cpp` |
-| 修改传送门 | `TeleportPortal.cpp` |
-| 修改地图可拾取 Buff | `BuffPickup.cpp` |
-| 修改 MOBA 塔 | `Turret.cpp` |
+这次只是改文档，不需要进编辑器操作。
+
+如果以后真的按目录移动 C++ 文件：
+
+- 移动 C++ 文件前建议关闭 Unreal Editor。
+- 移动后需要重新生成项目文件并编译。
+- 如果只是移动 `.h/.cpp` 且不改 UCLASS 名，通常不需要在 Content Browser 里修蓝图。
+- 如果移动 `.uasset`，必须在 Unreal Editor 的 Content Browser 里移动，然后执行 Fix Up Redirectors。
+- 如果重命名反射类、属性、枚举，必须加 Core Redirects，并检查蓝图父类和变量引用。
 
 ---
 
-*本指南基于当前代码库生成，如有代码变更请同步更新。*
+## 12. 快速索引
+
+| 需求 | 优先查看 |
+| --- | --- |
+| 坦克移动 / 开火 / 开镜 | `Tank.h/.cpp` |
+| 基础炮塔 / NPC 公共 Pawn 行为 | `BasePawn.h/.cpp`, `Tower.h/.cpp` |
+| 生命、护盾、死亡事件 | `HealthComponent.h/.cpp` |
+| 普通炮弹命中逻辑 | `Projectile.h/.cpp` |
+| MOBA 防御塔与追踪弹 | `Turret.h/.cpp`, `TurretProjectile.h/.cpp` |
+| Buff 效果 | `BuffTypes.h`, `TankBuffComponent.h/.cpp` |
+| 地图 Buff 拾取 | `BuffPickup.h/.cpp` |
+| 玩家 HUD / 暂停 / 回城 / MOBA 死亡 UI | `TankPlayerController.h/.cpp` |
+| AI 行为 | `AIBotPlayerController.h/.cpp` |
+| 自由死斗 | `BattleBlasterGameMode`, `TankBattleGameState`, `TankBattlePlayerState` |
+| 团队死斗 | `TeamBattleGameMode`, `TeamBattleGameState`, `TeamBattlePlayerState` |
+| MOBA | `TankMOBAGameMode`, `TankMOBAGameState`, `TankMOBAPlayerState` |
+| 单人闯关 | `TankStageGameMode`, `TankStageGameState`, `TankStagePlayerState` |
+| 可破坏物 | `DestructibleProp`, `ExplosiveBarrel`, `WoodenCrate` |
+| 地图机关 | `RisingGate`, `SlideTrack`, `SpikeTrap`, `TeleportPortal` |
+| 菜单入口 | `MainMenuGameMode`, `MainMenuWidget`, `MutiPlayerMenuWidget`, `SelectMapWidget` |
+| 全局配置 / 存档 / 手柄映射 | `BattleBlasterGameInstance`, `BattleBlasterSaveGame`, `BattleBlasterHistorySaveGame` |
+
+---
+
+## 13. 当前最值得优先清理的问题
+
+1. **文件目录扁平化**
+   先按模块移动文件，立刻改善开发体验。
+
+2. **多人死斗和团队死斗重复代码**
+   目录稳定后，再抽共同基类。
+
+3. **命名不一致**
+   `Muti`、`But` 这类命名可以最后处理，因为它们影响蓝图和反射，风险比移动文件更高。
+
+4. **注释编码混乱**
+   部分源码注释在当前终端输出中显示乱码。功能不受影响，但后续清理时建议统一文件编码为 UTF-8。
+
+5. **文档与代码同步**
+   以后每次新增模式或移动模块，都应该顺手更新本文件的“快速索引”和“推荐目录分类”。
