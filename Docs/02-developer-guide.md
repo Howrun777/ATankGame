@@ -864,18 +864,22 @@ MOBA：
 
 ```text
 Source/BattleBlaster/
+├── BattleBlaster.h/.cpp
+├── BattleBlaster.Build.cs
+│
 ├── Core/
-│   ├── BattleBlaster.h/.cpp
-│   ├── BattleBlaster.Build.cs
 │   ├── BattleBlasterCollisionChannels.h
 │   ├── BattleBlasterGameInstance.h/.cpp
-│   ├── BattleBlasterSaveGame.h/.cpp
-│   └── BattleBlasterHistorySaveGame.h/.cpp
+│   └── Persistence/
+│       ├── BattleBlasterSaveGame.h/.cpp
+│       └── BattleBlasterHistorySaveGame.h/.cpp
 │
 ├── Shared/
 │   ├── Pawns/
 │   │   ├── BasePawn.h/.cpp
-│   │   └── Tank.h/.cpp
+│   │   ├── Tank.h/.cpp
+│   │   └── NPC/
+│   │       └── Tower.h/.cpp
 │   ├── Combat/
 │   │   ├── HealthComponent.h/.cpp
 │   │   └── Projectile.h/.cpp
@@ -886,8 +890,6 @@ Source/BattleBlaster/
 │   ├── AI/
 │   │   ├── AIBotPlayerController.h/.cpp
 │   │   └── BotTankController.h/.cpp
-│   ├── NPC/
-│   │   └── Tower.h/.cpp
 │   ├── World/
 │   │   ├── DestructibleProp.h/.cpp
 │   │   ├── ExplosiveBarrel.h/.cpp
@@ -896,6 +898,12 @@ Source/BattleBlaster/
 │   │   ├── SlideTrack.h/.cpp
 │   │   ├── SpikeTrap.h/.cpp
 │   │   └── TeleportPortal.h/.cpp
+│   ├── Controllers/
+│   │   ├── TankPlayerController.h/.cpp
+│   │   └── UIPlayerController.h/.cpp
+│   ├── State/
+│   │   ├── TankGameState.h/.cpp
+│   │   └── TankPlayerState.h/.cpp
 │   └── UI/
 │       ├── HUDWidget.h/.cpp
 │       ├── BulletsWidget.h/.cpp
@@ -905,58 +913,60 @@ Source/BattleBlaster/
 │       ├── ScoresDisplayWidget.h/.cpp
 │       ├── ScreenMessage.h/.cpp
 │       ├── PauseMenuWidget.h/.cpp
-│       ├── ReturnToSpawnWidget.h/.cpp
-│       └── GameSettingsMenuWidget.h/.cpp
-│
-├── Controllers/
-│   ├── TankPlayerController.h/.cpp
-│   └── UIPlayerController.h/.cpp
+│       └── ReturnToSpawnWidget.h/.cpp
 │
 └── Modes/
     ├── MainMenu/
     │   ├── MainMenuGameMode.h/.cpp
-    │   ├── MainMenuWidget.h/.cpp
-    │   ├── MutiPlayerMenuWidget.h/.cpp
-    │   └── SelectMapWidget.h/.cpp
+    │   └── UI/
+    │       ├── MainMenuWidget.h/.cpp
+    │       ├── GameSettingsMenuWidget.h/.cpp
+    │       ├── MutiPlayerMenuWidget.h/.cpp
+    │       └── SelectMapWidget.h/.cpp
     ├── FreeForAll/
     │   ├── BattleBlasterGameMode.h/.cpp
     │   ├── TankBattleGameState.h/.cpp
     │   ├── TankBattlePlayerState.h/.cpp
-    │   ├── MutiBattleMenuWidget.h/.cpp
-    │   └── MultiBattleGameOverWidget.h/.cpp
+    │   └── UI/
+    │       ├── MutiBattleMenuWidget.h/.cpp
+    │       └── MultiBattleGameOverWidget.h/.cpp
     ├── TeamBattle/
     │   ├── TeamBattleGameMode.h/.cpp
     │   ├── TeamBattleGameState.h/.cpp
     │   ├── TeamBattlePlayerState.h/.cpp
-    │   ├── TeamBattleMenuWidget.h/.cpp
-    │   └── TeamBattleGameOverWidget.h/.cpp
+    │   └── UI/
+    │       ├── TeamBattleMenuWidget.h/.cpp
+    │       └── TeamBattleGameOverWidget.h/.cpp
     ├── MOBA/
     │   ├── TankMOBAGameMode.h/.cpp
     │   ├── TankMOBAGameState.h/.cpp
     │   ├── TankMOBAPlayerState.h/.cpp
     │   ├── Turret.h/.cpp
     │   ├── TurretProjectile.h/.cpp
-    │   ├── MOBASetupWidget.h/.cpp
-    │   ├── MOBAGameOverWidget.h/.cpp
-    │   ├── MOBATopStateUI.h/.cpp
-    │   ├── DeathScreenWidget.h/.cpp
-    │   └── EliminatedScreenWidget.h/.cpp
+    │   └── UI/
+    │       ├── MOBASetupWidget.h/.cpp
+    │       ├── MOBAGameOverWidget.h/.cpp
+    │       ├── MOBATopStateUI.h/.cpp
+    │       ├── DeathScreenWidget.h/.cpp
+    │       └── EliminatedScreenWidget.h/.cpp
     ├── Stage/
     │   ├── TankStageGameMode.h/.cpp
     │   ├── TankStageGameState.h/.cpp
     │   ├── TankStagePlayerState.h/.cpp
-    │   ├── TankStageStartWidget.h/.cpp
-    │   ├── TankStageOverWidget.h/.cpp
-    │   └── PassWidget.h/.cpp
+    │   └── UI/
+    │       ├── TankStageStartWidget.h/.cpp
+    │       ├── TankStageOverWidget.h/.cpp
+    │       └── PassWidget.h/.cpp
     ├── Defense/
     │   └── DefenseGameMode.h/.cpp
     └── Test/
         └── TestGameMode.h/.cpp
 ```
 
-为什么 `Tower` 放 `Shared/NPC`，而不是 `Modes/Stage`：
+为什么 `Tower` 放 `Shared/Pawns/NPC`，而不是 `Modes/Stage`：
 
 - 代码上 `ATower` 是 `ABasePawn` 派生的 NPC 战斗单位。
+- 从继承关系看它仍然属于 Pawn 大类。
 - `AAIBotPlayerController` 默认把 `ATower` 当攻击目标。
 - `ATurret` 里也显式跳过 `ATower`，说明两者概念不同。
 - 当前 Stage 使用它最多，但未来 MOBA / Defense / 测试关也可能复用。
