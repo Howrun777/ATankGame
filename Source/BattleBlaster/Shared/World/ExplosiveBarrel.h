@@ -21,7 +21,6 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
-	virtual void Tick(float DeltaTime) override;
 	virtual void HandleDestruction() override;
 	// 【核心控制】伤害衰减系数
     // 0.0 = 完全无衰减，范围内全吃满伤害

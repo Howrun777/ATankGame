@@ -590,6 +590,4 @@ private:
 
 	// 缓存的手柄数量（避免每帧频繁查询）
 	int32 CachedGamepadCount = 0;
-	float CacheRefreshInterval = 0.5f;
-	float TimeSinceLastCacheRefresh = 0.0f;
 };

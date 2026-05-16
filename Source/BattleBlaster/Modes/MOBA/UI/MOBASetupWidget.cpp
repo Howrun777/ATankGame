@@ -37,8 +37,11 @@ void UMOBASetupWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime
 	}
 
 	// 1. 手柄图标：仅显示"当前连接手柄数量"
-	int32 ConnectedCount = GetConnectedDeviceCount();
-	UpdateDeviceIcons(ConnectedCount);
+	DeviceCountRefreshTimer += InDeltaTime;
+	if (DeviceCountRefreshTimer >= DeviceCountRefreshInterval)
+	{
+		RefreshConnectedDeviceCount();
+	}
 
 	// 2. Tank 槽数量 = 当前 UI 设置的人数
 	int32 ConfiguredCount = FMath::Clamp(CurrentPlayerCount, 1, 4);
@@ -102,6 +105,13 @@ int32 UMOBASetupWidget::GetConnectedDeviceCount()
 	int32 RawDeviceCount = ConnectedDevices.Num();
 	int32 EstimatedGamepadCount = FMath::Max(0, RawDeviceCount - 1);
 	return FMath::Clamp(FMath::Max(1, EstimatedGamepadCount), 1, 4);
+}
+
+void UMOBASetupWidget::RefreshConnectedDeviceCount()
+{
+	CachedConnectedDeviceCount = GetConnectedDeviceCount();
+	DeviceCountRefreshTimer = 0.0f;
+	UpdateDeviceIcons(CachedConnectedDeviceCount);
 }
 
 void UMOBASetupWidget::HandleMouseWheelTargeting(float DeltaTime)
@@ -187,8 +197,8 @@ void UMOBASetupWidget::NativeConstruct()
 	UpdateBackgroundImage();
 
 	// 3. 初始化玩家 Tank 状态
-	const int32 DeviceCount = GetConnectedDeviceCount();
-	ActivePlayerCount = FMath::Clamp(DeviceCount, 1, 4);
+	RefreshConnectedDeviceCount();
+	ActivePlayerCount = FMath::Clamp(CachedConnectedDeviceCount, 1, 4);
 
 	InitPlayerTankState(ActivePlayerCount);
 	UpdateAllTankImages();
@@ -226,7 +236,7 @@ void UMOBASetupWidget::OnPlayerMinusClicked()
 	CurrentPlayerCount = FMath::Clamp(CurrentPlayerCount, 2, 4);
 	UpdateDisplay();
 	UpdateBackgroundImage();
-	UpdateDeviceIcons(GetConnectedDeviceCount());
+	UpdateDeviceIcons(CachedConnectedDeviceCount);
 }
 
 void UMOBASetupWidget::OnPlayerPlusClicked()
@@ -235,7 +245,7 @@ void UMOBASetupWidget::OnPlayerPlusClicked()
 	CurrentPlayerCount = FMath::Clamp(CurrentPlayerCount, 2, 4);
 	UpdateDisplay();
 	UpdateBackgroundImage();
-	UpdateDeviceIcons(GetConnectedDeviceCount());
+	UpdateDeviceIcons(CachedConnectedDeviceCount);
 }
 
 // ---------------- 分数加减逻辑 ----------------
@@ -263,7 +273,8 @@ void UMOBASetupWidget::OnConfirmClicked()
 		GameInst->TargetPlayerCount = CurrentPlayerCount;
 		GameInst->TargetMatchScore = CurrentScore;
 
-		GameInst->ConnectedGamepadCount = GetConnectedDeviceCount();
+		RefreshConnectedDeviceCount();
+		GameInst->ConnectedGamepadCount = CachedConnectedDeviceCount;
 
 		GameInst->AIControlledPlayerIndices.Empty();
 		int32 DeviceCount = GameInst->ConnectedGamepadCount;

@@ -124,6 +124,11 @@ protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
+	static constexpr float DeviceCountRefreshInterval = 0.5f;
+	float DeviceCountRefreshTimer = 0.0f;
+	int32 CachedConnectedDeviceCount = 1;
+
+	void RefreshConnectedDeviceCount();
 	int32 GetConnectedDeviceCount();
 	void UpdateDeviceIcons(int32 DeviceCount);
 	void UpdateScoreDisplay();

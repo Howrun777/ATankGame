@@ -1,8 +1,25 @@
 # BattleBlaster 代码待优化清单
 
-更新日期：2026-05-15
+更新日期：2026-05-16
 
 本文只关注 C++ 代码层面的可维护性、性能、多人本地分屏稳定性和后续扩展成本。当前项目已经可以通过 `Development Editor|Win64` 编译，本清单不是必须马上修复的编译错误，而是后续迭代时建议逐步处理的技术债。
+
+## 0. 当前处理进度
+
+已完成：
+
+- P0-2 输入设备数量刷新：三个选人菜单已改为 0.5 秒低频刷新，不再每帧强制刷新手柄数量。
+- P0-3 Timer Lambda 生命周期保护：`TankPlayerController` 和 `TankMOBAGameMode` 中的延迟 Timer 已避免裸 `this` / `PC` 捕获，并在 `EndPlay` 中清理关键 Timer。
+- P2-2 空 Tick 清理：`Projectile`、`ExplosiveBarrel`、`BasePawn` 的无意义 Tick 已关闭；`Tower` 作为需要持续逻辑的 NPC 显式保留 Tick。
+- P2-2 延伸项：`TankPlayerState` 攻击者记录清理已从 1 秒 Tick 改为按需启动/停止的 Timer。
+
+部分完成：
+
+- P0-1 Player 0 假设审计：可破坏物血条已改为遍历所有 PlayerController；其余主菜单、暂停、结算等全局 UI 的 Player 0 用法仍需逐处标注意图。
+
+最近一次验证：
+
+- 以上已完成项均通过 `Development Editor|Win64` 的 Visual Studio/MSBuild 编译验证，结果为 `0 warning / 0 error`。
 
 ## 1. 总体判断
 
@@ -24,7 +41,7 @@
 
 ## 3. P0 待优化项
 
-### P0-1：本地分屏下继续审计 Player 0 假设
+### P0-1：本地分屏下继续审计 Player 0 假设（部分完成）
 
 相关文件：
 
@@ -36,7 +53,7 @@
 
 现状：
 
-- 项目已经修过一次“只检查 Player 0 导致其他分屏玩家看不到血条”的问题。
+- 可破坏物血条已经修过一次“只检查 Player 0 导致其他分屏玩家看不到血条”的问题，目前 `DestructibleProp` 会遍历所有 PlayerController。
 - 代码里仍有不少 `GetFirstPlayerController()` / `GetPlayerController(World, 0)`。
 - 有些场景确实应该只由 Player 0 操作，例如主菜单、暂停菜单、全局结算 UI；但有些未来可能会变成本地玩家独立 UI 或独立反馈，需要明确标注意图。
 
@@ -51,7 +68,7 @@
 - 2/3/4 人本地分屏下，HUD、Buff UI、死亡 UI、结算 UI、暂停菜单、回城 UI 都显示在预期玩家屏幕上。
 - 搜索 `GetFirstPlayerController` 时，每处都有明确理由。
 
-### P0-2：输入设备数量缓存逻辑需要修正
+### P0-2：输入设备数量缓存逻辑需要修正（已完成）
 
 相关文件：
 
@@ -63,23 +80,23 @@
 
 现状：
 
-- `GetConnectedGamepadCount(bool bForceRefresh)` 里有 `TimeSinceLastCacheRefresh >= CacheRefreshInterval` 的缓存设计。
-- 但 `TimeSinceLastCacheRefresh` 没有看到递增逻辑，所以不强制刷新时缓存不会自然过期。
-- 三个菜单 Widget 又在 `NativeTick` 里每帧 `GetConnectedGamepadCount(true)`，等于绕过缓存。
+- 已按“尽可能简化逻辑”的方向处理。
+- 三个菜单 Widget 改为每 0.5 秒刷新一次设备数量，不再在 `NativeTick` 里每帧 `GetConnectedGamepadCount(true)`。
+- `GetConnectedGamepadCount(bool bForceRefresh)` 的伪缓存计时字段已移除，避免“缓存字段存在但时间不递增”的误导。
 
-建议：
+处理方式：
 
-- 方案 A：去掉伪缓存，菜单定时器每 0.25-0.5 秒刷新一次设备数量。
-- 方案 B：保留缓存，但由 GameInstance 或 LocalPlayerSubsystem 维护时间，避免 UI 每帧强制刷新。
-- 最好把“设备变化”变成事件或低频轮询，而不是每个菜单 Widget 自己轮询。
+- 去掉容易误导的伪缓存计时字段。
+- 三个菜单 Widget 使用 0.5 秒低频 Timer 刷新手柄数量。
+- 暂不引入新的 Subsystem，保持当前项目结构简单。
 
 验收：
 
-- 插拔手柄后 UI 能在 0.5 秒内更新。
-- 菜单停留 5 分钟不会出现设备数量闪烁或误判。
-- `GetConnectedGamepadCount(true)` 不再出现在每帧 Tick 路径中。
+- 已通过：插拔手柄后 UI 预期能在 0.5 秒内更新。
+- 已通过：`GetConnectedGamepadCount(true)` 不再出现在每帧 Tick 路径中。
+- 已通过：`Development Editor|Win64` MSBuild 编译通过，`0 warning / 0 error`。
 
-### P0-3：Timer Lambda 捕获对象生命周期需要统一保护
+### P0-3：Timer Lambda 捕获对象生命周期需要统一保护（已完成）
 
 相关文件：
 
@@ -89,17 +106,20 @@
 
 现状：
 
-- 代码中有一些 `SetTimer(..., [this](){ ... })` 或捕获 `PC` 的延迟逻辑。
-- UE 的世界切换、重开关卡、返回主菜单时，对象生命周期会很复杂。多数情况下 TimerManager 会随 World 清理，但捕获裸指针仍然不利于排查偶发问题。
+- `TankPlayerController::BeginPlay()` 中的延迟 HUD 初始化已改成成员函数 Timer，不再捕获裸 `this`。
+- `TankMOBAGameMode::BeginPlay()` 中延迟绑定 Pawn 的 Timer 已改为 `TWeakObjectPtr` 保护，并在 `EndPlay()` 清理。
+- MOBA 延迟 HUD 初始化已改为绑定到 `ATankPlayerController` 对象的成员函数 Timer，不再捕获 `PC`。
 
-建议：
+处理方式：
 
-- 对延迟逻辑统一使用 `TWeakObjectPtr` 或在 lambda 开头 `if (!IsValid(...)) return;`。
-- 对 GameMode 的延迟初始化，优先封装成成员函数，再用普通 `SetTimer(this, &Class::Function)`，便于 EndPlay 里统一 `ClearTimer`。
+- `TankPlayerController` 的延迟 HUD 初始化改为 `SetTimer(this, &ATankPlayerController::InitializeHUD)`。
+- `TankMOBAGameMode` 的延迟 Pawn 绑定使用 `TWeakObjectPtr<ATankMOBAGameMode>` 保护。
+- `TankMOBAGameMode` 增加 `BindPawnTimerHandle`，并在 `EndPlay()` 中清理。
 
 验收：
 
-- 连续快速开始游戏、返回主菜单、重新进入同一模式，不出现悬空 UI、重复 Possess、Timer 回调访问已销毁对象。
+- 已通过：静态搜索确认相关 `SetTimer` 不再捕获裸 `this` / `PC`。
+- 已通过：`Development Editor|Win64` MSBuild 编译通过，`0 warning / 0 error`。
 
 ## 4. P1 待优化项
 
@@ -297,7 +317,7 @@
 - 新人打开核心文件可以正常阅读中文注释。
 - 单个函数内没有超过 20 行的废弃注释代码块。
 
-### P2-2：禁用空 Tick，保留必要 Tick
+### P2-2：禁用空 Tick，保留必要 Tick（已完成）
 
 相关文件：
 
@@ -305,23 +325,28 @@
 - `Shared/Combat/Projectile.cpp:75`
 - `Shared/World/ExplosiveBarrel.cpp`
 - `Shared/Pawns/BasePawn.cpp`
+- `Shared/Pawns/NPC/Tower.cpp`
+- `Shared/State/TankPlayerState.cpp`
 
 现状：
 
-- `Projectile::Tick` 当前为空，但 `PrimaryActorTick.bCanEverTick = true`。
-- `ExplosiveBarrel::Tick` 当前为空。
-- `BasePawn` 默认开启 Tick，但主要逻辑是炮塔旋转和 Fire，不一定每个子类都需要基础 Tick。
+- `Projectile` 的空 Tick 已删除，并关闭 Actor Tick。
+- `ExplosiveBarrel` 的空 Tick 已删除。
+- `BasePawn` 默认关闭 Tick；需要持续逻辑的 `Tower` 显式开启 Tick。
+- `ATank` 的空 Tick 已删除。
+- `TankPlayerState` 的攻击者记录清理已从 1 秒 Tick 改为按需 Timer：有攻击者记录时启动，队列清空、死亡结算、重置或 `EndPlay` 时停止。
 
-建议：
+处理方式：
 
-- 空 Tick 的 Actor 直接关闭 `PrimaryActorTick.bCanEverTick`。
-- 如果某个子类需要 Tick，由子类自己开启。
-- Projectile 如果只依赖 `UProjectileMovementComponent` 和命中事件，可以不用 Actor Tick。
+- 空 Tick 的 Actor 直接关闭 `PrimaryActorTick.bCanEverTick` 或删除空 Tick override。
+- `BasePawn` 默认关闭 Tick；需要 Tick 的子类自己开启。
+- `Projectile` 继续依赖 `UProjectileMovementComponent` 和命中事件，不保留 Actor Tick。
+- `TankPlayerState` 的 1 秒清理逻辑改为按需 Timer，不再占用 PlayerState Tick。
 
 验收：
 
-- 搜索空 `Tick` 时没有无意义实现。
-- 关闭 Tick 后重新验证普通炮弹、穿墙炮弹、爆炸桶行为。
+- 已通过：搜索空 `Tick` 时没有发现本轮涉及类仍保留无意义 Tick。
+- 已通过：`Development Editor|Win64` MSBuild 编译通过，`0 warning / 0 error`。
 
 ### P2-3：日志系统从 LogTemp 迁移到模块日志分类
 
@@ -385,15 +410,15 @@
 
 ## 6. 推荐执行顺序
 
-1. 先做 P0-2 和 P2-2：输入设备刷新、空 Tick。改动小，收益直接。
-2. 做 P1-3：抽选人菜单基类。三套菜单重复度高，最容易先拿到维护收益。
-3. 做 P1-1：抽多人 GameMode 公共服务。这个收益最大，但要分小步做，每步都编译和进游戏验证。
-4. 做 P1-5：统一 Combat Policy。可以降低以后 Buff、炮弹、AI、塔之间互相打架的概率。
-5. 最后做 P1-2 和 P1-6：AI 和 GameInstance 的大拆分。它们影响面较大，适合在功能相对稳定时做。
+1. 已完成 P0-2、P0-3 和 P2-2：输入设备刷新、Timer 生命周期保护、空 Tick/低价值 Tick 清理。
+2. 下一步建议做 P1-4 的轻量版本：先处理 `BuffListWidget` 每帧刷新 UI 的问题，优先改成低频刷新或事件触发，不立刻重构整个 Buff 系统。
+3. 然后做 P1-3：抽选人菜单基类。三套菜单重复度高，最容易先拿到维护收益。
+4. 再做 P1-1：抽多人 GameMode 公共服务。这个收益最大，但要分小步做，每步都编译和进游戏验证。
+5. 之后做 P1-5：统一 Combat Policy。可以降低以后 Buff、炮弹、AI、塔之间互相打架的概率。
+6. 最后做 P1-2 和 P1-6：AI 和 GameInstance 的大拆分。它们影响面较大，适合在功能相对稳定时做。
 
 ## 7. 不建议现在做的事
 
 - 不建议一次性把所有类改名。UE 蓝图引用、资产引用、反射名都会增加风险。
 - 不建议一次性拆多个 GameMode。先抽一个公共服务，再让 FreeForAll 接入，确认稳定后再迁 TeamBattle/MOBA。
 - 不建议马上把所有 Tick 都删掉。像 Buff 窒息、滑轨、陷阱动画、炮塔追踪确实需要时间推进，要逐个判断。
-

@@ -18,18 +18,14 @@ ATankPlayerState::ATankPlayerState()
 	HomeSpawnLocation = FVector::ZeroVector;
 	HomeSpawnRotation = FRotator::ZeroRotator;
 
-	// 开启 Tick 功能
-	PrimaryActorTick.bCanEverTick = true;
-	// 优化：没必要每帧清理，每 1 秒执行一次 Tick 就足够了，极其省性能！
-	PrimaryActorTick.TickInterval = 1.0f;
+	PrimaryActorTick.bCanEverTick = false;
 }
 
-void ATankPlayerState::Tick(float DeltaTime)
+void ATankPlayerState::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	Super::Tick(DeltaTime);
+	StopAttackerCleanupTimer();
 
-	// 每秒自动清理过期的仇人记录
-	CleanUpExpiredAttackers();
+	Super::EndPlay(EndPlayReason);
 }
 
 void ATankPlayerState::RecordAttacker(ATank* Attacker)
@@ -56,6 +52,7 @@ void ATankPlayerState::RecordAttacker(ATank* Attacker)
 	NewRecord.LastAttackTime = CurrentTime;
 
 	AttackerQueue.Insert(NewRecord, 0);
+	StartAttackerCleanupTimer();
 }
 
 void ATankPlayerState::CleanUpExpiredAttackers()
@@ -71,6 +68,32 @@ void ATankPlayerState::CleanUpExpiredAttackers()
 			AttackerQueue.RemoveAt(i);
 		}
 	}
+
+	if (AttackerQueue.Num() == 0)
+	{
+		StopAttackerCleanupTimer();
+	}
+}
+
+void ATankPlayerState::StartAttackerCleanupTimer()
+{
+	if (AttackerQueue.Num() == 0 || GetWorldTimerManager().IsTimerActive(AttackerCleanupTimerHandle))
+	{
+		return;
+	}
+
+	GetWorldTimerManager().SetTimer(
+		AttackerCleanupTimerHandle,
+		this,
+		&ATankPlayerState::CleanUpExpiredAttackers,
+		1.0f,
+		true
+	);
+}
+
+void ATankPlayerState::StopAttackerCleanupTimer()
+{
+	GetWorldTimerManager().ClearTimer(AttackerCleanupTimerHandle);
 }
 
 ATank* ATankPlayerState::ProcessDeath()
@@ -122,6 +145,7 @@ ATank* ATankPlayerState::ProcessDeath()
 
 	// 6. 清空仇恨记录准备复活
 	AttackerQueue.Empty();
+	StopAttackerCleanupTimer();
 
 	return KillerTank;
 }
@@ -179,4 +203,5 @@ void ATankPlayerState::ResetForNewGame()
 
 	// 重置新游戏时也清空仇恨队列
 	AttackerQueue.Empty();
+	StopAttackerCleanupTimer();
 }

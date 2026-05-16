@@ -8,7 +8,7 @@
 // Sets default values
 ABasePawn::ABasePawn()
 {
-	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bCanEverTick = false;
 	// 1. 创建并设置胶囊体为根组件
 	CapsuleComp = CreateDefaultSubobject<UCapsuleComponent>(TEXT("CapsuleComp"));
 	SetRootComponent(CapsuleComp); // 设置为根

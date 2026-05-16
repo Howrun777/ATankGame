@@ -168,10 +168,7 @@ void ATankPlayerController::BeginPlay()
 		{
 			// 如果还没有 Pawn，延迟 0.1 秒后尝试初始化（用于 GameMode 延迟 Possess 的情况）
 			FTimerHandle TimerHandle;
-			GetWorldTimerManager().SetTimer(TimerHandle, [this]()
-			{
-				InitializeHUD();
-			}, 0.1f, false);
+			GetWorldTimerManager().SetTimer(TimerHandle, this, &ATankPlayerController::InitializeHUD, 0.1f, false);
 		}
 	}
 }

@@ -324,27 +324,6 @@ void ATank::HandleKillReward()
 
 	//UE_LOG(LogTemp, Warning, TEXT("Enemy Killed! Reward: +10 Ammo, +25 Health"));
 }
-void ATank::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
-
-	//// 炮塔转向鼠标的逻辑
-	//APlayerController* PlayerController = Cast<APlayerController>(GetController());
-	//// 检查玩家控制器是否有效（避免空指针访问）
-	//if (PlayerController)
-	//{
-	//	// 声明碰撞结果结构体，用于存储鼠标光标下的碰撞信息（位置、法线、碰撞对象等）
-	//	FHitResult HitResult;
-	//	// 获取鼠标光标正下方的世界碰撞结果
-	//	// 参数1：ECC_Visibility - 使用"可见性"碰撞通道（只检测能被看到的对象，忽略碰撞体但检测视觉几何体）
-	//	// 参数2：false - 不忽略自身（即坦克自身也会被检测）
-	//	// 参数3：HitResult - 输出参数，存储碰撞结果数据
-	//	PlayerController->GetHitResultUnderCursor(ECC_Visibility, false, HitResult);
-
-	//	RotateTurret(HitResult.ImpactPoint);
-	//}
-}
-
 // 绑定输入函数
 void ATank::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {

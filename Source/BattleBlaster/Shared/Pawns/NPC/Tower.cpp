@@ -16,6 +16,8 @@
 // 构造函数
 ATower::ATower()
 {
+    PrimaryActorTick.bCanEverTick = true;
+
     // 初始化变量
     bIsDead = false;
     ActiveDeathLoopComponent = nullptr;

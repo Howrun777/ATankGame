@@ -20,9 +20,8 @@
 
 AProjectile::AProjectile()
 {
-    // 开启Actor的Tick函数（每帧执行Tick()）
-    // 说明：若需每帧更新炮弹状态（如轨迹修正、碰撞检测）则保留，无需时可关闭以提升性能
-    PrimaryActorTick.bCanEverTick = true;
+    // 炮弹移动由 ProjectileMovementComp 负责，命中由 OnHit 处理，不需要 Actor Tick。
+    PrimaryActorTick.bCanEverTick = false;
 
     // 创建炮弹的静态网格体组件（可视化炮弹模型）
     // CreateDefaultSubobject：在构造函数中创建Actor的子组件，参数为组件名称（用于编辑器识别）
@@ -69,13 +68,6 @@ void AProjectile::BeginPlay()
     if (LaunchSound) {
         UGameplayStatics::PlaySoundAtLocation(GetWorld(), LaunchSound, GetActorLocation());
     }
-}
-
-// Called every frame
-void AProjectile::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
-
 }
 
 void AProjectile::OnHit(

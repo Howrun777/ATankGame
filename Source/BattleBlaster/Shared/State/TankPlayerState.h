@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerState.h"
 #include "Shared/Buffs/TankBuffComponent.h"
+#include "TimerManager.h"
 #include "TankPlayerState.generated.h"
 
 class ATank; // 前向声明，避免头文件循环依赖
@@ -35,8 +36,6 @@ class BATTLEBLASTER_API ATankPlayerState : public APlayerState
 
 public:
 	ATankPlayerState();
-
-	virtual void Tick(float DeltaTime) override;
 
 	// ================= 玩家索引 =================
 
@@ -96,8 +95,12 @@ public:
 
 	// ================= 仇人队列 =================
 protected:
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
 	// 存放 7 秒内攻击过我的所有仇人（队头为最后攻击者）
 	TArray<FAttackerRecord> AttackerQueue;
+
+	FTimerHandle AttackerCleanupTimerHandle;
 
 public:
 	// 记录受击（由 Tank 收到伤害时调用）
@@ -115,6 +118,9 @@ protected:
 
 	// 清理超过 7 秒的过期记录
 	void CleanUpExpiredAttackers();
+
+	void StartAttackerCleanupTimer();
+	void StopAttackerCleanupTimer();
 
 	// 刷新所有受影响者的 KDA UI（死者 + 凶手 + 所有助攻者）
 	// 凶手必定是 AttackerQueue[0]（队头是最后攻击者），无需额外参数

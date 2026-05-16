@@ -23,15 +23,18 @@ void UTeamBattleMenuWidget::NativeConstruct()
 	UpdateScoreDisplay();
 	InitPlayerTankState();
 	UpdateAllTankImages();
-	UpdateDeviceIcons(GetConnectedDeviceCount());
+	RefreshConnectedDeviceCount();
 }
 
 void UTeamBattleMenuWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
 
-	int32 DeviceCount = GetConnectedDeviceCount();
-	UpdateDeviceIcons(DeviceCount);
+	DeviceCountRefreshTimer += InDeltaTime;
+	if (DeviceCountRefreshTimer >= DeviceCountRefreshInterval)
+	{
+		RefreshConnectedDeviceCount();
+	}
 
 	if (HoverFrame_1 && TankImage_1) HoverFrame_1->SetVisibility(TankImage_1->IsHovered() ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
 	if (HoverFrame_2 && TankImage_2) HoverFrame_2->SetVisibility(TankImage_2->IsHovered() ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
@@ -57,6 +60,13 @@ int32 UTeamBattleMenuWidget::GetConnectedDeviceCount()
 	int32 RawDeviceCount = ConnectedDevices.Num();
 	int32 EstimatedGamepadCount = FMath::Max(0, RawDeviceCount - 1);
 	return FMath::Clamp(FMath::Max(1, EstimatedGamepadCount), 1, 4);
+}
+
+void UTeamBattleMenuWidget::RefreshConnectedDeviceCount()
+{
+	CachedConnectedDeviceCount = GetConnectedDeviceCount();
+	DeviceCountRefreshTimer = 0.0f;
+	UpdateDeviceIcons(CachedConnectedDeviceCount);
 }
 
 void UTeamBattleMenuWidget::UpdateDeviceIcons(int32 DeviceCount)
@@ -242,7 +252,8 @@ void UTeamBattleMenuWidget::OnConfirmClicked()
 	{
 		GameInst->TargetPlayerCount = TeamBattlePlayerCount;
 		GameInst->TargetMatchScore = CurrentScore;
-		GameInst->ConnectedGamepadCount = GetConnectedDeviceCount();
+		RefreshConnectedDeviceCount();
+		GameInst->ConnectedGamepadCount = CachedConnectedDeviceCount;
 
 		GameInst->AIControlledPlayerIndices.Empty();
 		int32 DeviceCount = GameInst->ConnectedGamepadCount;

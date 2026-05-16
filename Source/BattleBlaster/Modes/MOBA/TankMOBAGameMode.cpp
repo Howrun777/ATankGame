@@ -194,15 +194,20 @@ void ATankMOBAGameMode::BeginPlay()
 
 	// 8) 等待玩家控制器生成完成后，绑定 Pawn
 	// 通过延迟几帧后手动设置每个 PlayerController 的 Pawn
-	FTimerHandle BindPawnTimerHandle;
-	GetWorld()->GetTimerManager().SetTimer(BindPawnTimerHandle, [this]()
+	GetWorld()->GetTimerManager().SetTimer(BindPawnTimerHandle, [WeakThis = TWeakObjectPtr<ATankMOBAGameMode>(this)]()
 	{
-		for (int32 i = 0; i < TargetPlayerCount; i++)
+		ATankMOBAGameMode* GameMode = WeakThis.Get();
+		if (!GameMode || !GameMode->GetWorld())
 		{
-			if (!ActiveTanks[i]) continue;
+			return;
+		}
+
+		for (int32 i = 0; i < GameMode->TargetPlayerCount; i++)
+		{
+			if (!GameMode->ActiveTanks.IsValidIndex(i) || !GameMode->ActiveTanks[i]) continue;
 
 			// 判断这个槽位是否需要 AI 控制
-			const bool bIsAI = bIsPlayerAIControlled.IsValidIndex(i) && bIsPlayerAIControlled[i];
+			const bool bIsAI = GameMode->bIsPlayerAIControlled.IsValidIndex(i) && GameMode->bIsPlayerAIControlled[i];
 
 			if (bIsAI)
 			{
@@ -210,7 +215,7 @@ void ATankMOBAGameMode::BeginPlay()
 				FActorSpawnParameters AIControllerSpawnParams;
 				AIControllerSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-				AAIBotPlayerController* AIPC = GetWorld()->SpawnActor<AAIBotPlayerController>(
+				AAIBotPlayerController* AIPC = GameMode->GetWorld()->SpawnActor<AAIBotPlayerController>(
 					AAIBotPlayerController::StaticClass(),
 					FVector::ZeroVector,
 					FRotator::ZeroRotator,
@@ -219,7 +224,7 @@ void ATankMOBAGameMode::BeginPlay()
 
 				if (AIPC)
 				{
-					AIPC->Possess(ActiveTanks[i]);
+					AIPC->Possess(GameMode->ActiveTanks[i]);
 
 					// 【核心修复】：AIBotPlayerController 已开启 bWantsPlayerState=true，引擎已自动生成 PlayerState！
 					// 我们只需提取它并初始化阵营信息，不要手动 Spawn！
@@ -235,38 +240,35 @@ void ATankMOBAGameMode::BeginPlay()
 			else
 			{
 				// 人类玩家槽位：获取对应的 PlayerController 并 Possess
-				APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), i);
+				APlayerController* PC = UGameplayStatics::GetPlayerController(GameMode->GetWorld(), i);
 				if (!PC) continue;
 
 				// 如果是本地控制器，绑定 Pawn 并初始化 UI
 				if (PC->IsLocalController())
 				{
-					PC->Possess(ActiveTanks[i]);
+					PC->Possess(GameMode->ActiveTanks[i]);
 					UE_LOG(LogTemp, Display, TEXT("MOBA: PlayerController %d possessed Tank %d"), i, i);
 
 					// 【核心修复】：在 Possess 完成后立即初始化 MOBAState
 					// 不再依赖 HandleStartingNewPlayer（它调用时 GetPawn() 可能还是 nullptr）
 					if (ATankMOBAPlayerState* MOBAState = PC->GetPlayerState<ATankMOBAPlayerState>())
 					{
-						MOBAState->InitializeMOBAState(ActiveTanks[i]->GetPlayerIndex());
+						MOBAState->InitializeMOBAState(GameMode->ActiveTanks[i]->GetPlayerIndex());
 						UE_LOG(LogTemp, Display, TEXT("MOBA: InitializeMOBAState for player %d, PlayerIndex=%d"),
-							i, ActiveTanks[i]->GetPlayerIndex());
+							i, GameMode->ActiveTanks[i]->GetPlayerIndex());
 					}
 
 					// 延迟一点时间后初始化 UI，确保 Possess 完成
 					FTimerHandle InitHUDTimer;
-					GetWorld()->GetTimerManager().SetTimer(InitHUDTimer, [PC]()
+					if (ATankPlayerController* TankPC = Cast<ATankPlayerController>(PC))
 					{
-						if (ATankPlayerController* TankPC = Cast<ATankPlayerController>(PC))
-						{
-							TankPC->InitializeHUD();
-						}
-					}, 0.1f, false);
+						GameMode->GetWorld()->GetTimerManager().SetTimer(InitHUDTimer, TankPC, &ATankPlayerController::InitializeHUD, 0.1f, false);
+					}
 				}
 			}
 
 			// === 绑定 Tank 死亡事件（GameMode 监听此委托处理复活/胜负判定） ===
-			ActiveTanks[i]->OnKilled.AddDynamic(this, &ATankMOBAGameMode::HandleTankKilled);
+			GameMode->ActiveTanks[i]->OnKilled.AddDynamic(GameMode, &ATankMOBAGameMode::HandleTankKilled);
 		}
 	}, 0.5f, false);
 
@@ -306,6 +308,7 @@ void ATankMOBAGameMode::Tick(float DeltaTime)
 
 void ATankMOBAGameMode::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	GetWorldTimerManager().ClearTimer(BindPawnTimerHandle);
 	GetWorldTimerManager().ClearTimer(MOBAGameOverTimerHandle);
 
 	// 清理 TopStateUI

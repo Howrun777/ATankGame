@@ -179,6 +179,11 @@ protected:
 	void OnScorePlusClicked();
 
 	// ================= 手柄检测逻辑 =================
+	static constexpr float DeviceCountRefreshInterval = 0.5f;
+	float DeviceCountRefreshTimer = 0.0f;
+	int32 CachedConnectedDeviceCount = 1;
+
+	void RefreshConnectedDeviceCount();
 	int32 GetConnectedDeviceCount();
 	void UpdateDeviceIcons(int32 DeviceCount);
 };

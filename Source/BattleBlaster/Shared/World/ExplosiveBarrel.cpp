@@ -63,14 +63,6 @@ void AExplosiveBarrel::BeginPlay()
 }
 
 // ------------------------------
-// 每帧调用（暂时没逻辑，留着扩展）
-// ------------------------------
-void AExplosiveBarrel::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
-}
-
-// ------------------------------
 // 【核心爆炸逻辑】当油桶被摧毁时执行这一切
 // ------------------------------
 void AExplosiveBarrel::HandleDestruction()

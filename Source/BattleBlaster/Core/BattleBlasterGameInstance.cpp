@@ -514,11 +514,10 @@ int32 UBattleBlasterGameInstance::GetConnectedGamepadCountWithMapping(TArray<int
 
 int32 UBattleBlasterGameInstance::GetConnectedGamepadCount(bool bForceRefresh)
 {
-	if (bForceRefresh || TimeSinceLastCacheRefresh >= CacheRefreshInterval)
+	if (bForceRefresh || CachedGamepadCount <= 0)
 	{
 		TArray<int32> Dummy;
 		GetConnectedGamepadCountWithMapping(Dummy);
-		TimeSinceLastCacheRefresh = 0.0f;
 	}
 	return CachedGamepadCount;
 }

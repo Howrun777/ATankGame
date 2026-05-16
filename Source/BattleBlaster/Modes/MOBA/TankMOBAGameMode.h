@@ -181,6 +181,8 @@ protected:
 	// 游戏时间计时器句柄
 	FTimerHandle GameTimerHandle;
 
+	FTimerHandle BindPawnTimerHandle;
+
 	// 复活计时器句柄
 	FTimerHandle RespawnTimerHandle;
 

@@ -35,8 +35,11 @@ void UMutiBattleMenuWidget::NativeTick(const FGeometry& MyGeometry, float InDelt
 	}
 
 	// 1. 手柄图标：仅显示"当前连接手柄数量"，和人数设置分开
-	int32 ConnectedCount = GetConnectedDeviceCount();
-	UpdateDeviceIcons(ConnectedCount);
+	DeviceCountRefreshTimer += InDeltaTime;
+	if (DeviceCountRefreshTimer >= DeviceCountRefreshInterval)
+	{
+		RefreshConnectedDeviceCount();
+	}
 
 	// 2. Tank 槽数量 = 当前 UI 设置的人数（CurrentPlayerCount）
 	int32 ConfiguredCount = FMath::Clamp(CurrentPlayerCount, 1, 4);
@@ -109,6 +112,13 @@ int32 UMutiBattleMenuWidget::GetConnectedDeviceCount()
 	int32 RawDeviceCount = ConnectedDevices.Num();
 	int32 EstimatedGamepadCount = FMath::Max(0, RawDeviceCount - 1);
 	return FMath::Clamp(FMath::Max(1, EstimatedGamepadCount), 1, 4);
+}
+
+void UMutiBattleMenuWidget::RefreshConnectedDeviceCount()
+{
+	CachedConnectedDeviceCount = GetConnectedDeviceCount();
+	DeviceCountRefreshTimer = 0.0f;
+	UpdateDeviceIcons(CachedConnectedDeviceCount);
 }
 
 void UMutiBattleMenuWidget::HandleMouseWheelTargeting(float DeltaTime)
@@ -209,8 +219,8 @@ void UMutiBattleMenuWidget::NativeConstruct()
 	UpdateBackgroundImage();
 
 	// 3. 根据当前设备数量初始化玩家 Tank 状态
-	const int32 DeviceCount = GetConnectedDeviceCount();      // 复用你已有方法
-	ActivePlayerCount = FMath::Clamp(DeviceCount, 1, 4);      // 至少1人，最多4人
+	RefreshConnectedDeviceCount();
+	ActivePlayerCount = FMath::Clamp(CachedConnectedDeviceCount, 1, 4);
 
 	InitPlayerTankState(ActivePlayerCount);
 	UpdateAllTankImages();
@@ -238,7 +248,7 @@ void UMutiBattleMenuWidget::OnPlayerMinusClicked()
 	UpdateDisplay();
 	// 人数减少后刷新背景
 	UpdateBackgroundImage();
-	UpdateDeviceIcons(GetConnectedDeviceCount());
+	UpdateDeviceIcons(CachedConnectedDeviceCount);
 }
 
 void UMutiBattleMenuWidget::OnPlayerPlusClicked()
@@ -248,7 +258,7 @@ void UMutiBattleMenuWidget::OnPlayerPlusClicked()
 	UpdateDisplay();
 	// 人数增加后刷新背景
 	UpdateBackgroundImage();
-	UpdateDeviceIcons(GetConnectedDeviceCount());
+	UpdateDeviceIcons(CachedConnectedDeviceCount);
 }
 
 // ---------------- 分数加减逻辑 ----------------
@@ -279,7 +289,8 @@ void UMutiBattleMenuWidget::OnConfirmClicked()
 		GameInst->TargetMatchScore = CurrentScore;
 
 		// 保存实际连接的手柄数量和AI控制信息
-		GameInst->ConnectedGamepadCount = GetConnectedDeviceCount();
+		RefreshConnectedDeviceCount();
+		GameInst->ConnectedGamepadCount = CachedConnectedDeviceCount;
 
 		// 计算需要AI控制的玩家索引
 		GameInst->AIControlledPlayerIndices.Empty();

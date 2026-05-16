@@ -222,6 +222,11 @@ protected:
 
 	// ================= 手柄检测逻辑 =================
 	// 获取当前物理连接的设备数量
+	static constexpr float DeviceCountRefreshInterval = 0.5f;
+	float DeviceCountRefreshTimer = 0.0f;
+	int32 CachedConnectedDeviceCount = 1;
+
+	void RefreshConnectedDeviceCount();
 	int32 GetConnectedDeviceCount();
 
 	// 根据数量刷新图片的显示和隐藏
