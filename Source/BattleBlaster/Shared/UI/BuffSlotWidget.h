@@ -26,4 +26,11 @@ protected:
 public:
 	// 核心函数：由列表容器调用，用来刷新这张卡片显示的内容
 	void UpdateSlot(UTexture2D* InIcon, float RemainingTime);
+
+private:
+	UPROPERTY()
+	UTexture2D* CachedIcon = nullptr;
+
+	int32 CachedSecondsDisplay = INDEX_NONE;
+	bool bCachedWarningColor = false;
 };

@@ -6,10 +6,19 @@
 #include "Shared/Buffs/TankBuffComponent.h" // 确保引入了你的 Buff 组件头文件
 #include "Shared/UI/BuffSlotWidget.h"    // 必须引入刚写的子类头文件
 
-void UBuffListWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+void UBuffListWidget::NativeConstruct()
 {
-	Super::NativeTick(MyGeometry, InDeltaTime);
+	Super::NativeConstruct();
+
 	UpdateBuffList();
+	StartRefreshTimer();
+}
+
+void UBuffListWidget::NativeDestruct()
+{
+	StopRefreshTimer();
+
+	Super::NativeDestruct();
 }
 
 void UBuffListWidget::UpdateBuffList()
@@ -18,8 +27,19 @@ void UBuffListWidget::UpdateBuffList()
 	if (!BuffContainer || !BuffSlotClass) return;
 
 	// 从自己所属的玩家控制器拿Pawn，而不是硬编码0号玩家
-	ATank* PlayerTank = Cast<ATank>(OwnerPlayerController->GetPawn());
-	if (!PlayerTank || !PlayerTank->GetBuffComponent()) return;
+	ATank* PlayerTank = IsValid(OwnerPlayerController) ? Cast<ATank>(OwnerPlayerController->GetPawn()) : nullptr;
+	if (!PlayerTank || !PlayerTank->GetBuffComponent())
+	{
+		const int32 CurrentSlots = BuffContainer->GetChildrenCount();
+		for (int32 i = 0; i < CurrentSlots; ++i)
+		{
+			if (UBuffSlotWidget* BuffSlot = Cast<UBuffSlotWidget>(BuffContainer->GetChildAt(i)))
+			{
+				BuffSlot->SetVisibility(ESlateVisibility::Collapsed);
+			}
+		}
+		return;
+	}
 
 	// 获取正在持续的 Buff 数组 (不含一次性的)
 	TArray<FActiveBuffUIInfo> ActiveBuffs = PlayerTank->GetBuffComponent()->GetActiveBuffsForUI();
@@ -67,5 +87,32 @@ void UBuffListWidget::InitBuffUI(ATankPlayerController* InOwnerController)
 	if (IsValid(InOwnerController))
 	{
 		OwnerPlayerController = InOwnerController;
+		UpdateBuffList();
+		StartRefreshTimer();
+	}
+}
+
+void UBuffListWidget::StartRefreshTimer()
+{
+	UWorld* World = GetWorld();
+	if (!World || World->GetTimerManager().IsTimerActive(BuffRefreshTimerHandle))
+	{
+		return;
+	}
+
+	World->GetTimerManager().SetTimer(
+		BuffRefreshTimerHandle,
+		this,
+		&UBuffListWidget::UpdateBuffList,
+		FMath::Max(RefreshInterval, 0.05f),
+		true
+	);
+}
+
+void UBuffListWidget::StopRefreshTimer()
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(BuffRefreshTimerHandle);
 	}
 }
