@@ -41,7 +41,8 @@ void ATankMOBAPlayerState::ResetForNewGame()
 void ATankMOBAPlayerState::InitializeMOBAState(int32 InCampIndex)
 {
 	CampIndex = InCampIndex;
-	PlayerIndex = InCampIndex; // 【核心修复】：同时设置 PlayerIndex，HandleTankKilled 通过它来匹配死者
+	SetSlotId(InCampIndex);
+	SetTeamId(InCampIndex);
 	bIsDead = false;
 	bIsEliminated = false;
 	RespawnTimeRemaining = 0.0f;
@@ -60,7 +61,7 @@ float ATankMOBAPlayerState::CalculateRespawnDelay(float GameTime, float InitialD
 
 void ATankMOBAPlayerState::HandleKillConfirmed(ATank* Victim)
 {
-	// MOBA 模式：每个玩家独立阵营（CampIndex = PlayerIndex），
+	// MOBA 模式：每个玩家独立阵营（CampIndex = SlotId），
 	// 击杀跨阵营玩家不涉及"阵营积分"概念（无团队分数），
 	// 所有 KDA 增减已由基类 ProcessDeath 处理，这里不需要额外逻辑。
 }

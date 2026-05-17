@@ -104,16 +104,16 @@ void AProjectile::OnHit(
         // 获取当前游戏模式
         AGameModeBase* CurrentGM = GetWorld()->GetAuthGameMode();
 
-        // MOBA 模式：每个玩家独立阵营，同 PlayerIndex = 同阵营，不能互相伤害
+        // MOBA 模式：每个玩家独立阵营，同 SlotId = 同阵营，不能互相伤害
         if (Cast<ATankMOBAGameMode>(CurrentGM))
         {
-            // 直接使用 Tank 的 PlayerIndex 作为阵营ID
-            // MOBA 模式下每个玩家都是独立阵营（PlayerIndex 0,1,2,3 分别对应 P0,P1,P2,P3 出生点）
-            int32 AttackerCamp = AttackerTank->GetPlayerIndex();
-            int32 VictimCamp = VictimTank->GetPlayerIndex();
+            // 直接使用 Tank 的 SlotId 作为阵营ID
+            // MOBA 模式下每个玩家都是独立阵营（SlotId 0,1,2,3 分别对应 P0,P1,P2,P3 出生点）
+            const int32 AttackerTeamId = AttackerTank->GetTeamId();
+            const int32 VictimTeamId = VictimTank->GetTeamId();
 
-            // 只有同 PlayerIndex 才不造成伤害（自己不能打自己）
-            if (AttackerCamp >= 0 && VictimCamp >= 0 && AttackerCamp == VictimCamp)
+            // 只有同 SlotId 才不造成伤害（自己不能打自己）
+            if (AttackerTeamId >= 0 && VictimTeamId >= 0 && AttackerTeamId == VictimTeamId)
             {
                 Destroy();
                 return;
@@ -122,12 +122,12 @@ void AProjectile::OnHit(
         // TeamBattle 模式：同阵营（0/2=红色，1/3=蓝色）不能互相伤害
         else if (Cast<ATeamBattleGameMode>(CurrentGM))
         {
-            // 使用 PlayerIndex 判断阵营：0/2 是红色，1/3 是蓝色
-            bool bAttackerIsRed = (AttackerTank->GetPlayerIndex() == 0 || AttackerTank->GetPlayerIndex() == 2);
-            bool bVictimIsRed = (VictimTank->GetPlayerIndex() == 0 || VictimTank->GetPlayerIndex() == 2);
+            // 使用 SlotId 判断阵营：0/2 是红色，1/3 是蓝色
+            const int32 AttackerTeamId = AttackerTank->GetTeamId();
+            const int32 VictimTeamId = VictimTank->GetTeamId();
 
             // 同阵营不造成伤害
-            if (bAttackerIsRed == bVictimIsRed)
+            if (AttackerTeamId >= 0 && VictimTeamId >= 0 && AttackerTeamId == VictimTeamId)
             {
                 Destroy();
                 return;

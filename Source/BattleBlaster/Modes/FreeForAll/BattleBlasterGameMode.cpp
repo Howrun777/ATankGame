@@ -185,7 +185,8 @@ void ABattleBlasterGameMode::BeginPlay()
 				// 引擎已经自动生成了，我们只需要提取出来并改写编号即可！
 				if (ATankBattlePlayerState* AIPlayerState = AIPC->GetPlayerState<ATankBattlePlayerState>())
 				{
-					AIPlayerState->PlayerIndex = i;
+					AIPlayerState->SetSlotId(i);
+					AIPlayerState->SetTeamId(i);
 					AIPlayerState->SetPlayerName(FString::Printf(TEXT("AI_P%d"), i));
 				}
 			}
@@ -209,13 +210,15 @@ void ABattleBlasterGameMode::BeginPlay()
 				// 【核心修复 2】：确保真人玩家拿到属于自己的槽位编号！
 				if (ATankBattlePlayerState* HumanPS = PC->GetPlayerState<ATankBattlePlayerState>())
 				{
-					HumanPS->PlayerIndex = i;
+					HumanPS->SetSlotId(i);
+					HumanPS->SetTeamId(i);
 				}
 			}
 		}
 
 		NewTank->SetPlayerEnabled(false);
-		NewTank->SetPlayerIndex(i);
+		NewTank->SetSlotId(i);
+		NewTank->SetTeamId(i);
 		ActiveTanks[i] = NewTank;
 		NewTank->OnKilled.AddDynamic(this, &ABattleBlasterGameMode::HandleTankKilled);
 	}
@@ -526,24 +529,24 @@ void ABattleBlasterGameMode::HandleTankKilled(ATank* DeadTank, ATank* KillerTank
 	}
 }
 
-void ABattleBlasterGameMode::RespawnPlayer(int32 PlayerIndex)
+void ABattleBlasterGameMode::RespawnPlayer(int32 SlotId)
 {
 	if (WinnerIndex != -1) return;
-	if (!PlayerStarts.IsValidIndex(PlayerIndex) || !PlayerStarts[PlayerIndex]) return;
+	if (!PlayerStarts.IsValidIndex(SlotId) || !PlayerStarts[SlotId]) return;
 
 	TSubclassOf<ATank> TankClassToUse = TankClass;
 	if (UBattleBlasterGameInstance* GI = Cast<UBattleBlasterGameInstance>(GetGameInstance()))
 	{
-		if (GI->SelectedTankClasses.IsValidIndex(PlayerIndex) && GI->SelectedTankClasses[PlayerIndex] != nullptr)
+		if (GI->SelectedTankClasses.IsValidIndex(SlotId) && GI->SelectedTankClasses[SlotId] != nullptr)
 		{
-			TankClassToUse = GI->SelectedTankClasses[PlayerIndex];
+			TankClassToUse = GI->SelectedTankClasses[SlotId];
 		}
 	}
 
 	if (!TankClassToUse) return;
 
 	// 保存旧 Tank 引用（用于复活后销毁）
-	ATank* OldTank = ActiveTanks.IsValidIndex(PlayerIndex) ? ActiveTanks[PlayerIndex] : nullptr;
+	ATank* OldTank = ActiveTanks.IsValidIndex(SlotId) ? ActiveTanks[SlotId] : nullptr;
 
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
@@ -551,8 +554,8 @@ void ABattleBlasterGameMode::RespawnPlayer(int32 PlayerIndex)
 	// 1. 生成新的坦克躯体
 	ATank* NewTank = GetWorld()->SpawnActor<ATank>(
 		TankClassToUse,
-		PlayerStarts[PlayerIndex]->GetActorLocation(),
-		PlayerStarts[PlayerIndex]->GetActorRotation(),
+		PlayerStarts[SlotId]->GetActorLocation(),
+		PlayerStarts[SlotId]->GetActorRotation(),
 		SpawnParams
 	);
 	if (!NewTank) return;
@@ -567,7 +570,7 @@ void ABattleBlasterGameMode::RespawnPlayer(int32 PlayerIndex)
 		AController* C = It->Get();
 		if (ATankBattlePlayerState* PS = C->GetPlayerState<ATankBattlePlayerState>())
 		{
-			if (PS->PlayerIndex == PlayerIndex)
+			if (PS->SlotId == SlotId)
 			{
 				TargetController = C;
 				break;
@@ -596,7 +599,8 @@ void ABattleBlasterGameMode::RespawnPlayer(int32 PlayerIndex)
 	}
 
 	// 2. 恢复初始状态并立刻可控
-	NewTank->SetPlayerIndex(PlayerIndex);
+	NewTank->SetSlotId(SlotId);
+	NewTank->SetTeamId(SlotId);
 	NewTank->SetPlayerEnabled(true);
 
 	if (NewTank->HealthComp)
@@ -607,13 +611,13 @@ void ABattleBlasterGameMode::RespawnPlayer(int32 PlayerIndex)
 
 	// 使用复活弹药比例，并从 PlayerState 读取已保存的弹药
 	int32 RespawnAmmo = FMath::FloorToInt(NewTank->MaxAmmo * RespawnAmmoPercent);
-	// 通过 PlayerIndex 找到 PlayerState
+	// 通过 SlotId 找到 PlayerState
 	for (FConstControllerIterator It = GetWorld()->GetControllerIterator(); It; ++It)
 	{
 		AController* C = It->Get();
 		if (ATankBattlePlayerState* PS = C->GetPlayerState<ATankBattlePlayerState>())
 		{
-			if (PS->PlayerIndex == PlayerIndex)
+			if (PS->SlotId == SlotId)
 			{
 				int32 SavedAmmo = PS->CurrentAmmo;
 				if (SavedAmmo > RespawnAmmo)
@@ -630,20 +634,20 @@ void ABattleBlasterGameMode::RespawnPlayer(int32 PlayerIndex)
 	NewTank->IsAlive = true;
 	NewTank->SetIsAlive(true);
 
-	if (ActiveTanks.IsValidIndex(PlayerIndex))
+	if (ActiveTanks.IsValidIndex(SlotId))
 	{
-		ActiveTanks[PlayerIndex] = NewTank;
+		ActiveTanks[SlotId] = NewTank;
 	}
 
 	// 3. 重新挂载死亡监听
 	NewTank->OnKilled.AddDynamic(this, &ABattleBlasterGameMode::HandleTankKilled);
 
 	// 4. 恢复 Buff（从 GameMode 保存的数组恢复）
-	if (PlayerSavedBuffs.IsValidIndex(PlayerIndex) && PlayerSavedBuffs[PlayerIndex].Num() > 0)
+	if (PlayerSavedBuffs.IsValidIndex(SlotId) && PlayerSavedBuffs[SlotId].Num() > 0)
 	{
 		if (UTankBuffComponent* NewBuffComp = NewTank->FindComponentByClass<UTankBuffComponent>())
 		{
-			NewBuffComp->RestoreBuffs(PlayerSavedBuffs[PlayerIndex]);
+			NewBuffComp->RestoreBuffs(PlayerSavedBuffs[SlotId]);
 		}
 	}
 

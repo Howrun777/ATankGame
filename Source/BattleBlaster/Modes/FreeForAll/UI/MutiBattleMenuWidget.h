@@ -50,11 +50,11 @@ public:
 	//注意这里应该传入多人死斗的游戏模式类蓝图:BP_BattleBlasterGameMode
 
 	UFUNCTION()
-	void OnTankSelectAxisInput(int32 PlayerIndex, float AxisValue);
+	void OnTankSelectAxisInput(int32 SlotId, float AxisValue);
 
-	// 【新增】通知 GameInstance 注册 PlayerIndex → DeviceId 映射
+	// 【新增】通知 GameInstance 注册 SlotId → DeviceId 映射
 	UFUNCTION(BlueprintCallable, Category = "TankSelect|DeviceMapping")
-	void NotifyPlayerInputDevice(int32 PlayerIndex, FInputDeviceId DeviceId);
+	void NotifyPlayerInputDevice(int32 SlotId, FInputDeviceId DeviceId);
 	
 	// 在现有成员变量区域添加
 	// UI 认为的可用玩家数量（由 CurrentPlayerCount 决定，而不是实际手柄数）
@@ -147,13 +147,13 @@ protected:
 	// 初始化 PlayerTankIndices / PlayerSwitchTimers 大小
 	void InitPlayerTankState(int32 InPlayerCount);
 	// 按玩家序号刷新对应 Tank 图片
-	void UpdateTankImageForPlayer(int32 PlayerIndex);
+	void UpdateTankImageForPlayer(int32 SlotId);
 	// 刷新所有玩家 Tank 图片
 	void UpdateAllTankImages();
 	// 每帧处理所有玩家的选择输入
 	void HandleTankSelectionInput(float DeltaTime);
 	// 单个玩家的输入处理：playerIndex 对应 PlayerController 索引
-	void HandleSinglePlayerInput(int32 PlayerIndex, float DeltaTime);
+	void HandleSinglePlayerInput(int32 SlotId, float DeltaTime);
 
 	// 用于冷却：记录每个玩家上一次切换的时间戳（秒）
 	UPROPERTY()

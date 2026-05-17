@@ -170,7 +170,7 @@
 
 | 字段 | 用途 |
 | --- | --- |
-| `PlayerIndex` | 本地玩家索引 |
+| `SlotId` | 比赛槽位 |
 | `CurrentAmmo` / `MaxAmmo` | 当前/最大弹药 |
 | `Speed` / `TurnRate` | 移动与转向参数 |
 | `bIsAiming` | 当前是否瞄准 |
@@ -187,7 +187,7 @@
 | `TurretTurnInput(const FInputActionValue&)` | 炮塔旋转输入 |
 | `OnAimToggle(...)` / `OnAimHoldStarted(...)` / `OnAimHoldCompleted(...)` | 瞄准控制 |
 | `UpdateAimView()` | 切换相机和瞄准 UI |
-| `SetPlayerIndex(int32)` / `GetPlayerIndex()` | 设置/读取玩家索引 |
+| `SetSlotId(int32)` / `GetSlotId()` | 设置/读取比赛槽位 |
 | `SetAmmo(int32)` / `GetAmmo()` | 设置/读取弹药 |
 | `GetIsAlive()` / `SetIsAlive(bool)` | 读取/同步存活状态 |
 | `SetPlayerEnabled(bool)` | 启用/禁用玩家控制 |
@@ -605,7 +605,7 @@ Free For All 模式。
 | --- | --- |
 | `BeginPlay()` | 初始化整局 |
 | `HandleTankKilled(ATank* DeadTank, ATank* KillerTank)` | 处理死亡、得分和胜负 |
-| `RespawnPlayer(int32 PlayerIndex)` | 延迟复活指定玩家 |
+| `RespawnPlayer(int32 SlotId)` | 延迟复活指定玩家 |
 | `ShowMultiBattleGameOver()` | 显示多人死斗结算 |
 | `OnGameOverTimerTimeOut()` | 游戏结束定时回调 |
 
@@ -622,7 +622,7 @@ Free For All 模式。
 | `CanDealDamage(AController*, AActor*)` | 友军伤害过滤 |
 | `AddTeamScore(int32 CampIndex, int32 Amount)` | 增加队伍分 |
 | `HandleTankKilled(ATank* DeadTank, ATank* KillerTank)` | 处理死亡、扣分、加分和复活 |
-| `RespawnPlayer(int32 PlayerIndex)` | 复活 |
+| `RespawnPlayer(int32 SlotId)` | 复活 |
 
 当前阵营:
 

@@ -51,7 +51,7 @@ protected:
 	UPROPERTY(meta = (BindWidgetOptional))
 	UTextBlock* Text_BlueTeamScore;
 
-	// 每个玩家的 KDA 和评分文本（最多4行，按 PlayerIndex 排列：0,1,2,3）
+	// 每个玩家的 KDA 和评分文本（最多4行，按 SlotId 排列：0,1,2,3）
 	UPROPERTY(meta = (BindWidgetOptional))
 	UTextBlock* RedKDAText_1;
 	UPROPERTY(meta = (BindWidgetOptional))
@@ -106,11 +106,11 @@ private:
 	UFUNCTION()
 	void HandleReturnMenuClicked();
 
-	// 工具函数：根据 PlayerIndex 返回阵营名字和颜色（0/2=红，1/3=蓝）
-	void GetCampInfo(int32 PlayerIndex, FText& OutCampName, FLinearColor& OutColor) const;
+	// 工具函数：根据 SlotId 返回阵营名字和颜色（0/2=红，1/3=蓝）
+	void GetCampInfo(int32 SlotId, FText& OutCampName, FLinearColor& OutColor) const;
 
-	// 工具函数：根据 PlayerIndex 拿到对应行的控件
-	void GetRowWidgets(int32 PlayerIndex,
+	// 工具函数：根据 SlotId 拿到对应行的控件
+	void GetRowWidgets(int32 SlotId,
 		UTextBlock*& OutKDAText,
 		UTextBlock*& OutSkillScoreText,
 		UPanelWidget*& OutRow) const;

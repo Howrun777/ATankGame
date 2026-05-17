@@ -39,13 +39,13 @@ public:
 
 	// ================= 玩家索引 =================
 
-	// 玩家索引 (0, 1, 2, 3)，用于关联GameMode中的数组
+	// 比赛槽位 (0, 1, 2, 3)，用于关联 GameMode 中的数组
 	UPROPERTY(VisibleAnywhere, Category = "Player Info")
-	int32 PlayerIndex;
+	int32 SlotId = -1;
 
-	// 队伍ID (如果有阵营机制，推荐加上这个属性)
+	// 队伍/阵营 ID。-1 表示尚未分配，友伤判断会把它视为无效状态。
 	UPROPERTY(VisibleAnywhere, Category = "Player Info")
-	int32 TeamID = 0;
+	int32 TeamId = -1;
 
 	// ================= 玩家存活状态（跨 Pawn 保留）====================
 
@@ -154,6 +154,12 @@ public:
 
 	// ================= 玩家状态同步（跨 Pawn 保留）=================
 public:
+	int32 GetSlotId() const { return SlotId; }
+	void SetSlotId(int32 NewSlotId) { SlotId = NewSlotId; }
+
+	int32 GetTeamId() const { return TeamId; }
+	void SetTeamId(int32 NewTeamId) { TeamId = NewTeamId; }
+
 	// 记录出生点（Tank 初始化时调用）
 	void RecordSpawnLocation(const FVector& Location, const FRotator& Rotation)
 	{

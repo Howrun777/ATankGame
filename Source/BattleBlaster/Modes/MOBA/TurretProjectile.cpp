@@ -162,22 +162,22 @@ void ATurretProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, 
 
 		bool bCanDamage = false;
 
-		// MOBA 模式：每个玩家独立阵营，同 PlayerIndex = 同阵营
+		// MOBA 模式：每个玩家独立阵营，同 SlotId = 同阵营
 		if (Cast<ATankMOBAGameMode>(CurrentGM))
 		{
-			if (VictimTank && VictimTank->GetPlayerIndex() >= 0)
+			if (VictimTank && VictimTank->GetTeamId() >= 0)
 			{
-				// MOBA 模式：防御塔的 CampIndex 应该等于目标的 PlayerIndex
-				// 不同 PlayerIndex 可以互相伤害
-				bCanDamage = (CampIndex != VictimTank->GetPlayerIndex());
+				// MOBA 模式：防御塔的 CampIndex 应该等于目标的 SlotId
+				// 不同 SlotId 可以互相伤害
+				bCanDamage = (CampIndex != VictimTank->GetTeamId());
 			}
 		}
 		// TeamBattle 模式：同阵营（0/2=红色，1/3=蓝色）不能互相伤害
 		else if (Cast<ATeamBattleGameMode>(CurrentGM))
 		{
-			if (VictimTank && VictimTank->GetPlayerIndex() >= 0)
+			if (VictimTank && VictimTank->GetTeamId() >= 0)
 			{
-				bool bVictimIsRed = (VictimTank->GetPlayerIndex() == 0 || VictimTank->GetPlayerIndex() == 2);
+				bool bVictimIsRed = (VictimTank->GetTeamId() == 0);
 				bool bAttackerIsRed = (CampIndex == 0 || CampIndex == 2);
 				bCanDamage = (bAttackerIsRed != bVictimIsRed);
 			}

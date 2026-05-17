@@ -95,7 +95,7 @@ void UTeamBattleGameOverWidget::InitResultData(int32 InWinnerCampIndex)
 	{
 		if (ATeamBattlePlayerState* PS = Cast<ATeamBattlePlayerState>(Actor))
 		{
-			const int32 PIndex = PS->PlayerIndex;
+			const int32 PIndex = PS->SlotId;
 			if (PIndex >= 0 && PIndex < LocalPlayerCount)
 			{
 				AllKills[PIndex]   = PS->KillCount;
@@ -107,7 +107,7 @@ void UTeamBattleGameOverWidget::InitResultData(int32 InWinnerCampIndex)
 		}
 	}
 
-	// ---- 4. 显示战绩行：按 PlayerIndex (0,1,2,3) 排列 ----
+	// ---- 4. 显示战绩行：按 SlotId (0,1,2,3) 排列 ----
 	for (int32 Idx = 0; Idx < 4; ++Idx)
 	{
 		UTextBlock* KDAText = nullptr;
@@ -169,7 +169,7 @@ void UTeamBattleGameOverWidget::InitResultData(int32 InWinnerCampIndex)
 		{
 			if (ATank* Tank = Cast<ATank>(Actor))
 			{
-				const int32 Idx = Tank->GetPlayerIndex();
+				const int32 Idx = Tank->GetSlotId();
 				if (Idx < 0 || Idx >= LocalPlayerCount) continue;
 
 				const int32 K = AllKills.IsValidIndex(Idx) ? AllKills[Idx] : 0;
@@ -269,22 +269,22 @@ void UTeamBattleGameOverWidget::InitResultData(int32 InWinnerCampIndex)
 	}
 }
 
-void UTeamBattleGameOverWidget::GetCampInfo(int32 PlayerIndex, FText& OutCampName, FLinearColor& OutColor) const
+void UTeamBattleGameOverWidget::GetCampInfo(int32 SlotId, FText& OutCampName, FLinearColor& OutColor) const
 {
 	// 团队模式：0和2=红，1和3=蓝
-	if (PlayerIndex == 0 || PlayerIndex == 2)
+	if (SlotId == 0 || SlotId == 2)
 	{
-		OutCampName = FText::FromString(PlayerIndex == 0 ? TEXT("红1") : TEXT("红2"));
+		OutCampName = FText::FromString(SlotId == 0 ? TEXT("红1") : TEXT("红2"));
 		OutColor = FLinearColor::Red;
 	}
 	else
 	{
-		OutCampName = FText::FromString(PlayerIndex == 1 ? TEXT("蓝1") : TEXT("蓝2"));
+		OutCampName = FText::FromString(SlotId == 1 ? TEXT("蓝1") : TEXT("蓝2"));
 		OutColor = FLinearColor::Blue;
 	}
 }
 
-void UTeamBattleGameOverWidget::GetRowWidgets(int32 PlayerIndex,
+void UTeamBattleGameOverWidget::GetRowWidgets(int32 SlotId,
 	UTextBlock*& OutKDAText,
 	UTextBlock*& OutSkillScoreText,
 	UPanelWidget*& OutRow) const
@@ -293,7 +293,7 @@ void UTeamBattleGameOverWidget::GetRowWidgets(int32 PlayerIndex,
 	OutSkillScoreText = nullptr;
 	OutRow = nullptr;
 
-	switch (PlayerIndex)
+	switch (SlotId)
 	{
 	case 0:
 		OutKDAText = RedKDAText_1;

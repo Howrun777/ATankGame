@@ -272,11 +272,11 @@ bool ATurret::ShouldAttackTarget(AActor* Target) const
 	// 获取目标所属的阵营
 	int32 TargetCampIndex = -1;
 
-	// 直接使用 Tank 的 PlayerIndex（比分屏模式下的 PlayerState 更可靠）
+	// 直接使用 Tank 的 SlotId（比分屏模式下的 PlayerState 更可靠）
 	ATank* TargetTank = Cast<ATank>(Target);
 	if (TargetTank)
 	{
-		TargetCampIndex = TargetTank->GetPlayerIndex();
+		TargetCampIndex = TargetTank->GetTeamId();
 	}
 	// 如果不是 Tank，通过 PlayerState 获取（用于 AI 等其他 Pawn）
 	else
@@ -487,7 +487,7 @@ float ATurret::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, A
 		
 		if (AttackerTank)
 		{
-			int32 AttackerCamp = AttackerTank->GetPlayerIndex();
+			int32 AttackerCamp = AttackerTank->GetTeamId();
 			
 			// 如果是同阵营，治疗防御塔
 			if (AttackerCamp == CampIndex)

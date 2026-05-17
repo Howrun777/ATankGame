@@ -39,7 +39,11 @@ public:
 	// ================= 团队模式特有函数 =================
 
 	// 设置阵营
-	void SetTeamCamp(uint8 InCamp) { TeamCamp = InCamp; }
+	void SetTeamCamp(uint8 InCamp)
+	{
+		TeamCamp = InCamp;
+		SetTeamId(static_cast<int32>(InCamp));
+	}
 
 	// 获取阵营
 	uint8 GetTeamCamp() const { return TeamCamp; }

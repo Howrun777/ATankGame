@@ -63,7 +63,7 @@ void UMOBAGameOverWidget::InitResultData()
 		{
 			if (ATank* Tank = Cast<ATank>(Actor))
 			{
-				if (Tank->GetPlayerIndex() == WinningCampIndex && Img_TankPortrait)
+				if (Tank->GetSlotId() == WinningCampIndex && Img_TankPortrait)
 				{
 					TSubclassOf<ATank> WinnerClass = Tank->GetClass();
 					if (UTexture2D** FoundTexture = TankPortraitMap.Find(WinnerClass))
@@ -90,7 +90,7 @@ void UMOBAGameOverWidget::InitResultData()
 	{
 		if (ATankMOBAPlayerState* PS = Cast<ATankMOBAPlayerState>(Actor))
 		{
-			const int32 PIndex = PS->PlayerIndex;
+			const int32 PIndex = PS->SlotId;
 			if (PIndex >= 0 && PIndex < LocalPlayerCount)
 			{
 				AllKills[PIndex] = PS->KillCount;
@@ -271,13 +271,13 @@ void UMOBAGameOverWidget::GetCampInfo(int32 CampIndex, FText& OutCampName, FLine
 	}
 }
 
-void UMOBAGameOverWidget::GetRowWidgets(int32 PlayerIndex, UTextBlock*& OutKDAText, UTextBlock*& OutSkillScoreText, UPanelWidget*& OutRow) const
+void UMOBAGameOverWidget::GetRowWidgets(int32 SlotId, UTextBlock*& OutKDAText, UTextBlock*& OutSkillScoreText, UPanelWidget*& OutRow) const
 {
 	OutKDAText = nullptr;
 	OutSkillScoreText = nullptr;
 	OutRow = nullptr;
 
-	switch (PlayerIndex)
+	switch (SlotId)
 	{
 	case 0: OutKDAText = RedKDAText; OutSkillScoreText = RedScoresText; OutRow = RedRow; break;
 	case 1: OutKDAText = BlueKDAText; OutSkillScoreText = BlueScoresText; OutRow = BlueRow; break;

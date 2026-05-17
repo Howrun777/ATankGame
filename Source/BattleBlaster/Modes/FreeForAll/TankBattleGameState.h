@@ -68,8 +68,8 @@ public:
 	void InitializePlayerData(int32 InPlayerCount, int32 InTargetScore);
 
 	// 增加玩家分数
-	void AddPlayerScore(int32 PlayerIndex, int32 Amount = 1);
+	void AddPlayerScore(int32 SlotId, int32 Amount = 1);
 
 	// 获取玩家分数
-	int32 GetPlayerScore(int32 PlayerIndex) const;
+	int32 GetPlayerScore(int32 SlotId) const;
 };

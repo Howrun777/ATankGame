@@ -154,7 +154,7 @@ public:
 	// ================= 阵营相关函数 =================
 
 	// 根据玩家索引获取阵营
-	ETeamCamp GetPlayerCamp(int32 PlayerIndex) const;
+	ETeamCamp GetPlayerCamp(int32 SlotId) const;
 
 	// 获取指定阵营的玩家索引数组
 	TArray<int32> GetPlayersInCamp(ETeamCamp Camp) const;
@@ -182,7 +182,7 @@ public:
 	void HandleTankKilled(class ATank* DeadTank, class ATank* KillerTank);
 
 	// 复活指定索引的玩家
-	void RespawnPlayer(int32 PlayerIndex);
+	void RespawnPlayer(int32 SlotId);
 
 	// 结束无敌状态的回调
 	void EndInvincibility(ATank* Tank, UNiagaraComponent* SpawnedSystem);

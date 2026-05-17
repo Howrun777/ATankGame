@@ -378,31 +378,31 @@ void UMOBASetupWidget::HandleTankSelectionInput(float DeltaTime)
 		return;
 	}
 
-	for (int32 PlayerIndex = 0; PlayerIndex < ActivePlayerCount; ++PlayerIndex)
+	for (int32 SlotId = 0; SlotId < ActivePlayerCount; ++SlotId)
 	{
-		HandleSinglePlayerInput(PlayerIndex, DeltaTime);
+		HandleSinglePlayerInput(SlotId, DeltaTime);
 	}
 }
 
-void UMOBASetupWidget::HandleSinglePlayerInput(int32 PlayerIndex, float DeltaTime)
+void UMOBASetupWidget::HandleSinglePlayerInput(int32 SlotId, float DeltaTime)
 {
 	if (!TankOptions.IsValidIndex(0))
 	{
 		return;
 	}
 
-	if (PlayerSwitchTimers.IsValidIndex(PlayerIndex))
+	if (PlayerSwitchTimers.IsValidIndex(SlotId))
 	{
-		PlayerSwitchTimers[PlayerIndex] += DeltaTime;
+		PlayerSwitchTimers[SlotId] += DeltaTime;
 	}
 
-	if (!PlayerSwitchTimers.IsValidIndex(PlayerIndex) ||
-		PlayerSwitchTimers[PlayerIndex] < SwitchCooldown)
+	if (!PlayerSwitchTimers.IsValidIndex(SlotId) ||
+		PlayerSwitchTimers[SlotId] < SwitchCooldown)
 	{
 		return;
 	}
 
-	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), PlayerIndex);
+	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), SlotId);
 	if (!PC)
 	{
 		return;
@@ -415,45 +415,45 @@ void UMOBASetupWidget::HandleSinglePlayerInput(int32 PlayerIndex, float DeltaTim
 		return;
 	}
 
-	// 注册 DeviceId → PlayerIndex 映射
+	// 注册 DeviceId → SlotId 映射
 	ULocalPlayer* LP = PC->GetLocalPlayer();
 	if (LP)
 	{
 		FPlatformUserId UserId = LP->GetPlatformUserId();
 		FInputDeviceId ActiveDevice = IPlatformInputDeviceMapper::Get().GetPrimaryInputDeviceForUser(UserId);
-		NotifyPlayerInputDevice(PlayerIndex, ActiveDevice);
+		NotifyPlayerInputDevice(SlotId, ActiveDevice);
 	}
 
 	int32 Direction = (AxisY > 0.0f) ? +1 : -1;
 
-	if (!PlayerTankIndices.IsValidIndex(PlayerIndex))
+	if (!PlayerTankIndices.IsValidIndex(SlotId))
 	{
 		return;
 	}
 
 	const int32 TankCount = TankOptions.Num();
-	int32& CurrentIndex = PlayerTankIndices[PlayerIndex];
+	int32& CurrentIndex = PlayerTankIndices[SlotId];
 
 	CurrentIndex = (CurrentIndex + Direction + TankCount) % TankCount;
 
-	PlayerSwitchTimers[PlayerIndex] = 0.0f;
+	PlayerSwitchTimers[SlotId] = 0.0f;
 
-	UpdateTankImageForPlayer(PlayerIndex);
+	UpdateTankImageForPlayer(SlotId);
 }
 
-void UMOBASetupWidget::UpdateTankImageForPlayer(int32 PlayerIndex)
+void UMOBASetupWidget::UpdateTankImageForPlayer(int32 SlotId)
 {
 	if (!TankOptions.IsValidIndex(0) ||
-		!PlayerTankIndices.IsValidIndex(PlayerIndex) ||
-		!TankOptions.IsValidIndex(PlayerTankIndices[PlayerIndex]))
+		!PlayerTankIndices.IsValidIndex(SlotId) ||
+		!TankOptions.IsValidIndex(PlayerTankIndices[SlotId]))
 	{
 		return;
 	}
 
-	UTexture2D* Icon = TankOptions[PlayerTankIndices[PlayerIndex]].Icon;
+	UTexture2D* Icon = TankOptions[PlayerTankIndices[SlotId]].Icon;
 
 	UImage* TargetImage = nullptr;
-	switch (PlayerIndex)
+	switch (SlotId)
 	{
 	case 0: TargetImage = TankImage_1; break;
 	case 1: TargetImage = TankImage_2; break;
@@ -507,19 +507,19 @@ void UMOBASetupWidget::EnsureLocalPlayers(int32 WantedPlayers)
 	}
 }
 
-void UMOBASetupWidget::OnTankSelectAxisInput(int32 PlayerIndex, float AxisValue)
+void UMOBASetupWidget::OnTankSelectAxisInput(int32 SlotId, float AxisValue)
 {
 	if (TankOptions.Num() <= 0) return;
 
-	if (PlayerIndex < 0 || PlayerIndex >= ActivePlayerCount) return;
+	if (SlotId < 0 || SlotId >= ActivePlayerCount) return;
 
 	if (FMath::Abs(AxisValue) < AxisDeadZone) return;
 
 	UWorld* World = GetWorld();
 	if (!World) return;
 
-	// 注册 DeviceId → PlayerIndex 映射
-	APlayerController* PC = UGameplayStatics::GetPlayerController(World, PlayerIndex);
+	// 注册 DeviceId → SlotId 映射
+	APlayerController* PC = UGameplayStatics::GetPlayerController(World, SlotId);
 	if (PC)
 	{
 		ULocalPlayer* LP = PC->GetLocalPlayer();
@@ -527,7 +527,7 @@ void UMOBASetupWidget::OnTankSelectAxisInput(int32 PlayerIndex, float AxisValue)
 		{
 			FPlatformUserId UserId = LP->GetPlatformUserId();
 			FInputDeviceId ActiveDevice = IPlatformInputDeviceMapper::Get().GetPrimaryInputDeviceForUser(UserId);
-			NotifyPlayerInputDevice(PlayerIndex, ActiveDevice);
+			NotifyPlayerInputDevice(SlotId, ActiveDevice);
 		}
 	}
 
@@ -538,7 +538,7 @@ void UMOBASetupWidget::OnTankSelectAxisInput(int32 PlayerIndex, float AxisValue)
 
 	const float Now = World->GetTimeSeconds();
 
-	if ((Now - LastSwitchTimestamp[PlayerIndex]) < SwitchCooldown)
+	if ((Now - LastSwitchTimestamp[SlotId]) < SwitchCooldown)
 	{
 		return;
 	}
@@ -549,7 +549,7 @@ void UMOBASetupWidget::OnTankSelectAxisInput(int32 PlayerIndex, float AxisValue)
 	}
 
 	const int32 TankCount = TankOptions.Num();
-	int32& Index = PlayerTankIndices[PlayerIndex];
+	int32& Index = PlayerTankIndices[SlotId];
 
 	if (AxisValue > 0.0f)
 	{
@@ -560,16 +560,16 @@ void UMOBASetupWidget::OnTankSelectAxisInput(int32 PlayerIndex, float AxisValue)
 		Index = (Index + 1) % TankCount;
 	}
 
-	LastSwitchTimestamp[PlayerIndex] = Now;
+	LastSwitchTimestamp[SlotId] = Now;
 
-	UpdateTankImageForPlayer(PlayerIndex);
+	UpdateTankImageForPlayer(SlotId);
 }
 
-void UMOBASetupWidget::NotifyPlayerInputDevice(int32 PlayerIndex, FInputDeviceId DeviceId)
+void UMOBASetupWidget::NotifyPlayerInputDevice(int32 SlotId, FInputDeviceId DeviceId)
 {
 	UBattleBlasterGameInstance* GI = Cast<UBattleBlasterGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
 	if (GI)
 	{
-		GI->RegisterPlayerDeviceMapping(PlayerIndex, DeviceId);
+		GI->RegisterPlayerDeviceMapping(SlotId, DeviceId);
 	}
 }

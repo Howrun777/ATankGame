@@ -133,7 +133,7 @@ public:
 	void HandleStartingNewPlayer(APlayerController* NewPlayer);
 
 	// 获取玩家出生点
-	AActor* GetPlayerStartForIndex(int32 PlayerIndex);
+	AActor* GetPlayerStartForIndex(int32 SlotId);
 
 	// ================= 玩家死亡与复活 =================
 

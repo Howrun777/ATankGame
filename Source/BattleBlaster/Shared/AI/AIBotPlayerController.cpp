@@ -21,7 +21,6 @@ bool AAIBotPlayerController::IsEnemy(AActor* Target) const
         return false;
     }
 
-    // 只对 Tank 做阵营判定；Tower 等其它目标按“敌对”处理
     const ATank* MyTank = ControlledTank;
     const ATank* TargetTank = Cast<ATank>(Target);
     if (!TargetTank)
@@ -32,17 +31,19 @@ bool AAIBotPlayerController::IsEnemy(AActor* Target) const
     const ATeamBattleGameMode* TeamGM = GetWorld() ? Cast<ATeamBattleGameMode>(GetWorld()->GetAuthGameMode()) : nullptr;
     if (!TeamGM)
     {
-        // 没有团队 GameMode 就按非团队处理
         return true;
     }
 
-    // 团队模式下，如果 PlayerIndex 还没初始化好，宁可先不攻击（避免误打队友）
-    if (MyTank->GetPlayerIndex() < 0 || TargetTank->GetPlayerIndex() < 0)
+    const int32 MyTeamId = MyTank->GetTeamId();
+    const int32 TargetTeamId = TargetTank->GetTeamId();
+
+    // TeamId 未初始化时先不攻击，避免团队模式误打队友。
+    if (MyTeamId < 0 || TargetTeamId < 0)
     {
         return false;
     }
 
-    return !TeamGM->IsSameCamp(MyTank->GetPlayerIndex(), TargetTank->GetPlayerIndex());
+    return MyTeamId != TargetTeamId;
 }
 
 bool AAIBotPlayerController::PassesFilter(AActor* Actor) const

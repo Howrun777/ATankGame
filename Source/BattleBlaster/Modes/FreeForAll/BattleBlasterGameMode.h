@@ -156,7 +156,7 @@ public:
     void HandleTankKilled(class ATank* DeadTank, class ATank* KillerTank);
 
     // 复活指定索引的玩家
-    void RespawnPlayer(int32 PlayerIndex);
+    void RespawnPlayer(int32 SlotId);
 
     // 结束无敌状态的回调
     void EndInvincibility(ATank* Tank, UNiagaraComponent* SpawnedSystem);

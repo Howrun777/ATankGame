@@ -187,12 +187,13 @@ public:
 	// ==============================================
 	// 8. 团队与 AI (Team & AI)
 	// ==============================================
-	/** 玩家索引 (0-3)，-1 表示未设置
-	 * 注意：此属性在 Tank Spawn 时设置，用于阵营判断。
-	 * PlayerState::PlayerIndex 是真正的权威数据源，本属性作为快速访问缓存。
-	 */
+	/** 比赛槽位缓存。PlayerState::SlotId 是权威数据源。 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Team")
-	int32 PlayerIndex = -1;
+	int32 SlotId = -1;
+
+	/** 队伍/阵营缓存。PlayerState::TeamId 是权威数据源。 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Team")
+	int32 TeamId = -1;
 
 	// ==============================================
 	// 9. 状态与控制 (State & Control)
@@ -221,8 +222,11 @@ public:
 	}
 
 	// ========== PlayerState 数据访问（跨 Pawn 保留）==========
-	// 获取玩家索引（从 PlayerState 读取）
-	int32 GetPlayerIndex() const;
+	// 获取比赛槽位（从 PlayerState 读取）
+	int32 GetSlotId() const;
+
+	// 获取队伍/阵营 ID（从 PlayerState 读取）
+	int32 GetTeamId() const;
 
 	// 获取存活状态（从 PlayerState 读取）
 	bool GetIsAlive() const;
@@ -271,7 +275,8 @@ public:
 	void HandleKillReward();
 
 	// 团队与 AI
-	void SetPlayerIndex(int32 NewPlayerIndex);
+	void SetSlotId(int32 NewSlotId);
+	void SetTeamId(int32 NewTeamId);
 	void NotifyAttacked(AActor* Attacker);
 
 	// ========== 死亡与结算 ==========

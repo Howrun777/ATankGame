@@ -114,17 +114,17 @@ void UTeamBattleMenuWidget::InitPlayerTankState()
 	}
 }
 
-void UTeamBattleMenuWidget::UpdateTankImageForPlayer(int32 PlayerIndex)
+void UTeamBattleMenuWidget::UpdateTankImageForPlayer(int32 SlotId)
 {
 	if (!TankOptions.IsValidIndex(0)
-		|| !PlayerTankIndices.IsValidIndex(PlayerIndex)
-		|| !TankOptions.IsValidIndex(PlayerTankIndices[PlayerIndex]))
+		|| !PlayerTankIndices.IsValidIndex(SlotId)
+		|| !TankOptions.IsValidIndex(PlayerTankIndices[SlotId]))
 	{
 		return;
 	}
-	UTexture2D* Icon = TankOptions[PlayerTankIndices[PlayerIndex]].Icon;
+	UTexture2D* Icon = TankOptions[PlayerTankIndices[SlotId]].Icon;
 	UImage* TargetImage = nullptr;
-	switch (PlayerIndex)
+	switch (SlotId)
 	{
 	case 0: TargetImage = TankImage_1; break;
 	case 1: TargetImage = TankImage_2; break;
@@ -182,44 +182,44 @@ void UTeamBattleMenuWidget::HandleMouseWheelTargeting(float DeltaTime)
 void UTeamBattleMenuWidget::HandleTankSelectionInput(float DeltaTime)
 {
 	if (TankOptions.Num() == 0) return;
-	for (int32 PlayerIndex = 0; PlayerIndex < TeamBattlePlayerCount; ++PlayerIndex)
+	for (int32 SlotId = 0; SlotId < TeamBattlePlayerCount; ++SlotId)
 	{
-		HandleSinglePlayerInput(PlayerIndex, DeltaTime);
+		HandleSinglePlayerInput(SlotId, DeltaTime);
 	}
 }
 
-void UTeamBattleMenuWidget::HandleSinglePlayerInput(int32 PlayerIndex, float DeltaTime)
+void UTeamBattleMenuWidget::HandleSinglePlayerInput(int32 SlotId, float DeltaTime)
 {
 	if (!TankOptions.IsValidIndex(0)) return;
-	if (PlayerSwitchTimers.IsValidIndex(PlayerIndex))
+	if (PlayerSwitchTimers.IsValidIndex(SlotId))
 	{
-		PlayerSwitchTimers[PlayerIndex] += DeltaTime;
+		PlayerSwitchTimers[SlotId] += DeltaTime;
 	}
-	if (!PlayerSwitchTimers.IsValidIndex(PlayerIndex) || PlayerSwitchTimers[PlayerIndex] < SwitchCooldown)
+	if (!PlayerSwitchTimers.IsValidIndex(SlotId) || PlayerSwitchTimers[SlotId] < SwitchCooldown)
 	{
 		return;
 	}
-	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), PlayerIndex);
+	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), SlotId);
 	if (!PC) return;
 	float AxisY = PC->GetInputAnalogKeyState(EKeys::Gamepad_LeftY);
 	if (FMath::Abs(AxisY) < AxisDeadZone) return;
 
-	// 注册 DeviceId → PlayerIndex 映射
+	// 注册 DeviceId → SlotId 映射
 	ULocalPlayer* LP = PC->GetLocalPlayer();
 	if (LP)
 	{
 		FPlatformUserId UserId = LP->GetPlatformUserId();
 		FInputDeviceId ActiveDevice = IPlatformInputDeviceMapper::Get().GetPrimaryInputDeviceForUser(UserId);
-		NotifyPlayerInputDevice(PlayerIndex, ActiveDevice);
+		NotifyPlayerInputDevice(SlotId, ActiveDevice);
 	}
 
 	int32 Direction = (AxisY > 0.0f) ? +1 : -1;
-	if (!PlayerTankIndices.IsValidIndex(PlayerIndex)) return;
+	if (!PlayerTankIndices.IsValidIndex(SlotId)) return;
 	const int32 TankCount = TankOptions.Num();
-	int32& CurrentIndex = PlayerTankIndices[PlayerIndex];
+	int32& CurrentIndex = PlayerTankIndices[SlotId];
 	CurrentIndex = (CurrentIndex + Direction + TankCount) % TankCount;
-	PlayerSwitchTimers[PlayerIndex] = 0.0f;
-	UpdateTankImageForPlayer(PlayerIndex);
+	PlayerSwitchTimers[SlotId] = 0.0f;
+	UpdateTankImageForPlayer(SlotId);
 }
 
 void UTeamBattleMenuWidget::EnsureLocalPlayers(int32 WantedPlayers)
@@ -310,16 +310,16 @@ void UTeamBattleMenuWidget::OnBackClicked()
 	}
 }
 
-void UTeamBattleMenuWidget::OnTankSelectAxisInput(int32 PlayerIndex, float AxisValue)
+void UTeamBattleMenuWidget::OnTankSelectAxisInput(int32 SlotId, float AxisValue)
 {
 	if (TankOptions.Num() <= 0) return;
-	if (PlayerIndex < 0 || PlayerIndex >= TeamBattlePlayerCount) return;
+	if (SlotId < 0 || SlotId >= TeamBattlePlayerCount) return;
 	if (FMath::Abs(AxisValue) < AxisDeadZone) return;
 	UWorld* World = GetWorld();
 	if (!World) return;
 
-	// 注册 DeviceId → PlayerIndex 映射
-	APlayerController* PC = UGameplayStatics::GetPlayerController(World, PlayerIndex);
+	// 注册 DeviceId → SlotId 映射
+	APlayerController* PC = UGameplayStatics::GetPlayerController(World, SlotId);
 	if (PC)
 	{
 		ULocalPlayer* LP = PC->GetLocalPlayer();
@@ -327,7 +327,7 @@ void UTeamBattleMenuWidget::OnTankSelectAxisInput(int32 PlayerIndex, float AxisV
 		{
 			FPlatformUserId UserId = LP->GetPlatformUserId();
 			FInputDeviceId ActiveDevice = IPlatformInputDeviceMapper::Get().GetPrimaryInputDeviceForUser(UserId);
-			NotifyPlayerInputDevice(PlayerIndex, ActiveDevice);
+			NotifyPlayerInputDevice(SlotId, ActiveDevice);
 		}
 	}
 
@@ -336,13 +336,13 @@ void UTeamBattleMenuWidget::OnTankSelectAxisInput(int32 PlayerIndex, float AxisV
 		LastSwitchTimestamp.SetNumZeroed(TeamBattlePlayerCount);
 	}
 	const float Now = World->GetTimeSeconds();
-	if ((Now - LastSwitchTimestamp[PlayerIndex]) < SwitchCooldown) return;
+	if ((Now - LastSwitchTimestamp[SlotId]) < SwitchCooldown) return;
 	if (PlayerTankIndices.Num() != TeamBattlePlayerCount)
 	{
 		PlayerTankIndices.SetNumZeroed(TeamBattlePlayerCount);
 	}
 	const int32 TankCount = TankOptions.Num();
-	int32& Index = PlayerTankIndices[PlayerIndex];
+	int32& Index = PlayerTankIndices[SlotId];
 	if (AxisValue > 0.0f)
 	{
 		Index = (Index - 1 + TankCount) % TankCount;
@@ -351,15 +351,15 @@ void UTeamBattleMenuWidget::OnTankSelectAxisInput(int32 PlayerIndex, float AxisV
 	{
 		Index = (Index + 1) % TankCount;
 	}
-	LastSwitchTimestamp[PlayerIndex] = Now;
-	UpdateTankImageForPlayer(PlayerIndex);
+	LastSwitchTimestamp[SlotId] = Now;
+	UpdateTankImageForPlayer(SlotId);
 }
 
-void UTeamBattleMenuWidget::NotifyPlayerInputDevice(int32 PlayerIndex, FInputDeviceId DeviceId)
+void UTeamBattleMenuWidget::NotifyPlayerInputDevice(int32 SlotId, FInputDeviceId DeviceId)
 {
 	UBattleBlasterGameInstance* GI = Cast<UBattleBlasterGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
 	if (GI)
 	{
-		GI->RegisterPlayerDeviceMapping(PlayerIndex, DeviceId);
+		GI->RegisterPlayerDeviceMapping(SlotId, DeviceId);
 	}
 }

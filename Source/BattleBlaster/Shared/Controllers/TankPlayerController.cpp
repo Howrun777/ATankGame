@@ -100,7 +100,7 @@ void ATankPlayerController::InitializeHUD()
 			KDAWidget->UpdateKDA(0, 0, 0);
 
 			// 根据游戏模式和玩家索引设置KDA颜色
-			int32 PlayerIndex = UGameplayStatics::GetPlayerControllerID(this);
+			const int32 LocalPlayerIndex = UGameplayStatics::GetPlayerControllerID(this);
 			AGameModeBase* GM = GetWorld()->GetAuthGameMode();
 
 			FLinearColor KDAColor = FLinearColor::White;
@@ -108,7 +108,7 @@ void ATankPlayerController::InitializeHUD()
 			if (GM && GM->IsA(ABattleBlasterGameMode::StaticClass()))
 			{
 				// 多人死斗模式：玩家0-红色，玩家1-蓝色，玩家2-绿色，玩家3-黄色
-				switch (PlayerIndex)
+				switch (LocalPlayerIndex)
 				{
 				case 0: KDAColor = FLinearColor::Red; break;
 				case 1: KDAColor = FLinearColor::Blue; break;
@@ -119,7 +119,7 @@ void ATankPlayerController::InitializeHUD()
 			else if (GM && GM->IsA(ATeamBattleGameMode::StaticClass()))
 			{
 				// 团队模式：玩家0-红色，玩家2-红色，玩家1-蓝色，玩家3-蓝色
-				if (PlayerIndex == 0 || PlayerIndex == 2)
+				if (LocalPlayerIndex == 0 || LocalPlayerIndex == 2)
 				{
 					KDAColor = FLinearColor::Red;
 				}
@@ -131,7 +131,7 @@ void ATankPlayerController::InitializeHUD()
 			else if (GM && GM->IsA(ATankMOBAGameMode::StaticClass()))
 			{
 				// MOBA 模式：玩家0-红色，玩家1-蓝色，玩家2-绿色，玩家3-黄色
-				switch (PlayerIndex)
+				switch (LocalPlayerIndex)
 				{
 				case 0: KDAColor = FLinearColor::Red; break;
 				case 1: KDAColor = FLinearColor::Blue; break;
@@ -318,10 +318,10 @@ void ATankPlayerController::TogglePauseMenu()
 	}
 
 	// 只允许第一个玩家(索引0)打开暂停菜单
-	int32 PlayerIndex = UGameplayStatics::GetPlayerControllerID(this);
-	UE_LOG(LogTemp, Display, TEXT("TogglePauseMenu called by player %d"), PlayerIndex);
+	const int32 LocalPlayerIndex = UGameplayStatics::GetPlayerControllerID(this);
+	UE_LOG(LogTemp, Display, TEXT("TogglePauseMenu called by player %d"), LocalPlayerIndex);
 	
-	if (PlayerIndex != 0)
+	if (LocalPlayerIndex != 0)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Only player 0 can toggle pause menu!"));
 		return;

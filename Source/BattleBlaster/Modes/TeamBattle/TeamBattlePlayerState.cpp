@@ -25,8 +25,6 @@ void ATeamBattlePlayerState::HandleKillConfirmed(ATank* Victim)
 {
 	if (!Victim) return;
 
-	ATeamBattleGameMode* TBGM = Cast<ATeamBattleGameMode>(GetWorld()->GetAuthGameMode());
-	if (!TBGM) return;
 
 	// 获取受害者的阵营
 	int32 VictimCampIndex = -1;
@@ -39,7 +37,6 @@ void ATeamBattlePlayerState::HandleKillConfirmed(ATank* Victim)
 	// 只有跨阵营击杀才加分
 	if (static_cast<int32>(TeamCamp) != VictimCampIndex)
 	{
-		int32 CampIndex = static_cast<int32>(TeamCamp);
-		TBGM->AddTeamScore(CampIndex, 1);
+		TeamScoreContribution++;
 	}
 }

@@ -36,10 +36,10 @@ ATeamBattleGameState* ATeamBattleGameMode::GetTeamBattleGameState() const
 
 // ================= 阵营相关函数 =================
 
-ATeamBattleGameMode::ETeamCamp ATeamBattleGameMode::GetPlayerCamp(int32 PlayerIndex) const
+ATeamBattleGameMode::ETeamCamp ATeamBattleGameMode::GetPlayerCamp(int32 SlotId) const
 {
 	// 玩家0和2为红色阵营，玩家1和3为蓝色阵营
-	if (PlayerIndex == 0 || PlayerIndex == 2)
+	if (SlotId == 0 || SlotId == 2)
 	{
 		return ETeamCamp::Red;
 	}
@@ -249,8 +249,10 @@ void ATeamBattleGameMode::BeginPlay()
 				// 我们只需提取它并改写编号和阵营，不要手动 Spawn！
 				if (ATeamBattlePlayerState* AIPlayerState = AIPC->GetPlayerState<ATeamBattlePlayerState>())
 				{
-					AIPlayerState->PlayerIndex = i;
-					AIPlayerState->TeamID = static_cast<int32>(GetPlayerCamp(i));
+					const int32 AssignedTeamId = static_cast<int32>(GetPlayerCamp(i));
+					AIPlayerState->SetSlotId(i);
+					AIPlayerState->SetTeamId(AssignedTeamId);
+					AIPlayerState->SetTeamCamp(static_cast<uint8>(AssignedTeamId));
 					AIPlayerState->SetPlayerName(FString::Printf(TEXT("AI_P%d"), i));
 				}
 
@@ -286,8 +288,10 @@ void ATeamBattleGameMode::BeginPlay()
 				// 【核心修复】：确保真人玩家拿到属于自己的槽位编号！
 				if (ATeamBattlePlayerState* HumanPS = PC->GetPlayerState<ATeamBattlePlayerState>())
 				{
-					HumanPS->PlayerIndex = i;
-					HumanPS->TeamID = static_cast<int32>(GetPlayerCamp(i));
+					const int32 AssignedTeamId = static_cast<int32>(GetPlayerCamp(i));
+					HumanPS->SetSlotId(i);
+					HumanPS->SetTeamId(AssignedTeamId);
+					HumanPS->SetTeamCamp(static_cast<uint8>(AssignedTeamId));
 				}
 			}
 		}
@@ -300,7 +304,8 @@ void ATeamBattleGameMode::BeginPlay()
 		NewTank->OnKilled.AddDynamic(this, &ATeamBattleGameMode::HandleTankKilled);
 
 		// 设置玩家索引，用于团队模式判断阵营
-		NewTank->SetPlayerIndex(i);
+		NewTank->SetSlotId(i);
+		NewTank->SetTeamId(static_cast<int32>(GetPlayerCamp(i)));
 	}
 
 	// 为"额外的视口玩家"设置纯黑画面
@@ -563,26 +568,26 @@ void ATeamBattleGameMode::HandleTankKilled(ATank* DeadTank, ATank* KillerTank)
 	}
 }
 
-void ATeamBattleGameMode::RespawnPlayer(int32 PlayerIndex)
+void ATeamBattleGameMode::RespawnPlayer(int32 SlotId)
 {
 	if (WinnerCampIndex != -1) return;
-	if (!PlayerStarts.IsValidIndex(PlayerIndex) || !PlayerStarts[PlayerIndex]) return;
+	if (!PlayerStarts.IsValidIndex(SlotId) || !PlayerStarts[SlotId]) return;
 
 	TSubclassOf<ATank> TankClassToUse = TankClass;
 
 	if (UBattleBlasterGameInstance* GI = Cast<UBattleBlasterGameInstance>(GetGameInstance()))
 	{
-		if (GI->SelectedTankClasses.IsValidIndex(PlayerIndex) &&
-			GI->SelectedTankClasses[PlayerIndex] != nullptr)
+		if (GI->SelectedTankClasses.IsValidIndex(SlotId) &&
+			GI->SelectedTankClasses[SlotId] != nullptr)
 		{
-			TankClassToUse = GI->SelectedTankClasses[PlayerIndex];
+			TankClassToUse = GI->SelectedTankClasses[SlotId];
 		}
 	}
 
 	if (!TankClassToUse) return;
 
 	// 保存旧 Tank 引用（用于复活后销毁）
-	ATank* OldTank = ActiveTanks.IsValidIndex(PlayerIndex) ? ActiveTanks[PlayerIndex] : nullptr;
+	ATank* OldTank = ActiveTanks.IsValidIndex(SlotId) ? ActiveTanks[SlotId] : nullptr;
 
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
@@ -590,8 +595,8 @@ void ATeamBattleGameMode::RespawnPlayer(int32 PlayerIndex)
 	// 1. 生成新的坦克躯体
 	ATank* NewTank = GetWorld()->SpawnActor<ATank>(
 		TankClassToUse,
-		PlayerStarts[PlayerIndex]->GetActorLocation(),
-		PlayerStarts[PlayerIndex]->GetActorRotation(),
+		PlayerStarts[SlotId]->GetActorLocation(),
+		PlayerStarts[SlotId]->GetActorRotation(),
 		SpawnParams
 	);
 
@@ -607,7 +612,7 @@ void ATeamBattleGameMode::RespawnPlayer(int32 PlayerIndex)
 		AController* C = It->Get();
 		if (ATeamBattlePlayerState* PS = C->GetPlayerState<ATeamBattlePlayerState>())
 		{
-			if (PS->PlayerIndex == PlayerIndex)
+			if (PS->SlotId == SlotId)
 			{
 				TargetController = C;
 				break;
@@ -646,13 +651,13 @@ void ATeamBattleGameMode::RespawnPlayer(int32 PlayerIndex)
 
 	// 使用复活弹药比例，并从 PlayerState 读取已保存的弹药
 	int32 RespawnAmmo = FMath::FloorToInt(NewTank->MaxAmmo * RespawnAmmoPercent);
-	// 通过 PlayerIndex 找到 PlayerState
+	// 通过 SlotId 找到 PlayerState
 	for (FConstControllerIterator It = GetWorld()->GetControllerIterator(); It; ++It)
 	{
 		AController* C = It->Get();
 		if (ATeamBattlePlayerState* PS = C->GetPlayerState<ATeamBattlePlayerState>())
 		{
-			if (PS->PlayerIndex == PlayerIndex)
+			if (PS->SlotId == SlotId)
 			{
 				int32 SavedAmmo = PS->CurrentAmmo;
 				if (SavedAmmo > RespawnAmmo)
@@ -670,25 +675,26 @@ void ATeamBattleGameMode::RespawnPlayer(int32 PlayerIndex)
 	NewTank->SetIsAlive(true);
 
 	// 更新数组引用
-	if (ActiveTanks.IsValidIndex(PlayerIndex))
+	if (ActiveTanks.IsValidIndex(SlotId))
 	{
-		ActiveTanks[PlayerIndex] = NewTank;
+		ActiveTanks[SlotId] = NewTank;
 	}
 
 	// 3. 设置玩家索引（用于阵营判断）
-	NewTank->SetPlayerIndex(PlayerIndex);
+	NewTank->SetSlotId(SlotId);
+	NewTank->SetTeamId(static_cast<int32>(GetPlayerCamp(SlotId)));
 
 	// 4. 重新绑定 Tank 死亡事件（确保复活后依然触发 GameMode 逻辑）
 	NewTank->OnKilled.AddDynamic(this, &ATeamBattleGameMode::HandleTankKilled);
 
 	// 5. 复活时恢复死亡前保存的 Buff
-	if (PlayerSavedBuffs.IsValidIndex(PlayerIndex) && PlayerSavedBuffs[PlayerIndex].Num() > 0)
+	if (PlayerSavedBuffs.IsValidIndex(SlotId) && PlayerSavedBuffs[SlotId].Num() > 0)
 	{
 		UTankBuffComponent* NewBuffComp = NewTank->FindComponentByClass<UTankBuffComponent>();
 		if (NewBuffComp)
 		{
-			NewBuffComp->RestoreBuffs(PlayerSavedBuffs[PlayerIndex]);
-			UE_LOG(LogTemp, Display, TEXT("Player %d restored %d buffs on respawn."), PlayerIndex, PlayerSavedBuffs[PlayerIndex].Num());
+			NewBuffComp->RestoreBuffs(PlayerSavedBuffs[SlotId]);
+			UE_LOG(LogTemp, Display, TEXT("Player %d restored %d buffs on respawn."), SlotId, PlayerSavedBuffs[SlotId].Num());
 		}
 	}
 
@@ -789,8 +795,10 @@ bool ATeamBattleGameMode::CanDealDamage(AController* DamageCauser, AActor* Damag
 	ATank* VictimTank = Cast<ATank>(DamageVictim);
 	if (!VictimTank) return true;
 
-	// 禁止同阵营互相伤害
-	if (IsSameCamp(AttackerTank->GetPlayerIndex(), VictimTank->GetPlayerIndex()))
+	const int32 AttackerTeamId = AttackerTank->GetTeamId();
+	const int32 VictimTeamId = VictimTank->GetTeamId();
+
+	if (AttackerTeamId >= 0 && VictimTeamId >= 0 && AttackerTeamId == VictimTeamId)
 	{
 		return false;
 	}

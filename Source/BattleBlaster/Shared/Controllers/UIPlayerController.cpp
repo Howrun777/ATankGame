@@ -51,7 +51,7 @@ void AUIPlayerController::BeginPlay()
 		bShowMouseCursor = (Id == 0);
 	}
 
-	// 进入菜单时注册 DeviceId → PlayerIndex 映射
+	// 进入菜单时注册 DeviceId → SlotId 映射
 	RegisterDeviceMappingToGameInstance();
 }
 
@@ -74,7 +74,7 @@ void AUIPlayerController::HandleTankSelectAxis(const FInputActionValue& Value)
 	const float Axis = Value.Get<float>();
 	if (FMath::IsNearlyZero(Axis)) return;
 
-	const int32 PlayerIndex = UGameplayStatics::GetPlayerControllerID(this);
+	const int32 LocalPlayerIndex = UGameplayStatics::GetPlayerControllerID(this);
 
 	// 注册 DeviceId 映射（解决缺陷 3）
 	RegisterDeviceMappingToGameInstance();
@@ -82,17 +82,17 @@ void AUIPlayerController::HandleTankSelectAxis(const FInputActionValue& Value)
 	// 依次查找并分发给四个 Widget（按优先级：MutiBattle → TeamBattle → MOBA → TankStage）
 	if (UMutiBattleMenuWidget* Menu = FindWidget<UMutiBattleMenuWidget>())
 	{
-		Menu->OnTankSelectAxisInput(PlayerIndex, Axis);
+		Menu->OnTankSelectAxisInput(LocalPlayerIndex, Axis);
 		return;
 	}
 	if (UTeamBattleMenuWidget* Menu = FindWidget<UTeamBattleMenuWidget>())
 	{
-		Menu->OnTankSelectAxisInput(PlayerIndex, Axis);
+		Menu->OnTankSelectAxisInput(LocalPlayerIndex, Axis);
 		return;
 	}
 	if (UMOBASetupWidget* Menu = FindWidget<UMOBASetupWidget>())
 	{
-		Menu->OnTankSelectAxisInput(PlayerIndex, Axis);
+		Menu->OnTankSelectAxisInput(LocalPlayerIndex, Axis);
 		return;
 	}
 	// TankStageStartWidget 是单人的，不需要手柄分发，跳过
@@ -103,14 +103,14 @@ void AUIPlayerController::RegisterDeviceMappingToGameInstance()
 	UBattleBlasterGameInstance* GI = Cast<UBattleBlasterGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
 	if (!GI) return;
 
-	const int32 PlayerIndex = UGameplayStatics::GetPlayerControllerID(this);
+	const int32 LocalPlayerIndex = UGameplayStatics::GetPlayerControllerID(this);
 	ULocalPlayer* LP = GetLocalPlayer();
 	if (!LP) return;
 
 	FPlatformUserId UserId = LP->GetPlatformUserId();
 	FInputDeviceId ActiveDevice = IPlatformInputDeviceMapper::Get().GetPrimaryInputDeviceForUser(UserId);
 
-	GI->RegisterPlayerDeviceMapping(PlayerIndex, ActiveDevice);
+	GI->RegisterPlayerDeviceMapping(LocalPlayerIndex, ActiveDevice);
 }
 
 UMutiBattleMenuWidget* AUIPlayerController::GetMenuWidgetCached() const

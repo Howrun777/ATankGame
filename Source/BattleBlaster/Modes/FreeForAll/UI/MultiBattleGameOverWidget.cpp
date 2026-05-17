@@ -59,7 +59,7 @@ void UMultiBattleGameOverWidget::InitResultData(int32 InWinnerIndex)
 		{
 			if (ATank* Tank = Cast<ATank>(Actor))
 			{
-				if (Tank->GetPlayerIndex() == InWinnerIndex && Img_TankPortrait)
+				if (Tank->GetSlotId() == InWinnerIndex && Img_TankPortrait)
 				{
 					TSubclassOf<ATank> WinnerClass = Tank->GetClass();
 					if (UTexture2D** FoundTexture = TankPortraitMap.Find(WinnerClass))
@@ -93,7 +93,7 @@ void UMultiBattleGameOverWidget::InitResultData(int32 InWinnerIndex)
 			if (ATankBattlePlayerState* TankPS = Cast<ATankBattlePlayerState>(Actor))
 			{
 				// 5. 从玩家状态里，读取"玩家索引"（用来区分不同玩家，比如0=玩家1，1=玩家2）
-				const int32 PIndex = TankPS->PlayerIndex;
+				const int32 PIndex = TankPS->SlotId;
 				// 6. 【安全检查】验证索引是否合法：防止数组越界崩溃
 				if (PIndex >= 0 && PIndex < LocalPlayerCount)
 				{
@@ -238,9 +238,9 @@ void UMultiBattleGameOverWidget::HandleReturnMenuClicked()
 	}
 }
 
-void UMultiBattleGameOverWidget::GetCampInfo(int32 PlayerIndex, FText& OutCampName, FLinearColor& OutColor) const
+void UMultiBattleGameOverWidget::GetCampInfo(int32 SlotId, FText& OutCampName, FLinearColor& OutColor) const
 {
-	switch (PlayerIndex)
+	switch (SlotId)
 	{
 	case 0: OutCampName = FText::FromString(TEXT("红色")); OutColor = FLinearColor::Red; break;
 	case 1: OutCampName = FText::FromString(TEXT("蓝色")); OutColor = FLinearColor::Blue; break;
@@ -249,13 +249,13 @@ void UMultiBattleGameOverWidget::GetCampInfo(int32 PlayerIndex, FText& OutCampNa
 	}
 }
 
-void UMultiBattleGameOverWidget::GetRowWidgets(int32 PlayerIndex, UTextBlock*& OutKDAText, UTextBlock*& OutSkillScoreText, UPanelWidget*& OutRow) const
+void UMultiBattleGameOverWidget::GetRowWidgets(int32 SlotId, UTextBlock*& OutKDAText, UTextBlock*& OutSkillScoreText, UPanelWidget*& OutRow) const
 {
 	OutKDAText = nullptr;
 	OutSkillScoreText = nullptr;
 	OutRow = nullptr;
 
-	switch (PlayerIndex)
+	switch (SlotId)
 	{
 	case 0: OutKDAText = RedKDAText; OutSkillScoreText = RedScoresText; OutRow = RedRow; break;
 	case 1: OutKDAText = BlueKDAText; OutSkillScoreText = BlueScoresText; OutRow = BlueRow; break;

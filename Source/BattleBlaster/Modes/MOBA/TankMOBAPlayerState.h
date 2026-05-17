@@ -26,7 +26,11 @@ public:
 
 	// 设置阵营索引
 	UFUNCTION(BlueprintCallable, Category = "MOBA")
-	void SetCampIndex(int32 Index) { CampIndex = Index; }
+	void SetCampIndex(int32 Index)
+	{
+		CampIndex = Index;
+		SetTeamId(Index);
+	}
 
 	// 获取阵营颜色（用于UI显示）
 	FLinearColor GetCampColor() const;

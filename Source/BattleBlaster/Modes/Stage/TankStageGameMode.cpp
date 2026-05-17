@@ -83,6 +83,8 @@ void ATankStageGameMode::BeginPlay()
 		if (PC && _PlayerTank)
 		{
 			PC->Possess(_PlayerTank);
+			_PlayerTank->SetSlotId(0);
+			_PlayerTank->SetTeamId(0);
 
 			// 应用玩家携带的状态（从上一关继承）
 			ApplyPlayerCarryState();
@@ -282,7 +284,7 @@ void ATankStageGameMode::RespawnPlayer()
 
 	// =========================================================================
 	// 【灵魂附体】单人模式也是一视同仁！
-	// 通过 PlayerState 的 PlayerIndex 找到原来的 Controller（0号玩家），让它附身新躯壳。
+	// 通过 PlayerState 的 SlotId 找到原来的 Controller（0号玩家），让它附身新躯壳。
 	// =========================================================================
 	AController* PlayerController = nullptr;
 	for (FConstControllerIterator It = GetWorld()->GetControllerIterator(); It; ++It)
@@ -290,7 +292,7 @@ void ATankStageGameMode::RespawnPlayer()
 		AController* C = It->Get();
 		if (ATankStagePlayerState* PS = C->GetPlayerState<ATankStagePlayerState>())
 		{
-			if (PS->PlayerIndex == 0)
+			if (PS->SlotId == 0)
 			{
 				PlayerController = C;
 				break;
@@ -324,6 +326,8 @@ void ATankStageGameMode::RespawnPlayer()
 		if (PlayerController)
 		{
 			PlayerController->Possess(_PlayerTank);
+			_PlayerTank->SetSlotId(0);
+			_PlayerTank->SetTeamId(0);
 		}
 
 		// 销毁旧 Tank（释放内存，不再保留隐藏的尸体）

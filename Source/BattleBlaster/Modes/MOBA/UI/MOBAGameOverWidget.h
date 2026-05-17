@@ -93,5 +93,5 @@ private:
 
 	void GetCampInfo(int32 CampIndex, FText& OutCampName, FLinearColor& OutColor) const;
 
-	void GetRowWidgets(int32 PlayerIndex, UTextBlock*& OutKDAText, UTextBlock*& OutSkillScoreText, UPanelWidget*& OutRow) const;
+	void GetRowWidgets(int32 SlotId, UTextBlock*& OutKDAText, UTextBlock*& OutSkillScoreText, UPanelWidget*& OutRow) const;
 };

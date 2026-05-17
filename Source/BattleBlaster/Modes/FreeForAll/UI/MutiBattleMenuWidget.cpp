@@ -394,13 +394,13 @@ void UMutiBattleMenuWidget::HandleTankSelectionInput(float DeltaTime)
 		return;
 	}
 
-	for (int32 PlayerIndex = 0; PlayerIndex < ActivePlayerCount; ++PlayerIndex)
+	for (int32 SlotId = 0; SlotId < ActivePlayerCount; ++SlotId)
 	{
-		HandleSinglePlayerInput(PlayerIndex, DeltaTime);
+		HandleSinglePlayerInput(SlotId, DeltaTime);
 	}
 }
 
-void UMutiBattleMenuWidget::HandleSinglePlayerInput(int32 PlayerIndex, float DeltaTime)
+void UMutiBattleMenuWidget::HandleSinglePlayerInput(int32 SlotId, float DeltaTime)
 {
 	if (!TankOptions.IsValidIndex(0))
 	{
@@ -408,20 +408,20 @@ void UMutiBattleMenuWidget::HandleSinglePlayerInput(int32 PlayerIndex, float Del
 	}
 
 	// 更新这个玩家的冷却计时器
-	if (PlayerSwitchTimers.IsValidIndex(PlayerIndex))
+	if (PlayerSwitchTimers.IsValidIndex(SlotId))
 	{
-		PlayerSwitchTimers[PlayerIndex] += DeltaTime;
+		PlayerSwitchTimers[SlotId] += DeltaTime;
 	}
 
 	// 没过冷却就不处理
-	if (!PlayerSwitchTimers.IsValidIndex(PlayerIndex) ||
-		PlayerSwitchTimers[PlayerIndex] < SwitchCooldown)
+	if (!PlayerSwitchTimers.IsValidIndex(SlotId) ||
+		PlayerSwitchTimers[SlotId] < SwitchCooldown)
 	{
 		return;
 	}
 
 	// 获取对应 PlayerController（本地最多4个）
-	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), PlayerIndex);
+	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), SlotId);
 	if (!PC)
 	{
 		return;
@@ -436,51 +436,51 @@ void UMutiBattleMenuWidget::HandleSinglePlayerInput(int32 PlayerIndex, float Del
 		return;
 	}
 
-	// 注册 DeviceId → PlayerIndex 映射（设备来源追踪）
+	// 注册 DeviceId → SlotId 映射（设备来源追踪）
 	ULocalPlayer* LP = PC->GetLocalPlayer();
 	if (LP)
 	{
 		FPlatformUserId UserId = LP->GetPlatformUserId();
 		FInputDeviceId ActiveDevice = IPlatformInputDeviceMapper::Get().GetPrimaryInputDeviceForUser(UserId);
-		NotifyPlayerInputDevice(PlayerIndex, ActiveDevice);
+		NotifyPlayerInputDevice(SlotId, ActiveDevice);
 	}
 
 	// 判断方向：上(-1) 或 下(+1)
 	int32 Direction = (AxisY > 0.0f) ? +1 : -1;
 
 	// 修改对应玩家的 Tank 下标（循环）
-	if (!PlayerTankIndices.IsValidIndex(PlayerIndex))
+	if (!PlayerTankIndices.IsValidIndex(SlotId))
 	{
 		return;
 	}
 
 	const int32 TankCount = TankOptions.Num();
-	int32& CurrentIndex = PlayerTankIndices[PlayerIndex];
+	int32& CurrentIndex = PlayerTankIndices[SlotId];
 
 	CurrentIndex = (CurrentIndex + Direction + TankCount) % TankCount;
 
 	// 重置冷却计时器
-	PlayerSwitchTimers[PlayerIndex] = 0.0f;
+	PlayerSwitchTimers[SlotId] = 0.0f;
 
 	// 刷新该玩家对应的 Tank 图片
-	UpdateTankImageForPlayer(PlayerIndex);
+	UpdateTankImageForPlayer(SlotId);
 }
 
-void UMutiBattleMenuWidget::UpdateTankImageForPlayer(int32 PlayerIndex)
+void UMutiBattleMenuWidget::UpdateTankImageForPlayer(int32 SlotId)
 {
 	if (!TankOptions.IsValidIndex(0) ||
-		!PlayerTankIndices.IsValidIndex(PlayerIndex) ||
-		!TankOptions.IsValidIndex(PlayerTankIndices[PlayerIndex]))
+		!PlayerTankIndices.IsValidIndex(SlotId) ||
+		!TankOptions.IsValidIndex(PlayerTankIndices[SlotId]))
 	{
 		return;
 	}
 
 	// 选中的 Tank 图标
-	UTexture2D* Icon = TankOptions[PlayerTankIndices[PlayerIndex]].Icon;
+	UTexture2D* Icon = TankOptions[PlayerTankIndices[SlotId]].Icon;
 
 	// 找到对应的 Image 控件
 	UImage* TargetImage = nullptr;
-	switch (PlayerIndex)
+	switch (SlotId)
 	{
 	case 0: TargetImage = TankImage_1; break;
 	case 1: TargetImage = TankImage_2; break;
@@ -536,12 +536,12 @@ void UMutiBattleMenuWidget::EnsureLocalPlayers(int32 WantedPlayers)
 	}
 }
 
-void UMutiBattleMenuWidget::OnTankSelectAxisInput(int32 PlayerIndex, float AxisValue)
+void UMutiBattleMenuWidget::OnTankSelectAxisInput(int32 SlotId, float AxisValue)
 {
 	if (TankOptions.Num() <= 0) return;
 
 	// 只允许当前活跃玩家范围内
-	if (PlayerIndex < 0 || PlayerIndex >= ActivePlayerCount) return;
+	if (SlotId < 0 || SlotId >= ActivePlayerCount) return;
 
 	// 死区（IMC里也建议做DeadZone，这里再保险）
 	if (FMath::Abs(AxisValue) < AxisDeadZone) return;
@@ -549,8 +549,8 @@ void UMutiBattleMenuWidget::OnTankSelectAxisInput(int32 PlayerIndex, float AxisV
 	UWorld* World = GetWorld();
 	if (!World) return;
 
-	// 注册 DeviceId → PlayerIndex 映射
-	APlayerController* PC = UGameplayStatics::GetPlayerController(World, PlayerIndex);
+	// 注册 DeviceId → SlotId 映射
+	APlayerController* PC = UGameplayStatics::GetPlayerController(World, SlotId);
 	if (PC)
 	{
 		ULocalPlayer* LP = PC->GetLocalPlayer();
@@ -558,7 +558,7 @@ void UMutiBattleMenuWidget::OnTankSelectAxisInput(int32 PlayerIndex, float AxisV
 		{
 			FPlatformUserId UserId = LP->GetPlatformUserId();
 			FInputDeviceId ActiveDevice = IPlatformInputDeviceMapper::Get().GetPrimaryInputDeviceForUser(UserId);
-			NotifyPlayerInputDevice(PlayerIndex, ActiveDevice);
+			NotifyPlayerInputDevice(SlotId, ActiveDevice);
 		}
 	}
 
@@ -571,7 +571,7 @@ void UMutiBattleMenuWidget::OnTankSelectAxisInput(int32 PlayerIndex, float AxisV
 	const float Now = World->GetTimeSeconds();
 
 	// 冷却：Triggered 会连续触发
-	if ((Now - LastSwitchTimestamp[PlayerIndex]) < SwitchCooldown)
+	if ((Now - LastSwitchTimestamp[SlotId]) < SwitchCooldown)
 	{
 		return;
 	}
@@ -583,7 +583,7 @@ void UMutiBattleMenuWidget::OnTankSelectAxisInput(int32 PlayerIndex, float AxisV
 	}
 
 	const int32 TankCount = TankOptions.Num();
-	int32& Index = PlayerTankIndices[PlayerIndex];
+	int32& Index = PlayerTankIndices[SlotId];
 
 	// 约定：你在 IMC 里给 Gamepad LeftY 加 Scalar=-1 后：
 	// 上推/滚轮上 => AxisValue > 0
@@ -596,16 +596,16 @@ void UMutiBattleMenuWidget::OnTankSelectAxisInput(int32 PlayerIndex, float AxisV
 		Index = (Index + 1) % TankCount;
 	}
 
-	LastSwitchTimestamp[PlayerIndex] = Now;
+	LastSwitchTimestamp[SlotId] = Now;
 
-	UpdateTankImageForPlayer(PlayerIndex);
+	UpdateTankImageForPlayer(SlotId);
 }
 
-void UMutiBattleMenuWidget::NotifyPlayerInputDevice(int32 PlayerIndex, FInputDeviceId DeviceId)
+void UMutiBattleMenuWidget::NotifyPlayerInputDevice(int32 SlotId, FInputDeviceId DeviceId)
 {
 	UBattleBlasterGameInstance* GI = Cast<UBattleBlasterGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
 	if (GI)
 	{
-		GI->RegisterPlayerDeviceMapping(PlayerIndex, DeviceId);
+		GI->RegisterPlayerDeviceMapping(SlotId, DeviceId);
 	}
 }

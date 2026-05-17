@@ -33,7 +33,7 @@ private:
 
 	mutable TWeakObjectPtr<UMutiBattleMenuWidget> CachedMenuWidget;
 
-	// 【新增】注册 PlayerIndex → DeviceId 映射到 GameInstance
+	// 【新增】注册 LocalPlayerIndex → DeviceId 映射到 GameInstance
 	void RegisterDeviceMappingToGameInstance();
 
 	// 【新增】模板方法：查找当前可见的指定类型 Widget

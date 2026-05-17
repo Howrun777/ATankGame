@@ -98,8 +98,8 @@ private:
 	void HandleReturnMenuClicked();
 
 	// 工具函数: 根据玩家索引返回阵营名字和颜色
-	void GetCampInfo(int32 PlayerIndex, FText& OutCampName, FLinearColor& OutColor) const;
+	void GetCampInfo(int32 SlotId, FText& OutCampName, FLinearColor& OutColor) const;
 
 	// 工具函数: 根据索引拿到一行的 KDA / SkillScore 文本和行容器
-	void GetRowWidgets(int32 PlayerIndex, UTextBlock*& OutKDAText, UTextBlock*& OutSkillScoreText, UPanelWidget*& OutRow) const;
+	void GetRowWidgets(int32 SlotId, UTextBlock*& OutKDAText, UTextBlock*& OutSkillScoreText, UPanelWidget*& OutRow) const;
 };

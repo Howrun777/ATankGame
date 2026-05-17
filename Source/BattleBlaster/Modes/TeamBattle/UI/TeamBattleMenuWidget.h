@@ -46,10 +46,10 @@ public:
 	TSubclassOf<AGameModeBase> TeamBattleGameModeClass;
 
 	UFUNCTION()
-	void OnTankSelectAxisInput(int32 PlayerIndex, float AxisValue);
+	void OnTankSelectAxisInput(int32 SlotId, float AxisValue);
 
 	UFUNCTION(BlueprintCallable, Category = "TankSelect|DeviceMapping")
-	void NotifyPlayerInputDevice(int32 PlayerIndex, FInputDeviceId DeviceId);
+	void NotifyPlayerInputDevice(int32 SlotId, FInputDeviceId DeviceId);
 
 protected:
 	// ================= 设备图标（手柄 / AI） =================
@@ -133,10 +133,10 @@ protected:
 	void UpdateDeviceIcons(int32 DeviceCount);
 	void UpdateScoreDisplay();
 	void InitPlayerTankState();
-	void UpdateTankImageForPlayer(int32 PlayerIndex);
+	void UpdateTankImageForPlayer(int32 SlotId);
 	void UpdateAllTankImages();
 	void HandleTankSelectionInput(float DeltaTime);
-	void HandleSinglePlayerInput(int32 PlayerIndex, float DeltaTime);
+	void HandleSinglePlayerInput(int32 SlotId, float DeltaTime);
 	void HandleMouseWheelTargeting(float DeltaTime);
 	void EnsureLocalPlayers(int32 WantedPlayers);
 

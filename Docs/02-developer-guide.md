@@ -261,7 +261,7 @@ OnHit
   -> 空目标 / 自己：Destroy
   -> 命中 Owner：Destroy
   -> AttackerTank vs VictimTank 阵营检查
-      -> MOBA：同 PlayerIndex 不伤害
+      -> MOBA：同 TeamId/CampIndex 不伤害
       -> TeamBattle：同红蓝阵营不伤害
   -> 命中 APawn：ApplyDamage，然后 Destroy
   -> 命中 ADestructibleProp：ApplyDamage，然后 Destroy
@@ -347,8 +347,8 @@ Ghost 结束时有两条路径：
 
 关键数据：
 
-- `PlayerIndex`
-- `TeamID`
+- `SlotId`
+- `TeamId`
 - `IsAlive`
 - `HomeSpawnLocation`, `HomeSpawnRotation`
 - `CurrentAmmo`
@@ -368,7 +368,7 @@ Ghost 结束时有两条路径：
 各模式 PlayerState 的差异：
 
 - `ATankBattlePlayerState`：无敌状态、复活时间。
-- `ATeamBattlePlayerState`：红蓝阵营、团队贡献，重写 `HandleKillConfirmed()` 给团队加分。
+- `ATeamBattlePlayerState`：红蓝阵营、团队贡献；团队分数由 `TeamBattleGameMode` 统一结算。
 - `ATankMOBAPlayerState`：CampIndex、死亡、等待复活、永久淘汰、复活时间增长。
 - `ATankStagePlayerState`：剩余生命、关卡分、PVE 击杀数。
 
@@ -477,12 +477,12 @@ HandleTankKilled(DeadTank, KillerTank)
   -> 自杀：Victim -1 分
   -> 刷新比分 UI
   -> 达到 TargetScore：胜利，显示 MultiBattleGameOverWidget
-  -> 未结束：定时 RespawnPlayer(PlayerIndex)
+  -> 未结束：定时 RespawnPlayer(SlotId)
 ```
 
 复活：
 
-- 按 PlayerIndex 找出生点。
+- 按 SlotId 找出生点。
 - 使用该玩家选择的 TankClass。
 - 找原 Controller 重新 Possess。
 - 生命值和弹药按 `RespawnHealthPercent` / `RespawnAmmoPercent` 恢复。
@@ -502,7 +502,7 @@ HandleTankKilled(DeadTank, KillerTank)
 - 固定 `TeamBattlePlayerCount = 4`。
 - 使用 `TeamScores[0]` 和 `TeamScores[1]`。
 - `CanDealDamage()` 禁止友军伤害。
-- `ATeamBattlePlayerState::HandleKillConfirmed()` 跨阵营击杀才给团队加分。
+- `ATeamBattlePlayerState::HandleKillConfirmed()` 只记录个人团队贡献，团队分数由 `TeamBattleGameMode` 统一结算。
 - GameMode 内也有 `AddTeamScore()` 和胜负检查。
 
 复活、Buff 保存、黑屏视口、分数 UI 的结构和自由死斗很像，所以将来可以考虑抽一个本地多人对战基类，但第一轮整理不建议立刻抽象。
@@ -525,7 +525,7 @@ MOBA 模块包含：
 玩家规则：
 
 - 每个玩家一个独立 Camp。
-- `CampIndex` 和 `PlayerIndex` 在 MOBA 中基本对应。
+- `CampIndex` 和 `TeamId` 在 MOBA 中对应；`SlotId` 只表示比赛槽位。
 - 死亡不等于淘汰。
 - 核心塔被摧毁后，该阵营玩家再次死亡才会进入永久淘汰。
 

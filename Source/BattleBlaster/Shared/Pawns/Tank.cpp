@@ -19,18 +19,30 @@
 
 // ========== PlayerState 数据访问方法实现 ==========
 
-int32 ATank::GetPlayerIndex() const
+int32 ATank::GetSlotId() const
 {
-	// 优先返回 Tank 自身存储的 PlayerIndex（Spawn 时就设置好了）
-	if (PlayerIndex >= 0)
+	if (SlotId >= 0)
 	{
-		return PlayerIndex;
+		return SlotId;
 	}
 
-	// 如果 Tank 的 PlayerIndex 还没设置，尝试从 PlayerState 获取
 	if (ATankPlayerState* PS = GetPlayerState<ATankPlayerState>())
 	{
-		return PS->PlayerIndex;
+		return PS->GetSlotId();
+	}
+	return -1;
+}
+
+int32 ATank::GetTeamId() const
+{
+	if (TeamId >= 0)
+	{
+		return TeamId;
+	}
+
+	if (ATankPlayerState* PS = GetPlayerState<ATankPlayerState>())
+	{
+		return PS->GetTeamId();
 	}
 	return -1;
 }
@@ -270,15 +282,23 @@ void ATank::PossessedBy(AController* NewController)
 	}
 }
 
-void ATank::SetPlayerIndex(int32 NewPlayerIndex)
+void ATank::SetSlotId(int32 NewSlotId)
 {
-	// 同时设置 Tank 自身的 PlayerIndex（用于阵营判断的快速访问）
-	PlayerIndex = NewPlayerIndex;
+	SlotId = NewSlotId;
 
-	// 同步到 PlayerState（真正的权威数据源）
 	if (ATankPlayerState* PS = GetPlayerState<ATankPlayerState>())
 	{
-		PS->PlayerIndex = NewPlayerIndex;
+		PS->SetSlotId(NewSlotId);
+	}
+}
+
+void ATank::SetTeamId(int32 NewTeamId)
+{
+	TeamId = NewTeamId;
+
+	if (ATankPlayerState* PS = GetPlayerState<ATankPlayerState>())
+	{
+		PS->SetTeamId(NewTeamId);
 	}
 }
 

@@ -8,6 +8,8 @@
 
 已完成：
 
+- 身份语义拆分：C++ 中的 `PlayerIndex` 已硬改为 `SlotId`；`TeamId` 独立用于敌我/友伤判断；`LocalPlayerIndex` 只保留在输入设备映射语义中。`Development Editor|Win64` MSBuild 已通过，结果 `0 warning / 0 error`。
+
 - P0-2 输入设备数量刷新：三个选人菜单已改为 0.5 秒低频刷新，不再每帧强制刷新手柄数量。
 - P0-3 Timer Lambda 生命周期保护：`TankPlayerController` 和 `TankMOBAGameMode` 中的延迟 Timer 已避免裸 `this` / `PC` 捕获，并在 `EndPlay` 中清理关键 Timer。
 - P2-2 空 Tick 清理：`Projectile`、`ExplosiveBarrel`、`BasePawn` 的无意义 Tick 已关闭；`Tower` 作为需要持续逻辑的 NPC 显式保留 Tick。
@@ -142,7 +144,7 @@
 - 创建/移除 LocalPlayer。
 - 根据 `P0/P1/P2/P3` 找 `PlayerStart`。
 - 生成玩家 Tank / AI Controller。
-- 写入 PlayerIndex / TeamID / PlayerState。
+- 写入 SlotId / TeamId / PlayerState。
 - 处理三人模式第四屏黑屏。
 - 复活时重建 Tank、恢复 Buff、重新绑定 `OnKilled`。
 
@@ -299,7 +301,7 @@
   - `UGameSettingsSubsystem`：人数、目标分数、坦克选择。
   - `UCampaignProgressSubsystem`：关卡、难度、跨关卡携带状态。
   - `UMatchHistorySubsystem`：多人历史榜。
-  - `UInputDeviceMappingSubsystem`：手柄检测和 PlayerIndex 映射。
+  - `UInputDeviceMappingSubsystem`：手柄检测和 LocalPlayerIndex 映射。
 - 如果暂时不想引入 Subsystem，也可以先拆成 `Core/Settings`、`Core/Persistence` 下的小类/结构体。
 
 验收：

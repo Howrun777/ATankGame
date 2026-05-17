@@ -181,8 +181,9 @@ void ATankMOBAGameMode::BeginPlay()
 		{
 			ActiveTanks[i] = NewTank;
 
-			// 设置玩家索引（通过 SetPlayerIndex 同步到 PlayerState）
-			NewTank->SetPlayerIndex(i);
+			// 设置玩家索引（通过 SetSlotId 同步到 PlayerState）
+			NewTank->SetSlotId(i);
+			NewTank->SetTeamId(i);
 
 			UE_LOG(LogTemp, Display, TEXT("MOBA: Spawned Tank %d at location %s"), i, *SpawnLocation.ToString());
 		}
@@ -253,9 +254,9 @@ void ATankMOBAGameMode::BeginPlay()
 					// 不再依赖 HandleStartingNewPlayer（它调用时 GetPawn() 可能还是 nullptr）
 					if (ATankMOBAPlayerState* MOBAState = PC->GetPlayerState<ATankMOBAPlayerState>())
 					{
-						MOBAState->InitializeMOBAState(GameMode->ActiveTanks[i]->GetPlayerIndex());
-						UE_LOG(LogTemp, Display, TEXT("MOBA: InitializeMOBAState for player %d, PlayerIndex=%d"),
-							i, GameMode->ActiveTanks[i]->GetPlayerIndex());
+						MOBAState->InitializeMOBAState(GameMode->ActiveTanks[i]->GetSlotId());
+						UE_LOG(LogTemp, Display, TEXT("MOBA: InitializeMOBAState for player %d, SlotId=%d"),
+							i, GameMode->ActiveTanks[i]->GetSlotId());
 					}
 
 					// 延迟一点时间后初始化 UI，确保 Possess 完成
@@ -416,21 +417,21 @@ void ATankMOBAGameMode::HandleStartingNewPlayer(APlayerController* NewPlayer)
 
 	// 【核心修复】：MOBAState 的初始化已移至 BeginPlay 中的 Possess 之后（更可靠）
 	// 此函数不再需要延迟1秒去获取 GetPawn()
-	// 这里只做安全检查：如果 MOBAState 未初始化（PlayerIndex == -1），则通过遍历 ActiveTanks 找到匹配的 Tank 并初始化
+	// 这里只做安全检查：如果 MOBAState 未初始化（SlotId == -1），则通过遍历 ActiveTanks 找到匹配的 Tank 并初始化
 
 	if (ATankMOBAPlayerState* MOBAState = NewPlayer->GetPlayerState<ATankMOBAPlayerState>())
 	{
-		// 如果还没有初始化（PlayerIndex == -1），则尝试初始化
-		if (MOBAState->PlayerIndex == -1)
+		// 如果还没有初始化（SlotId == -1），则尝试初始化
+		if (MOBAState->SlotId == -1)
 		{
 			// 通过遍历 ActiveTanks 找到对应的 Tank
 			for (int32 i = 0; i < ActiveTanks.Num(); ++i)
 			{
 				if (ActiveTanks[i] && ActiveTanks[i]->Controller == NewPlayer)
 				{
-					MOBAState->InitializeMOBAState(ActiveTanks[i]->GetPlayerIndex());
-					UE_LOG(LogTemp, Display, TEXT("MOBA: HandleStartingNewPlayer - InitializeMOBAState for Tank[%d], PlayerIndex=%d"),
-						i, ActiveTanks[i]->GetPlayerIndex());
+					MOBAState->InitializeMOBAState(ActiveTanks[i]->GetSlotId());
+					UE_LOG(LogTemp, Display, TEXT("MOBA: HandleStartingNewPlayer - InitializeMOBAState for Tank[%d], SlotId=%d"),
+						i, ActiveTanks[i]->GetSlotId());
 					break;
 				}
 			}
@@ -481,20 +482,20 @@ void ATankMOBAGameMode::HandleTankKilled(ATank* DeadTank, ATank* KillerTank)
 {
 	if (!DeadTank) return;
 
-	int32 VictimIndex = DeadTank->GetPlayerIndex();
+	int32 VictimIndex = DeadTank->GetSlotId();
 
 	// === 保存死亡玩家的 Buff 信息到 PlayerState ===
 	UTankBuffComponent* DeadBuffComp = DeadTank->FindComponentByClass<UTankBuffComponent>();
 	if (DeadBuffComp)
 	{
 		TArray<FActiveBuffUIInfo> SavedBuffs = DeadBuffComp->GetAllActiveBuffs();
-		// 通过 PlayerIndex 找到对应的 PlayerState 并保存
+		// 通过 SlotId 找到对应的 PlayerState 并保存
 		for (FConstControllerIterator It = GetWorld()->GetControllerIterator(); It; ++It)
 		{
 			AController* C = It->Get();
 			if (ATankMOBAPlayerState* PS = C->GetPlayerState<ATankMOBAPlayerState>())
 			{
-				if (PS->PlayerIndex == VictimIndex)
+				if (PS->SlotId == VictimIndex)
 				{
 					PS->SaveCurrentBuffs(SavedBuffs);
 					break;
@@ -512,7 +513,7 @@ void ATankMOBAGameMode::HandleTankKilled(ATank* DeadTank, ATank* KillerTank)
 
 	// =========================================================================
 	// 【核心修复 1】：坦克死亡时必定已经 Unpossess 解绑！不能用 DeadTank->GetController()
-	// 必须遍历全局 Controller，通过永远不会变的 PlayerIndex 找回主人的灵魂 (包含AI和人类)
+	// 必须遍历全局 Controller，通过永远不会变的 SlotId 找回主人的灵魂 (包含AI和人类)
 	// =========================================================================
 	AController* DeadController = nullptr;
 	ATankMOBAPlayerState* VictimMOBAState = nullptr;
@@ -522,7 +523,7 @@ void ATankMOBAGameMode::HandleTankKilled(ATank* DeadTank, ATank* KillerTank)
 		AController* C = It->Get();
 		if (ATankMOBAPlayerState* PS = C->GetPlayerState<ATankMOBAPlayerState>())
 		{
-			if (PS->PlayerIndex == VictimIndex)
+			if (PS->SlotId == VictimIndex)
 			{
 				DeadController = C;
 				VictimMOBAState = PS;
@@ -603,8 +604,8 @@ void ATankMOBAGameMode::RespawnPlayer(ATankMOBAPlayerState* MOBAState)
 	// 再让原来持有击杀记录的老 Controller 附身新躯壳！
 	// =========================================================================
 
-	// 1. 通过 PlayerIndex 找到原来那个 Controller（不再用 Controller->GetPawn()）
-	int32 CampIndex = MOBAState->PlayerIndex;
+	// 1. 通过 SlotId 找到原来那个 Controller（不再用 Controller->GetPawn()）
+	int32 CampIndex = MOBAState->SlotId;
 	if (CampIndex < 0 || CampIndex >= TargetPlayerCount) return;
 
 	// 2. 获取 Tank 蓝图
@@ -644,7 +645,7 @@ void ATankMOBAGameMode::RespawnPlayer(ATankMOBAPlayerState* MOBAState)
 		AController* C = It->Get();
 		if (ATankMOBAPlayerState* PS = C->GetPlayerState<ATankMOBAPlayerState>())
 		{
-			if (PS->PlayerIndex == CampIndex)
+			if (PS->SlotId == CampIndex)
 			{
 				TargetController = C;
 				break;
@@ -678,7 +679,8 @@ void ATankMOBAGameMode::RespawnPlayer(ATankMOBAPlayerState* MOBAState)
 	}
 
 	// 9. 设置玩家索引
-	NewTank->SetPlayerIndex(CampIndex);
+	NewTank->SetSlotId(CampIndex);
+	NewTank->SetTeamId(CampIndex);
 
 	// 10. 恢复状态
 	UHealthComponent* HealthComp = NewTank->FindComponentByClass<UHealthComponent>();

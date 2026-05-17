@@ -7,8 +7,8 @@
 
 ATankPlayerState::ATankPlayerState()
 {
-	PlayerIndex = -1;
-	TeamID = 0;
+	SlotId = -1;
+	TeamId = -1;
 	KillCount = 0;
 	DeathCount = 0;
 	AssistCount = 0;
@@ -189,8 +189,8 @@ void ATankPlayerState::SaveCurrentBuffs(const TArray<FActiveBuffUIInfo>& Buffs)
 
 void ATankPlayerState::ResetForNewGame()
 {
-	PlayerIndex = 0;
-	TeamID = 0;
+	SlotId = -1;
+	TeamId = -1;
 	KillCount = 0;
 	DeathCount = 0;
 	AssistCount = 0;

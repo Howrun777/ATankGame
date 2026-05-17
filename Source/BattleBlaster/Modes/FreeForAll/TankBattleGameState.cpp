@@ -27,19 +27,19 @@ void ATankBattleGameState::InitializePlayerData(int32 InPlayerCount, int32 InTar
 	PlayerScores.Init(0, InPlayerCount);
 }
 
-void ATankBattleGameState::AddPlayerScore(int32 PlayerIndex, int32 Amount)
+void ATankBattleGameState::AddPlayerScore(int32 SlotId, int32 Amount)
 {
-	if (PlayerScores.IsValidIndex(PlayerIndex))
+	if (PlayerScores.IsValidIndex(SlotId))
 	{
-		PlayerScores[PlayerIndex] += Amount;
+		PlayerScores[SlotId] += Amount;
 	}
 }
 
-int32 ATankBattleGameState::GetPlayerScore(int32 PlayerIndex) const
+int32 ATankBattleGameState::GetPlayerScore(int32 SlotId) const
 {
-	if (PlayerScores.IsValidIndex(PlayerIndex))
+	if (PlayerScores.IsValidIndex(SlotId))
 	{
-		return PlayerScores[PlayerIndex];
+		return PlayerScores[SlotId];
 	}
 	return 0;
 }

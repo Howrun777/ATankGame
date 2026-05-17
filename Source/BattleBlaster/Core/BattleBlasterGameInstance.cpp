@@ -522,22 +522,22 @@ int32 UBattleBlasterGameInstance::GetConnectedGamepadCount(bool bForceRefresh)
 	return CachedGamepadCount;
 }
 
-FInputDeviceId UBattleBlasterGameInstance::GetPlayerDeviceId(int32 PlayerIndex) const
+FInputDeviceId UBattleBlasterGameInstance::GetPlayerDeviceId(int32 LocalPlayerIndex) const
 {
-	if (!PlayerDeviceIdMap.IsValidIndex(PlayerIndex))
+	if (!PlayerDeviceIdMap.IsValidIndex(LocalPlayerIndex))
 	{
 		return FInputDeviceId();
 	}
-	return PlayerDeviceIdMap[PlayerIndex];
+	return PlayerDeviceIdMap[LocalPlayerIndex];
 }
 
-void UBattleBlasterGameInstance::RegisterPlayerDeviceMapping(int32 PlayerIndex, FInputDeviceId DeviceId)
+void UBattleBlasterGameInstance::RegisterPlayerDeviceMapping(int32 LocalPlayerIndex, FInputDeviceId DeviceId)
 {
-	while (PlayerDeviceIdMap.Num() <= PlayerIndex)
+	while (PlayerDeviceIdMap.Num() <= LocalPlayerIndex)
 	{
 		PlayerDeviceIdMap.Add(FInputDeviceId());
 	}
-	PlayerDeviceIdMap[PlayerIndex] = DeviceId;
+	PlayerDeviceIdMap[LocalPlayerIndex] = DeviceId;
 }
 
 void UBattleBlasterGameInstance::ResetDeviceMappings()

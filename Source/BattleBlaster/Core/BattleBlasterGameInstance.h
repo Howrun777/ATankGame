@@ -541,14 +541,14 @@ public:
 
 	/**
 	 * @brief 获取当前已连接的手柄数量（精确过滤，仅统计 Gamepad 类型设备）
-	 * @param OutDeviceIndices 输出：每个手柄对应的本地 PlayerIndex（与 PlayerController 数组对应）
+	 * @param OutDeviceIndices 输出：每个手柄对应的本地 LocalPlayerIndex（与 PlayerController 数组对应）
 	 * @return 已连接的手柄数量（最大 4）
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Gamepad|Input")
 	int32 GetConnectedGamepadCountWithMapping(TArray<int32>& OutDeviceIndices);
 
 	/**
-	 * @brief 获取当前已连接的手柄数量（忽略 PlayerIndex 输出）
+	 * @brief 获取当前已连接的手柄数量（忽略 LocalPlayerIndex 输出）
 	 * @param bForceRefresh 是否强制重新检测（绕过缓存）
 	 * @return 已连接的手柄数量
 	 */
@@ -556,20 +556,20 @@ public:
 	int32 GetConnectedGamepadCount(bool bForceRefresh = false);
 
 	/**
-	 * @brief 根据 PlayerIndex 获取其对应的 FInputDeviceId（用于输入来源追踪）
-	 * @param PlayerIndex 本地玩家索引（0~3）
+	 * @brief 根据 LocalPlayerIndex 获取其对应的 FInputDeviceId（用于输入来源追踪）
+	 * @param LocalPlayerIndex 本地玩家索引（0~3）
 	 * @return 该玩家最近一次活动手柄的 DeviceId，无效时返回 Invalid
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Gamepad|Input")
-	FInputDeviceId GetPlayerDeviceId(int32 PlayerIndex) const;
+	FInputDeviceId GetPlayerDeviceId(int32 LocalPlayerIndex) const;
 
 	/**
-	 * @brief 注册/更新 PlayerIndex 与 DeviceId 的映射（在输入发生时调用）
-	 * @param PlayerIndex 本地玩家索引
+	 * @brief 注册/更新 LocalPlayerIndex 与 DeviceId 的映射（在输入发生时调用）
+	 * @param LocalPlayerIndex 本地玩家索引
 	 * @param DeviceId 活动设备 ID
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Gamepad|Input")
-	void RegisterPlayerDeviceMapping(int32 PlayerIndex, FInputDeviceId DeviceId);
+	void RegisterPlayerDeviceMapping(int32 LocalPlayerIndex, FInputDeviceId DeviceId);
 
 	/**
 	 * @brief 重置所有设备映射（进入菜单时调用）
@@ -585,7 +585,7 @@ private:
 	 */
 	void ChangeLevel(int32 Index, const FString& Options = TEXT(""));
 
-	// 设备映射表：PlayerIndex → FInputDeviceId
+	// 设备映射表：LocalPlayerIndex → FInputDeviceId
 	TArray<FInputDeviceId> PlayerDeviceIdMap;
 
 	// 缓存的手柄数量（避免每帧频繁查询）
