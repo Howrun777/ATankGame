@@ -112,6 +112,11 @@ void ATank::SetAmmo(int32 NewAmmo)
 
 ATank::ATank()
 {
+	bReplicates = true;
+	SetReplicateMovement(true);
+	SetNetUpdateFrequency(30.0f);
+	SetMinNetUpdateFrequency(10.0f);
+
 	//创建弹簧臂组件并且赋值给Tank类成员
 	SpringArmComp = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArmComp"));
 	//SpringArmComp->SetupAttachment(CapsuleComp);//把这个组件附加到Tank的炮塔

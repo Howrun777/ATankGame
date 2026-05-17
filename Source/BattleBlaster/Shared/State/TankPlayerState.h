@@ -36,21 +36,22 @@ class BATTLEBLASTER_API ATankPlayerState : public APlayerState
 
 public:
 	ATankPlayerState();
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	// ================= 玩家索引 =================
 
 	// 比赛槽位 (0, 1, 2, 3)，用于关联 GameMode 中的数组
-	UPROPERTY(VisibleAnywhere, Category = "Player Info")
+	UPROPERTY(VisibleAnywhere, Replicated, Category = "Player Info")
 	int32 SlotId = -1;
 
 	// 队伍/阵营 ID。-1 表示尚未分配，友伤判断会把它视为无效状态。
-	UPROPERTY(VisibleAnywhere, Category = "Player Info")
+	UPROPERTY(VisibleAnywhere, Replicated, Category = "Player Info")
 	int32 TeamId = -1;
 
 	// ================= 玩家存活状态（跨 Pawn 保留）====================
 
 	// 玩家是否存活（与 Tank Pawn 的 IsAlive 保持同步，但属于 PlayerState 层面）
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Player State")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category = "Player State")
 	bool IsAlive = true;
 
 	// ================= 出生点（跨 Pawn 保留）====================
@@ -70,21 +71,21 @@ public:
 	// ================= 弹药（跨 Pawn 保留）====================
 
 	// 当前弹药数量（复活时恢复）
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category = "Combat")
 	int32 CurrentAmmo;
 
 	// ================= 战斗统计 =================
 
 	// 击杀数
-	UPROPERTY(VisibleAnywhere, Category = "Combat Stats")
+	UPROPERTY(VisibleAnywhere, Replicated, Category = "Combat Stats")
 	int32 KillCount;
 
 	// 死亡数
-	UPROPERTY(VisibleAnywhere, Category = "Combat Stats")
+	UPROPERTY(VisibleAnywhere, Replicated, Category = "Combat Stats")
 	int32 DeathCount;
 
 	// 助攻数
-	UPROPERTY(VisibleAnywhere, Category = "Combat Stats")
+	UPROPERTY(VisibleAnywhere, Replicated, Category = "Combat Stats")
 	int32 AssistCount;
 
 	// ================= Buff状态 =================

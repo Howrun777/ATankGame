@@ -4,6 +4,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Shared/Pawns/Tank.h"
 #include "Shared/Controllers/TankPlayerController.h" // forward declared in .h; included here to avoid circular dep issues
+#include "Net/UnrealNetwork.h"
 
 ATankPlayerState::ATankPlayerState()
 {
@@ -19,6 +20,19 @@ ATankPlayerState::ATankPlayerState()
 	HomeSpawnRotation = FRotator::ZeroRotator;
 
 	PrimaryActorTick.bCanEverTick = false;
+}
+
+void ATankPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(ATankPlayerState, SlotId);
+	DOREPLIFETIME(ATankPlayerState, TeamId);
+	DOREPLIFETIME(ATankPlayerState, IsAlive);
+	DOREPLIFETIME(ATankPlayerState, CurrentAmmo);
+	DOREPLIFETIME(ATankPlayerState, KillCount);
+	DOREPLIFETIME(ATankPlayerState, DeathCount);
+	DOREPLIFETIME(ATankPlayerState, AssistCount);
 }
 
 void ATankPlayerState::EndPlay(const EEndPlayReason::Type EndPlayReason)
