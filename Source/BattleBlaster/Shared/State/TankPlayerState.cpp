@@ -190,6 +190,14 @@ void ATankPlayerState::RefreshKDAUI()
 	}
 }
 
+void ATankPlayerState::OnRep_KDA()
+{
+	if (ATankPlayerController* PC = Cast<ATankPlayerController>(GetOwner()))
+	{
+		PC->UpdateKDA();
+	}
+}
+
 void ATankPlayerState::HandleKillConfirmed(ATank* Victim)
 {
 	// 基类默认什么都不做

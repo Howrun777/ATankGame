@@ -20,23 +20,27 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	// 组件内部依然监听拥有者的伤害事件
 	UFUNCTION()
 	void OnDamageTaken(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser);
 
+	UFUNCTION()
+	void OnRep_HealthState();
+
 public:
 	// 对外暴露的属性，不要写死任何 Tank 相关的逻辑
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Health")
 	float MaxHealth = 200.0f;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Health")
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_HealthState, Category = "Health")
 	float CurrentHealth;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Health")
 	float MaxShield = 100.0f;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Health")
+	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_HealthState, Category = "Health")
 	float CurrentShield;
 
 	// 对外暴露的委托（事件），其他类可以通过绑这两个事件来执行逻辑

@@ -22,7 +22,7 @@ void ATankPlayerController::InitializeHUD()
 	// 【修复】：先检查 Controller 自身是否有效（防止在蓝图构造脚本中被调用时崩溃）
 	if (!this || !IsValid(this)) return;
 	// 再次检查防止中途对象失效
-	if (!HUDWidgetClass || !GetLocalPlayer()) return;
+	if (!GetLocalPlayer()) return;
 
 	// 如果这个 Controller 手里没有坦克，直接返回
 	APawn* HavePawn = GetPawn();
@@ -32,20 +32,18 @@ void ATankPlayerController::InitializeHUD()
 	}
 
 	// --- 创建血量 UI (HUD) ---
-	if (!HUDWidget)
+	if (HUDWidgetClass && !HUDWidget)
 	{
 		HUDWidget = CreateWidget<UHUDWidget>(this, HUDWidgetClass);
 		if (HUDWidget)
 		{
 			HUDWidget->AddToPlayerScreen();
-
-			// 刷新血量
-			UHealthComponent* HealthComp = HavePawn->FindComponentByClass<UHealthComponent>();
-			if (HealthComp)
-			{
-				HealthComp->UpdateHUD();
-			}
 		}
+	}
+
+	if (UHealthComponent* HealthComp = HavePawn->FindComponentByClass<UHealthComponent>())
+	{
+		UpdateHealthHUD(HealthComp->GetHealthPercent(), HealthComp->GetShieldPercent());
 	}
 
 	// --- 创建弹药 UI (Ammo) ---
@@ -179,8 +177,10 @@ void ATankPlayerController::SetPawn(APawn* InPawn)
 	// 如果传入的 Pawn 是空的（比如角色刚死还没复活），直接返回
 	if (InPawn == nullptr) return;
 
-	// 情况A：如果是游戏刚开始，HUDWidget 可能还没创建（BeginPlay 还没跑），
-	// 这时候不需要做任何事，因为 BeginPlay 会处理初始化。
+	if (IsLocalPlayerController())
+	{
+		InitializeHUD();
+	}
 
 	// 情况B：如果是重生，HUDWidget 已经存在了，我们需要手动强制刷新它。
 	if (HUDWidget)
@@ -229,6 +229,11 @@ void ATankPlayerController::SetHUDAmmo(int32 Current, int32 Max)
 	{
 		AmmoWidget->SetAmmoText(Current, Max);
 	}
+}
+
+void ATankPlayerController::ClientSetHUDAmmo_Implementation(int32 Current, int32 Max)
+{
+	SetHUDAmmo(Current, Max);
 }
 
 void ATankPlayerController::UpdateHealthHUD(float HealthPercent, float ShieldPercent)
@@ -364,6 +369,8 @@ void ATankPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	Super::EndPlay(EndPlayReason);
 
+	GetWorldTimerManager().ClearTimer(DeathScreenCountdownTimerHandle);
+
 	// 清理暂停菜单
 	if (IsValid(PauseMenuInstance))
 	{
@@ -456,6 +463,11 @@ void ATankPlayerController::TriggerFireVibration()
 	}
 }
 
+void ATankPlayerController::ClientTriggerFireFeedback_Implementation()
+{
+	TriggerFireVibration();
+}
+
 void ATankPlayerController::TriggerDamageVibration()
 {
 	if (!IsLocalController()) return;
@@ -499,6 +511,9 @@ void ATankPlayerController::ShowDeathScreen(float RespawnTime)
 {
 	if (!IsLocalController()) return;
 
+	DeathScreenCountdownDuration = FMath::Max(0.0f, RespawnTime);
+	DeathScreenCountdownStartTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+
 	// 创建或显示死亡界面
 	if (DeathScreenClass && !DeathScreenInstance)
 	{
@@ -514,16 +529,40 @@ void ATankPlayerController::ShowDeathScreen(float RespawnTime)
 		DeathScreenInstance->Show();
 		DeathScreenInstance->UpdateRespawnCountdown(RespawnTime);
 	}
+
+	if (GetWorld())
+	{
+		GetWorldTimerManager().ClearTimer(DeathScreenCountdownTimerHandle);
+		GetWorldTimerManager().SetTimer(
+			DeathScreenCountdownTimerHandle,
+			this,
+			&ATankPlayerController::TickDeathScreenCountdown,
+			0.1f,
+			true
+		);
+	}
+}
+
+void ATankPlayerController::ClientShowDeathScreen_Implementation(float RespawnTime)
+{
+	ShowDeathScreen(RespawnTime);
 }
 
 void ATankPlayerController::HideDeathScreen()
 {
 	if (!IsLocalController()) return;
 
+	GetWorldTimerManager().ClearTimer(DeathScreenCountdownTimerHandle);
+
 	if (DeathScreenInstance)
 	{
 		DeathScreenInstance->Hide();
 	}
+}
+
+void ATankPlayerController::ClientHideDeathScreen_Implementation()
+{
+	HideDeathScreen();
 }
 
 void ATankPlayerController::UpdateDeathScreenCountdown(float TimeRemaining)
@@ -533,6 +572,31 @@ void ATankPlayerController::UpdateDeathScreenCountdown(float TimeRemaining)
 	if (DeathScreenInstance)
 	{
 		DeathScreenInstance->UpdateRespawnCountdown(TimeRemaining);
+	}
+}
+
+void ATankPlayerController::ClientUpdateDeathScreenCountdown_Implementation(float TimeRemaining)
+{
+	UpdateDeathScreenCountdown(TimeRemaining);
+}
+
+void ATankPlayerController::TickDeathScreenCountdown()
+{
+	if (!IsLocalController())
+	{
+		GetWorldTimerManager().ClearTimer(DeathScreenCountdownTimerHandle);
+		return;
+	}
+
+	const float CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : DeathScreenCountdownStartTime;
+	const float ElapsedTime = CurrentTime - DeathScreenCountdownStartTime;
+	const float RemainingTime = FMath::Max(0.0f, DeathScreenCountdownDuration - ElapsedTime);
+
+	UpdateDeathScreenCountdown(RemainingTime);
+
+	if (RemainingTime <= 0.0f)
+	{
+		GetWorldTimerManager().ClearTimer(DeathScreenCountdownTimerHandle);
 	}
 }
 

@@ -77,15 +77,15 @@ public:
 	// ================= 战斗统计 =================
 
 	// 击杀数
-	UPROPERTY(VisibleAnywhere, Replicated, Category = "Combat Stats")
+	UPROPERTY(VisibleAnywhere, ReplicatedUsing = OnRep_KDA, Category = "Combat Stats")
 	int32 KillCount;
 
 	// 死亡数
-	UPROPERTY(VisibleAnywhere, Replicated, Category = "Combat Stats")
+	UPROPERTY(VisibleAnywhere, ReplicatedUsing = OnRep_KDA, Category = "Combat Stats")
 	int32 DeathCount;
 
 	// 助攻数
-	UPROPERTY(VisibleAnywhere, Replicated, Category = "Combat Stats")
+	UPROPERTY(VisibleAnywhere, ReplicatedUsing = OnRep_KDA, Category = "Combat Stats")
 	int32 AssistCount;
 
 	// ================= Buff状态 =================
@@ -126,6 +126,9 @@ protected:
 	// 刷新所有受影响者的 KDA UI（死者 + 凶手 + 所有助攻者）
 	// 凶手必定是 AttackerQueue[0]（队头是最后攻击者），无需额外参数
 	void RefreshKDAUI();
+
+	UFUNCTION()
+	void OnRep_KDA();
 
 	// ================= 通用函数 =================
 public:

@@ -287,6 +287,26 @@ void ATank::PossessedBy(AController* NewController)
 	}
 }
 
+void ATank::OnRep_Controller()
+{
+	Super::OnRep_Controller();
+
+	TankPC = Cast<ATankPlayerController>(Controller);
+	if (TankPC && TankPC->IsLocalController() && GetIsAlive())
+	{
+		TankPC->InitializeHUD();
+		SetPlayerEnabled(true);
+		TankPC->SetHUDAmmo(CurrentAmmo, MaxAmmo);
+
+		if (HealthComp)
+		{
+			const float InitHealthPct = HealthComp->MaxHealth > 0.0f ? (HealthComp->CurrentHealth / HealthComp->MaxHealth) : 0.0f;
+			const float InitShieldPct = HealthComp->MaxShield > 0.0f ? (HealthComp->CurrentShield / HealthComp->MaxShield) : 0.0f;
+			TankPC->UpdateHealthHUD(InitHealthPct, InitShieldPct);
+		}
+	}
+}
+
 void ATank::SetSlotId(int32 NewSlotId)
 {
 	SlotId = NewSlotId;
@@ -388,7 +408,8 @@ void ATank::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 //移动函数（玩家输入，经 EnhancedInput 触发）
 void ATank::MoveInput(const FInputActionValue& Value)
 {
-	// 通过 PlayerController 检查回城状态
+	float InputValue = Value.Get<float>();
+
 	if (ATankPlayerController* PC = Cast<ATankPlayerController>(GetController()))
 	{
 		if (PC->bIsHoldingReturnToSpawn)
@@ -397,7 +418,24 @@ void ATank::MoveInput(const FInputActionValue& Value)
 		}
 	}
 
-	float InputValue = Value.Get<float>();
+	ApplyMoveInput(InputValue);
+
+	if (!HasAuthority())
+	{
+		ServerMoveInput(InputValue);
+	}
+}
+
+void ATank::ApplyMoveInput(float InputValue)
+{
+	// 通过 PlayerController 检查回城状态
+	if (ATankPlayerController* PC = Cast<ATankPlayerController>(GetController()))
+	{
+		if (PC->bIsHoldingReturnToSpawn)
+		{
+			return;
+		}
+	}
 
 	const float DeltaSeconds = (GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0f);
 	if (FMath::IsNearlyZero(DeltaSeconds) || FMath::IsNearlyZero(InputValue))
@@ -438,62 +476,71 @@ void ATank::MoveInput(const FInputActionValue& Value)
 	}
 }
 
+void ATank::ServerMoveInput_Implementation(float InputValue)
+{
+	ApplyMoveInput(InputValue);
+}
+
 // 移动函数（AI 控制器直接调用）
 void ATank::MoveAI(const FVector2D& MoveInput)
 {
 	// 这里只用 Y 分量作为前进/后退，保持和玩家一致
-	float InputValue = MoveInput.Y;
-
-	const float DeltaSeconds = (GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0f);
-	if (FMath::IsNearlyZero(DeltaSeconds) || FMath::IsNearlyZero(InputValue))
-	{
-		return;
-	}
-
-	// 【修复1】：确保前进方向无 Z 轴分量
-	FVector MoveDir = GetActorForwardVector();
-	MoveDir.Z = 0.0f;
-	MoveDir.Normalize();
-
-	const FVector DesiredWorldDelta = MoveDir * (Speed * InputValue * DeltaSeconds);
-
-	const bool bSweep = !bIsGhostMode;
-
-	FHitResult Hit;
-	AddActorWorldOffset(DesiredWorldDelta, bSweep, &Hit);
-
-	if (bSweep && bEnableWallSlide && Hit.IsValidBlockingHit())
-	{
-		const float RemainingTime = FMath::Clamp(1.0f - Hit.Time, 0.0f, 1.0f);
-		const FVector RemainderDelta = DesiredWorldDelta * RemainingTime;
-
-		FVector SlideDelta = FVector::VectorPlaneProject(RemainderDelta, Hit.Normal) * WallSlideSpeedScale;
-
-		// 【核心修复2】：强制抹除滑动时的 Z 轴位移
-		SlideDelta.Z = 0.0f;
-
-		if (!SlideDelta.IsNearlyZero(0.1f))
-		{
-			AddActorWorldOffset(SlideDelta, true);
-		}
-	}
+	ApplyMoveInput(MoveInput.Y);
 }
 //转弯函数
 void ATank::TurnInput(const FInputActionValue& Value)
 {
 	float InputValue = Value.Get<float>();
 
+	ApplyTurnInput(InputValue);
+
+	if (!HasAuthority())
+	{
+		ServerTurnInput(InputValue);
+	}
+}
+
+void ATank::ApplyTurnInput(float InputValue)
+{
+	const float DeltaSeconds = (GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0f);
+	if (FMath::IsNearlyZero(DeltaSeconds) || FMath::IsNearlyZero(InputValue))
+	{
+		return;
+	}
+
 	FRotator DeltaAngle = FRotator(0.0f, 0.0f, 0.0f);
 
-	DeltaAngle.Yaw = TurnRate * InputValue * GetWorld()->GetDeltaSeconds();
+	DeltaAngle.Yaw = TurnRate * InputValue * DeltaSeconds;
 
 	AddActorLocalRotation(DeltaAngle);
+}
 
+void ATank::ServerTurnInput_Implementation(float InputValue)
+{
+	ApplyTurnInput(InputValue);
 }
 //炮塔转动函数
 void ATank::TurretTurnInput(const FInputActionValue& Value)
 {
-	float TargetSpeed = Value.Get<float>() * TurnRate;
+	float InputValue = Value.Get<float>();
+
+	ApplyTurretTurnInput(InputValue);
+
+	if (!HasAuthority())
+	{
+		ServerTurretTurnInput(InputValue);
+	}
+}
+
+void ATank::ApplyTurretTurnInput(float InputValue)
+{
+	const float DeltaSeconds = (GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0f);
+	if (FMath::IsNearlyZero(DeltaSeconds))
+	{
+		return;
+	}
+
+	float TargetSpeed = InputValue * TurnRate;
 
 	// 开镜时降低炮塔转速到 30%，方便精细瞄准
 	if (bIsAiming)
@@ -505,7 +552,7 @@ void ATank::TurretTurnInput(const FInputActionValue& Value)
 	CurrentTurnSpeed = FMath::FInterpTo(
 		CurrentTurnSpeed,
 		TargetSpeed,
-		GetWorld()->GetDeltaSeconds(),
+		DeltaSeconds,
 		1000.0f // 这个值越小，炮塔启动和停止的惯性越大
 	);
 
@@ -513,10 +560,20 @@ void ATank::TurretTurnInput(const FInputActionValue& Value)
 	if (FMath::IsNearlyZero(CurrentTurnSpeed)) return;
 
 	// 根据当前的平滑速度，计算这一帧转多少
-	float RotationAmount = CurrentTurnSpeed * GetWorld()->GetDeltaSeconds();
+	float RotationAmount = CurrentTurnSpeed * DeltaSeconds;
 
 	// 累加旋转
 	TurretMesh->AddRelativeRotation(FRotator(0.0f, RotationAmount, 0.0f));
+}
+
+void ATank::ServerTurretTurnInput_Implementation(float InputValue)
+{
+	ApplyTurretTurnInput(InputValue);
+}
+
+void ATank::MulticastHandleDestruction_Implementation()
+{
+	HandleDestruction();
 }
 
 //死亡函数
@@ -601,6 +658,17 @@ void ATank::SetPlayerEnabled(bool Enabled)
 }
 void ATank::Fire()
 {
+	if (!HasAuthority())
+	{
+		ServerFire();
+		return;
+	}
+
+	ApplyFire();
+}
+
+void ATank::ApplyFire()
+{
 	// 通过 PlayerController 检查回城状态
 	if (ATankPlayerController* PC = Cast<ATankPlayerController>(GetController()))
 	{
@@ -641,15 +709,15 @@ void ATank::Fire()
 	// ================== 【终极拦截：防9999被顶替】 ==================
 	if (TankPC)
 	{
-		// 如果正在爽玩无限火力，就强行让屏幕上一直显示 9999！
-		if (bHasInfiniteAmmo)
+		const int32 DisplayAmmo = bHasInfiniteAmmo ? 9999 : CurrentAmmo;
+
+		if (TankPC->IsLocalController())
 		{
-			TankPC->SetHUDAmmo(9999, MaxAmmo);
+			TankPC->SetHUDAmmo(DisplayAmmo, MaxAmmo);
 		}
-		// 否则，老老实实显示扣完之后的真实子弹数
 		else
 		{
-			TankPC->SetHUDAmmo(CurrentAmmo, MaxAmmo);
+			TankPC->ClientSetHUDAmmo(DisplayAmmo, MaxAmmo);
 		}
 	}
 	// =================================================================
@@ -673,13 +741,21 @@ void ATank::Fire()
 		if (Projectile)
 		{
 			Projectile->SetOwner(this);
+			Projectile->SetInstigator(this);
 			if (i == 0)
 			{
 				Fire_LastTime = CurrentTime;
 				// 发射时触发手柄微抖动
 				if (TankPC)
 				{
-					TankPC->TriggerFireVibration();
+					if (TankPC->IsLocalController())
+					{
+						TankPC->TriggerFireVibration();
+					}
+					else
+					{
+						TankPC->ClientTriggerFireFeedback();
+					}
 				}
 			}
 
@@ -704,6 +780,11 @@ void ATank::Fire()
 			UGameplayStatics::FinishSpawningActor(Projectile, SpawnTransform);
 		}
 	}
+}
+
+void ATank::ServerFire_Implementation()
+{
+	ApplyFire();
 }
 
 UPawnMovementComponent* ATank::GetMovementComponent() const
@@ -748,15 +829,21 @@ void ATank::NotifyAttacked(AActor* Attacker)
 }
 void ATank::HandleHealthChanged(UHealthComponent* InHealthComp, float Health, float HealthDelta, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser)
 {
+	ATankPlayerController* LocalTankPC = TankPC ? TankPC : Cast<ATankPlayerController>(GetController());
+	if (LocalTankPC)
+	{
+		TankPC = LocalTankPC;
+	}
+
 	// 1. 【更新本地 UI】：只有玩家自己（本地控制）才需要更新屏幕上的血条！
-	if (IsLocallyControlled() && TankPC && InHealthComp)
+	if (IsLocallyControlled() && LocalTankPC && InHealthComp)
 	{
 		// 计算百分比 (防除零崩溃)
 		float HealthPct = InHealthComp->MaxHealth > 0.0f ? (InHealthComp->CurrentHealth / InHealthComp->MaxHealth) : 0.0f;
 		float ShieldPct = InHealthComp->MaxShield > 0.0f ? (InHealthComp->CurrentShield / InHealthComp->MaxShield) : 0.0f;
 
 		// 告诉 Controller 去刷新 UI
-		TankPC->UpdateHealthHUD(HealthPct, ShieldPct);
+		LocalTankPC->UpdateHealthHUD(HealthPct, ShieldPct);
 	}
 
 	// 2. 如果是受伤，处理震动和找凶手
@@ -765,9 +852,9 @@ void ATank::HandleHealthChanged(UHealthComponent* InHealthComp, float Health, fl
 		// 通知 AI Controller 被攻击了，使其能够反击 Tower 等非 Tank 凶手
 		NotifyAttacked(DamageCauser);
 
-		if (IsLocallyControlled() && TankPC)
+		if (IsLocallyControlled() && LocalTankPC)
 		{
-			TankPC->TriggerDamageVibration();
+			LocalTankPC->TriggerDamageVibration();
 		}
 
 		AActor* KillerActor = nullptr;
@@ -796,8 +883,10 @@ void ATank::HandleDeath(UHealthComponent* InHealthComp, AController* InstigatedB
 	// 提取凶手 Tank 指针（用于后续 GameMode 胜负判定）
 	CachedKiller = InstigatedBy ? Cast<ATank>(InstigatedBy->GetPawn()) : Cast<ATank>(DamageCauser);
 
+	SetIsAlive(false);
+
 	// 表现层死亡（爆炸、隐藏自己等）
-	HandleDestruction();
+	MulticastHandleDestruction();
 
 	// KDA 结算（击杀/助攻/死亡数，由 PlayerState 内部处理）
 	if (ATankPlayerState* PS = GetPlayerState<ATankPlayerState>())

@@ -1,6 +1,7 @@
 
 #include "Shared/Combat/Projectile.h"
 #include "Core/BattleBlasterCollisionChannels.h"
+#include "Net/UnrealNetwork.h"
 
 
 
@@ -20,6 +21,10 @@
 
 AProjectile::AProjectile()
 {
+    bReplicates = true;
+    SetReplicateMovement(true);
+    SetNetUpdateFrequency(60.0f);
+
     // 炮弹移动由 ProjectileMovementComp 负责，命中由 OnHit 处理，不需要 Actor Tick。
     PrimaryActorTick.bCanEverTick = false;
 
@@ -39,6 +44,7 @@ AProjectile::AProjectile()
     ProjectileMovementComp->InitialSpeed = 4000.0f;
     // 设置炮弹最大移动速度
     ProjectileMovementComp->MaxSpeed = 10000.0f;
+    ProjectileMovementComp->SetIsReplicated(true);
 
     // 创建拖尾粒子组件（用于显示炮弹飞行时的拖尾特效）
     TrailParticles = CreateDefaultSubobject<UNiagaraComponent>(TEXT("TrailParticles"));
@@ -54,12 +60,18 @@ void AProjectile::BeginPlay()
 	Super::BeginPlay();
 	if (ProjectileMesh)
 	{
-		ProjectileMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-		ProjectileMesh->SetCollisionObjectType(BB_COLLISION_PROJECTILE);
-		ProjectileMesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+		if (HasAuthority())
+		{
+			ProjectileMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+			ProjectileMesh->SetCollisionObjectType(BB_COLLISION_PROJECTILE);
+			ProjectileMesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+			ProjectileMesh->OnComponentHit.AddDynamic(this, &AProjectile::OnHit);
+		}
+		else
+		{
+			ProjectileMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		}
 	}
-	
-	ProjectileMesh->OnComponentHit.AddDynamic(this, &AProjectile::OnHit);
 
     // 需求1：设置6秒生命周期，无论是否有穿透buff
     SetLifeSpan(6.0f);
@@ -70,6 +82,15 @@ void AProjectile::BeginPlay()
     }
 }
 
+void AProjectile::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+    DOREPLIFETIME(AProjectile, bBoostVisualsEnabled);
+    DOREPLIFETIME(AProjectile, bCanPierce);
+    DOREPLIFETIME(AProjectile, MaxPenetrationCount);
+}
+
 void AProjectile::OnHit(
     UPrimitiveComponent* HitComponent,    // 碰撞组件：炮弹自身的碰撞体组件
     AActor* OtherActor,                    // 其他Actor：被炮弹击中的Actor对象
@@ -78,6 +99,11 @@ void AProjectile::OnHit(
     const FHitResult& Hit                  // 命中结果：详细的碰撞检测结果数据
 )
 {
+    if (!HasAuthority())
+    {
+        return;
+    }
+
     // 安全检查：忽略空目标和自身
     if (!OtherActor || OtherActor == this)
     {
@@ -153,18 +179,7 @@ void AProjectile::OnHit(
             );
         }
 
-        // 播放命中特效
-        if (HitParticles)
-        {
-            UNiagaraFunctionLibrary::SpawnSystemAtLocation(
-                GetWorld(), HitParticles, GetActorLocation(), GetActorRotation()
-            );
-        }
-
-        if (HitSound)
-        {
-            UGameplayStatics::PlaySoundAtLocation(GetWorld(), HitSound, GetActorLocation());
-        }
+        MulticastPlayHitEffects(GetActorLocation(), GetActorRotation());
 
         if (HitCameraShakeClass && AttackerTank)
         {
@@ -194,18 +209,7 @@ void AProjectile::OnHit(
             );
         }
 
-        // 播放命中特效
-        if (HitParticles)
-        {
-            UNiagaraFunctionLibrary::SpawnSystemAtLocation(
-                GetWorld(), HitParticles, GetActorLocation(), GetActorRotation()
-            );
-        }
-
-        if (HitSound)
-        {
-            UGameplayStatics::PlaySoundAtLocation(GetWorld(), HitSound, GetActorLocation());
-        }
+        MulticastPlayHitEffects(GetActorLocation(), GetActorRotation());
 
         // 命中可破坏物体后销毁子弹
         Destroy();
@@ -216,16 +220,7 @@ void AProjectile::OnHit(
     // 如果没有穿透buff，撞墙就销毁
     if (!bCanPierce)
     {
-        if (HitParticles)
-        {
-            UNiagaraFunctionLibrary::SpawnSystemAtLocation(
-                GetWorld(), HitParticles, GetActorLocation(), GetActorRotation()
-            );
-        }
-        if (HitSound)
-        {
-            UGameplayStatics::PlaySoundAtLocation(GetWorld(), HitSound, GetActorLocation());
-        }
+        MulticastPlayHitEffects(GetActorLocation(), GetActorRotation());
         Destroy();
         return;
     }
@@ -272,12 +267,45 @@ void AProjectile::OnHit(
     //        Destroy();
     //        return;
     //    }
-    //}
+//}
+}
+
+void AProjectile::MulticastPlayHitEffects_Implementation(FVector EffectLocation, FRotator EffectRotation)
+{
+    if (HitParticles)
+    {
+        UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+            GetWorld(), HitParticles, EffectLocation, EffectRotation
+        );
+    }
+
+    if (HitSound)
+    {
+        UGameplayStatics::PlaySoundAtLocation(GetWorld(), HitSound, EffectLocation);
+    }
+}
+
+void AProjectile::OnRep_BoostVisuals()
+{
+    if (bBoostVisualsEnabled)
+    {
+        EnableBoostVisuals();
+    }
+}
+
+void AProjectile::OnRep_PierceMode()
+{
+    if (bCanPierce)
+    {
+        EnablePierceMode(MaxPenetrationCount == -1, MaxPenetrationCount);
+    }
 }
 
 // 启用强化版视觉效果
 void AProjectile::EnableBoostVisuals()
 {
+    bBoostVisualsEnabled = true;
+
     // 1. 如果配置了强化版模型，就替换当前模型
     if (BoostedProjectileMesh && ProjectileMesh)
     {

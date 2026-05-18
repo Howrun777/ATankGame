@@ -1,5 +1,38 @@
 #include "Modes/Network/NetworkBattlePlayerController.h"
 
+#include "Modes/MOBA/UI/DeathScreenWidget.h"
+#include "Shared/UI/BulletsWidget.h"
+#include "Shared/UI/HUDWidget.h"
+#include "Shared/UI/KDAWidget.h"
+#include "UObject/ConstructorHelpers.h"
+
+ANetworkBattlePlayerController::ANetworkBattlePlayerController()
+{
+	static ConstructorHelpers::FClassFinder<UHUDWidget> DefaultHUDWidgetClass(TEXT("/Game/Blueprints/Controller/WBP_HUD"));
+	if (DefaultHUDWidgetClass.Succeeded())
+	{
+		HUDWidgetClass = DefaultHUDWidgetClass.Class;
+	}
+
+	static ConstructorHelpers::FClassFinder<UBulletsWidget> DefaultAmmoWidgetClass(TEXT("/Game/Blueprints/Controller/BP_BulletsWidget"));
+	if (DefaultAmmoWidgetClass.Succeeded())
+	{
+		AmmoWidgetClass = DefaultAmmoWidgetClass.Class;
+	}
+
+	static ConstructorHelpers::FClassFinder<UKDAWidget> DefaultKDAWidgetClass(TEXT("/Game/Blueprints/Controller/WBP_KDAWidget"));
+	if (DefaultKDAWidgetClass.Succeeded())
+	{
+		KDAWidgetClass = DefaultKDAWidgetClass.Class;
+	}
+
+	static ConstructorHelpers::FClassFinder<UDeathScreenWidget> DefaultDeathScreenClass(TEXT("/Game/Blueprints/MOBAMode/WBP_DeathScreenWidget"));
+	if (DefaultDeathScreenClass.Succeeded())
+	{
+		DeathScreenClass = DefaultDeathScreenClass.Class;
+	}
+}
+
 void ANetworkBattlePlayerController::BeginPlay()
 {
 	Super::BeginPlay();

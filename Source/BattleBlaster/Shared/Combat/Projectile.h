@@ -24,6 +24,7 @@ public:
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 public:
 	UPROPERTY(VisibleAnywhere)
@@ -57,6 +58,24 @@ public:
 
 	UPROPERTY(EditAnywhere)
 	float Damage = 25.0f;
+
+	UPROPERTY(ReplicatedUsing = OnRep_BoostVisuals)
+	bool bBoostVisualsEnabled = false;
+
+	UPROPERTY(ReplicatedUsing = OnRep_PierceMode)
+	bool bCanPierce = false;
+	
+	UPROPERTY(EditAnywhere, Replicated, Category = "Combat|Pierce")
+	int32 MaxPenetrationCount = -1;
+
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastPlayHitEffects(FVector EffectLocation, FRotator EffectRotation);
+
+	UFUNCTION()
+	void OnRep_BoostVisuals();
+
+	UFUNCTION()
+	void OnRep_PierceMode();
 
 /*
 【核心功能】UPrimitiveComponent 组件"物理碰撞命中（Hit）"事件的回调函数
@@ -104,12 +123,6 @@ public:
 	void EnableBoostVisuals();
 
 	// ================== 子弹穿透相关 ==================
-	UPROPERTY()
-	bool bCanPierce = false;
-	
-	UPROPERTY(EditAnywhere, Category = "Combat|Pierce")
-	int32 MaxPenetrationCount = -1;
-	
 	UPROPERTY()
 	int32 CurrentPenetrationCount = 0;
 	

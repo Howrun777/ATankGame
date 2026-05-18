@@ -1,11 +1,23 @@
 #include "Shared/Combat/HealthComponent.h"
 #include "GameFramework/Actor.h"
+#include "Net/UnrealNetwork.h"
 
 UHealthComponent::UHealthComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false; // 生命值组件通常不需要Tick，关掉省性能
+	SetIsReplicatedByDefault(true);
 	CurrentHealth = MaxHealth;
 	MaxShield = MaxHealth;
+}
+
+void UHealthComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(UHealthComponent, MaxHealth);
+	DOREPLIFETIME(UHealthComponent, CurrentHealth);
+	DOREPLIFETIME(UHealthComponent, MaxShield);
+	DOREPLIFETIME(UHealthComponent, CurrentShield);
 }
 
 void UHealthComponent::BeginPlay()
@@ -13,11 +25,16 @@ void UHealthComponent::BeginPlay()
 	Super::BeginPlay();
 
 	AActor* Owner = GetOwner();
-	if (Owner)
+	if (Owner && Owner->HasAuthority())
 	{
 		// 绑定拥有者的受伤事件
 		Owner->OnTakeAnyDamage.AddDynamic(this, &UHealthComponent::OnDamageTaken);
 	}
+}
+
+void UHealthComponent::OnRep_HealthState()
+{
+	OnHealthChanged.Broadcast(this, CurrentHealth, 0.0f, nullptr, nullptr, nullptr);
 }
 
 void UHealthComponent::OnDamageTaken(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser)

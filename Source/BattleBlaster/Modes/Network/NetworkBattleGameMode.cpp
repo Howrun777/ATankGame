@@ -6,7 +6,10 @@
 #include "Modes/Network/NetworkBattleGameState.h"
 #include "Modes/Network/NetworkBattlePlayerController.h"
 #include "Modes/Network/NetworkBattlePlayerState.h"
+#include "Shared/Combat/HealthComponent.h"
+#include "Shared/Controllers/TankPlayerController.h"
 #include "Shared/Pawns/Tank.h"
+#include "TimerManager.h"
 
 ANetworkBattleGameMode::ANetworkBattleGameMode()
 {
@@ -17,6 +20,9 @@ ANetworkBattleGameMode::ANetworkBattleGameMode()
 
 	MaxNetworkPlayers = 4;
 	bUseTaggedPlayerStarts = true;
+	RespawnDelay = 3.0f;
+	RespawnHealthPercent = 1.0f;
+	RespawnAmmoPercent = 1.0f;
 	TankClass = ATank::StaticClass();
 }
 
@@ -190,8 +196,16 @@ void ANetworkBattleGameMode::SpawnTankForPlayer(APlayerController* PlayerControl
 
 	if (ActiveTanks[SlotId] && IsValid(ActiveTanks[SlotId]))
 	{
-		PlayerController->Possess(ActiveTanks[SlotId]);
-		return;
+		if (ActiveTanks[SlotId]->GetIsAlive())
+		{
+			PlayerController->Possess(ActiveTanks[SlotId]);
+			InitializeSpawnedTank(ActiveTanks[SlotId], PlayerController, NetworkPS, false);
+			return;
+		}
+
+		ActiveTanks[SlotId]->OnKilled.RemoveDynamic(this, &ANetworkBattleGameMode::HandleTankKilled);
+		ActiveTanks[SlotId]->Destroy();
+		ActiveTanks[SlotId] = nullptr;
 	}
 
 	AActor* SpawnPoint = FindSpawnPointForSlot(SlotId);
@@ -218,15 +232,188 @@ void ANetworkBattleGameMode::SpawnTankForPlayer(APlayerController* PlayerControl
 
 	NewTank->SetSlotId(SlotId);
 	NewTank->SetTeamId(NetworkPS->GetTeamId());
-	NewTank->SetPlayerEnabled(true);
 
 	PlayerController->Possess(NewTank);
+	InitializeSpawnedTank(NewTank, PlayerController, NetworkPS, true);
 	ActiveTanks[SlotId] = NewTank;
 
 	UE_LOG(LogTemp, Display, TEXT("NetworkBattle: spawned Tank %s for SlotId=%d TeamId=%d"),
 		*GetNameSafe(NewTank),
 		SlotId,
 		NetworkPS->GetTeamId());
+}
+
+void ANetworkBattleGameMode::InitializeSpawnedTank(ATank* NewTank, APlayerController* PlayerController, ANetworkBattlePlayerState* NetworkPS, bool bResetResources)
+{
+	if (!NewTank || !PlayerController || !NetworkPS)
+	{
+		return;
+	}
+
+	NewTank->SetOwner(PlayerController);
+	NewTank->SetSlotId(NetworkPS->GetSlotId());
+	NewTank->SetTeamId(NetworkPS->GetTeamId());
+	NewTank->SetIsAlive(true);
+	NewTank->SetActorHiddenInGame(false);
+	NewTank->SetActorTickEnabled(true);
+	NewTank->SetActorEnableCollision(true);
+	NewTank->SetCanBeDamaged(true);
+
+	if (bResetResources && NewTank->HealthComp)
+	{
+		NewTank->HealthComp->CurrentHealth = NewTank->HealthComp->MaxHealth * RespawnHealthPercent;
+		NewTank->HealthComp->CurrentShield = 0.0f;
+		NewTank->HealthComp->UpdateHUD();
+	}
+
+	if (bResetResources)
+	{
+		const int32 RespawnAmmo = FMath::Clamp(
+			FMath::FloorToInt(NewTank->MaxAmmo * RespawnAmmoPercent),
+			0,
+			NewTank->MaxAmmo
+		);
+
+		NewTank->CurrentAmmo = RespawnAmmo;
+		NewTank->SetAmmo(RespawnAmmo);
+	}
+
+	NewTank->SetPlayerEnabled(true);
+
+	if (ATankPlayerController* TankPC = Cast<ATankPlayerController>(PlayerController))
+	{
+		if (TankPC->IsLocalController())
+		{
+			TankPC->SetHUDAmmo(NewTank->CurrentAmmo, NewTank->MaxAmmo);
+		}
+		else
+		{
+			TankPC->ClientSetHUDAmmo(NewTank->CurrentAmmo, NewTank->MaxAmmo);
+		}
+	}
+
+	NewTank->OnKilled.RemoveDynamic(this, &ANetworkBattleGameMode::HandleTankKilled);
+	NewTank->OnKilled.AddDynamic(this, &ANetworkBattleGameMode::HandleTankKilled);
+}
+
+void ANetworkBattleGameMode::HandleTankKilled(ATank* DeadTank, ATank* KillerTank)
+{
+	if (!DeadTank)
+	{
+		return;
+	}
+
+	APlayerController* DeadPlayerController = Cast<APlayerController>(DeadTank->GetController());
+	ANetworkBattlePlayerState* NetworkPS = DeadPlayerController ? DeadPlayerController->GetPlayerState<ANetworkBattlePlayerState>() : DeadTank->GetPlayerState<ANetworkBattlePlayerState>();
+	if (!DeadPlayerController && NetworkPS)
+	{
+		DeadPlayerController = Cast<APlayerController>(NetworkPS->GetOwner());
+	}
+
+	const int32 SlotId = NetworkPS ? NetworkPS->GetSlotId() : DeadTank->GetSlotId();
+	if (ActiveTanks.IsValidIndex(SlotId) && ActiveTanks[SlotId] == DeadTank)
+	{
+		if (NetworkPS)
+		{
+			NetworkPS->SetAlive(false);
+		}
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("NetworkBattle: Tank killed. Dead=%s Killer=%s SlotId=%d"),
+		*GetNameSafe(DeadTank),
+		*GetNameSafe(KillerTank),
+		SlotId);
+
+	if (ATankPlayerController* DeadTankPC = Cast<ATankPlayerController>(DeadPlayerController))
+	{
+		if (DeadTankPC->IsLocalController())
+		{
+			DeadTankPC->ShowDeathScreen(RespawnDelay);
+		}
+		else
+		{
+			DeadTankPC->ClientShowDeathScreen(RespawnDelay);
+		}
+	}
+
+	ScheduleRespawn(DeadPlayerController);
+}
+
+void ANetworkBattleGameMode::ScheduleRespawn(APlayerController* PlayerController)
+{
+	if (!PlayerController)
+	{
+		return;
+	}
+
+	if (RespawnDelay <= 0.0f)
+	{
+		RespawnPlayer(PlayerController);
+		return;
+	}
+
+	FTimerHandle RespawnTimerHandle;
+	FTimerDelegate RespawnDelegate;
+	TWeakObjectPtr<APlayerController> WeakPlayerController(PlayerController);
+	RespawnDelegate.BindWeakLambda(this, [this, WeakPlayerController]()
+	{
+		if (APlayerController* ValidPlayerController = WeakPlayerController.Get())
+		{
+			RespawnPlayer(ValidPlayerController);
+		}
+	});
+
+	GetWorldTimerManager().SetTimer(RespawnTimerHandle, RespawnDelegate, RespawnDelay, false);
+}
+
+void ANetworkBattleGameMode::RespawnPlayer(APlayerController* PlayerController)
+{
+	ANetworkBattlePlayerState* NetworkPS = PlayerController ? PlayerController->GetPlayerState<ANetworkBattlePlayerState>() : nullptr;
+	if (!PlayerController || !NetworkPS)
+	{
+		return;
+	}
+
+	if (ATankPlayerController* TankPC = Cast<ATankPlayerController>(PlayerController))
+	{
+		if (TankPC->IsLocalController())
+		{
+			TankPC->HideDeathScreen();
+		}
+		else
+		{
+			TankPC->ClientHideDeathScreen();
+		}
+	}
+
+	const int32 SlotId = NetworkPS->GetSlotId();
+	if (SlotId < 0)
+	{
+		return;
+	}
+
+	ATank* OldTank = nullptr;
+	if (ActiveTanks.IsValidIndex(SlotId))
+	{
+		OldTank = ActiveTanks[SlotId];
+		ActiveTanks[SlotId] = nullptr;
+	}
+	if (!OldTank)
+	{
+		OldTank = Cast<ATank>(PlayerController->GetPawn());
+	}
+
+	if (OldTank && IsValid(OldTank))
+	{
+		OldTank->OnKilled.RemoveDynamic(this, &ANetworkBattleGameMode::HandleTankKilled);
+		if (PlayerController->GetPawn() == OldTank)
+		{
+			PlayerController->UnPossess();
+		}
+		OldTank->Destroy();
+	}
+
+	SpawnTankForPlayer(PlayerController);
 }
 
 void ANetworkBattleGameMode::RefreshConnectedPlayerCount() const

@@ -7,6 +7,7 @@
 #include "InputActionValue.h" 
 #include "InputMappingContext.h" 
 #include "InputAction.h"
+#include "TimerManager.h"
 #include "TankPlayerController.generated.h"
 
 // 前向声明
@@ -42,6 +43,10 @@ public:
 
 	// 提供给 Tank 调用的接口
 	void SetHUDAmmo(int32 Current, int32 Max);
+
+	UFUNCTION(Client, Reliable)
+	void ClientSetHUDAmmo(int32 Current, int32 Max);
+
 	// 在蓝图中设置我们要用的那个 WBP_AmmoHUD 类
 	UPROPERTY(EditAnywhere, Category = "HUD")
 	TSubclassOf<class UUserWidget> AmmoWidgetClass;
@@ -96,6 +101,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HapticFeedback")
 	void TriggerFireVibration();
 
+	UFUNCTION(Client, Unreliable)
+	void ClientTriggerFireFeedback();
+
 	// 触发手柄震动（受伤时调用）
 	UFUNCTION(BlueprintCallable, Category = "HapticFeedback")
 	void TriggerDamageVibration();
@@ -138,13 +146,22 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "UI|MOBA")
 	void ShowDeathScreen(float RespawnTime);
 
+	UFUNCTION(Client, Reliable)
+	void ClientShowDeathScreen(float RespawnTime);
+
 	// 隐藏死亡界面
 	UFUNCTION(BlueprintCallable, Category = "UI|MOBA")
 	void HideDeathScreen();
 
+	UFUNCTION(Client, Reliable)
+	void ClientHideDeathScreen();
+
 	// 更新死亡界面倒计时
 	UFUNCTION(BlueprintCallable, Category = "UI|MOBA")
 	void UpdateDeathScreenCountdown(float TimeRemaining);
+
+	UFUNCTION(Client, Unreliable)
+	void ClientUpdateDeathScreenCountdown(float TimeRemaining);
 
 	// 显示淘汰界面
 	UFUNCTION(BlueprintCallable, Category = "UI|MOBA")
@@ -204,6 +221,13 @@ protected:
 	// 触发暂停函数
 	void TogglePauseMenu();
 
+	void TickDeathScreenCountdown();
+
 	// PlayerController 的 Tick（用于回城进度更新）
 	virtual void PlayerTick(float DeltaTime) override;
+
+private:
+	FTimerHandle DeathScreenCountdownTimerHandle;
+	float DeathScreenCountdownStartTime = 0.0f;
+	float DeathScreenCountdownDuration = 0.0f;
 };

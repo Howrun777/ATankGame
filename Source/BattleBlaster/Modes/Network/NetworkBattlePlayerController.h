@@ -10,5 +10,7 @@ class BATTLEBLASTER_API ANetworkBattlePlayerController : public ATankPlayerContr
 	GENERATED_BODY()
 
 public:
+	ANetworkBattlePlayerController();
+
 	virtual void BeginPlay() override;
 };

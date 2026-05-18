@@ -38,6 +38,7 @@ public:
 	ATank();
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 	virtual void PossessedBy(AController* NewController) override;
+	virtual void OnRep_Controller() override;
 	virtual void HandleDestruction() override;
 	virtual void Fire() override;
 	virtual UPawnMovementComponent* GetMovementComponent() const override;
@@ -259,6 +260,27 @@ public:
 	void MoveInput(const FInputActionValue& Value);
 	void TurnInput(const FInputActionValue& Value);
 	void TurretTurnInput(const FInputActionValue& Value);
+
+	void ApplyMoveInput(float InputValue);
+	void ApplyTurnInput(float InputValue);
+	void ApplyTurretTurnInput(float InputValue);
+	void ApplyFire();
+
+	UFUNCTION(Server, Unreliable)
+	void ServerMoveInput(float InputValue);
+
+	UFUNCTION(Server, Unreliable)
+	void ServerTurnInput(float InputValue);
+
+	UFUNCTION(Server, Unreliable)
+	void ServerTurretTurnInput(float InputValue);
+
+	UFUNCTION(Server, Reliable)
+	void ServerFire();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastHandleDestruction();
+
 	void OnAimToggle(const FInputActionValue& Value);
 	void OnAimHoldStarted(const FInputActionValue& Value);
 	void OnAimHoldCompleted(const FInputActionValue& Value);
