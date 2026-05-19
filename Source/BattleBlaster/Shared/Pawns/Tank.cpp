@@ -293,6 +293,7 @@ void ATank::PossessedBy(AController* NewController)
 
 		// 4. 设置输入模式
 		FInputModeGameOnly InputMode;
+		InputMode.SetConsumeCaptureMouseDown(false);
 		TankPC->SetInputMode(InputMode);
 		TankPC->bShowMouseCursor = false;
 
@@ -636,6 +637,7 @@ void ATank::SetPlayerEnabled(bool Enabled)
 		{
 			// 确保游戏过程中鼠标点击不会先“抢焦点/捕获”导致需要点两下
 			FInputModeGameOnly InputMode;
+			InputMode.SetConsumeCaptureMouseDown(false);
 			PlayerController->SetInputMode(InputMode);
 
 			// 恢复输入：重新添加 Mapping Context
@@ -711,6 +713,11 @@ void ATank::ApplyFire(const FTransform& RequestedMuzzleTransform)
 	// 判断发射几枚炮弹
 	int32 ProjectileCount = bHasDoubleShot ? 2 : 1;
 
+	if (!ProjectileClass)
+	{
+		return;
+	}
+
 	// 检查是否有足够的子弹
 	if (CurrentAmmo < ProjectileCount && !bHasInfiniteAmmo) {
 		return;
@@ -729,29 +736,7 @@ void ATank::ApplyFire(const FTransform& RequestedMuzzleTransform)
 	FVector RightVector = FireTransform.GetUnitAxis(EAxis::Y);
 	float ProjectileSpacing = 50.0f; // 两枚炮弹之间的距离
 
-	// 在发射炮弹之前，先扣除子弹（只扣一次，避免双发时重复扣除）
-	if (!bHasInfiniteAmmo)
-	{
-		CurrentAmmo -= ProjectileCount; // 双发扣除2发，单发扣除1发
-		// 同步弹药到 PlayerState
-		SetAmmo(CurrentAmmo);
-	}
-
-	// ================== 【终极拦截：防9999被顶替】 ==================
-	if (TankPC)
-	{
-		const int32 DisplayAmmo = bHasInfiniteAmmo ? 9999 : CurrentAmmo;
-
-		if (TankPC->IsLocalController())
-		{
-			TankPC->SetHUDAmmo(DisplayAmmo, MaxAmmo);
-		}
-		else
-		{
-			TankPC->ClientSetHUDAmmo(DisplayAmmo, MaxAmmo);
-		}
-	}
-	// =================================================================
+	int32 SpawnedProjectileCount = 0;
 
 	for (int32 i = 0; i < ProjectileCount; ++i)
 	{
@@ -768,27 +753,17 @@ void ATank::ApplyFire(const FTransform& RequestedMuzzleTransform)
 		// 1. 准备好生成位置和旋转的 Transform
 		FTransform SpawnTransform(SpawnRotation, AdjustedSpawnLocation);
 		// 2. 延迟生成：炮弹被捏出来了，但在内存里处于"时停"状态，不会执行 BeginPlay
-		AProjectile* Projectile = GetWorld()->SpawnActorDeferred<AProjectile>(ProjectileClass, SpawnTransform);
+		AProjectile* Projectile = GetWorld()->SpawnActorDeferred<AProjectile>(
+			ProjectileClass,
+			SpawnTransform,
+			this,
+			this,
+			ESpawnActorCollisionHandlingMethod::AlwaysSpawn
+		);
 		if (Projectile)
 		{
 			Projectile->SetOwner(this);
 			Projectile->SetInstigator(this);
-			if (i == 0)
-			{
-				Fire_LastTime = CurrentTime;
-				// 发射时触发手柄微抖动
-				if (TankPC)
-				{
-					if (TankPC->IsLocalController())
-					{
-						TankPC->TriggerFireVibration();
-					}
-					else
-					{
-						TankPC->ClientTriggerFireFeedback();
-					}
-				}
-			}
 
 			// 3. 趁着"时停"，疯狂修改它的属性！
 			if (bHasDamageBoost)
@@ -809,6 +784,37 @@ void ATank::ApplyFire(const FTransform& RequestedMuzzleTransform)
 			// 4. 修改完毕，解除"时停"，正式让炮弹进入游戏世界！
 			// 此时炮弹才会执行 BeginPlay()，并播放我们刚换上去的强化版 LaunchSound
 			UGameplayStatics::FinishSpawningActor(Projectile, SpawnTransform);
+			Projectile->ForceNetUpdate();
+			++SpawnedProjectileCount;
+		}
+	}
+
+	if (SpawnedProjectileCount <= 0)
+	{
+		return;
+	}
+
+	Fire_LastTime = CurrentTime;
+
+	if (!bHasInfiniteAmmo)
+	{
+		CurrentAmmo -= SpawnedProjectileCount;
+		SetAmmo(CurrentAmmo);
+	}
+
+	if (TankPC)
+	{
+		const int32 DisplayAmmo = bHasInfiniteAmmo ? 9999 : CurrentAmmo;
+
+		if (TankPC->IsLocalController())
+		{
+			TankPC->SetHUDAmmo(DisplayAmmo, MaxAmmo);
+			TankPC->TriggerFireVibration();
+		}
+		else
+		{
+			TankPC->ClientSetHUDAmmo(DisplayAmmo, MaxAmmo);
+			TankPC->ClientTriggerFireFeedback();
 		}
 	}
 }

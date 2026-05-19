@@ -134,13 +134,13 @@ public:
 	float WallSlideSpeedScale = 0.65f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network|Correction")
-	float ClientCorrectionInterval = 0.25f;
+	float ClientCorrectionInterval = 1.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network|Correction")
-	float ClientCorrectionDistanceThreshold = 120.0f;
+	float ClientCorrectionDistanceThreshold = 300.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network|Correction")
-	float ClientCorrectionAngleThreshold = 12.0f;
+	float ClientCorrectionAngleThreshold = 30.0f;
 
 	// ==============================================
 	// 5. 战斗系统 (Combat)

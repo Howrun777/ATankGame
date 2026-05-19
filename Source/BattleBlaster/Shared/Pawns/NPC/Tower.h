@@ -16,6 +16,7 @@ class BATTLEBLASTER_API ATower : public ABasePawn
 
 public:
     ATower();
+    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 protected:
     virtual void BeginPlay() override;
@@ -65,6 +66,12 @@ protected:
     UFUNCTION()
     void HandleTowerDeath(UHealthComponent* InHealthComp, class AController* InstigatedBy, AActor* DamageCauser);
 
+    UFUNCTION()
+    void OnRep_IsDead();
+
+    UFUNCTION()
+    void OnRep_TurretRotation();
+
     // 记录当前在警戒网内的所有坦克（方便应对以后有多名玩家或盟友的情况）
     UPROPERTY()
     TArray<ATank*> TargetsInRange;
@@ -80,7 +87,12 @@ protected:
     float RespawnEffectDuration = 3.0f;
 
 private:
+    UPROPERTY(ReplicatedUsing = OnRep_IsDead)
     bool bIsDead = false;
+
+    UPROPERTY(ReplicatedUsing = OnRep_TurretRotation)
+    FRotator ReplicatedTurretRotation = FRotator::ZeroRotator;
+
     UPROPERTY()
     UNiagaraComponent* ActiveDeathLoopComponent;
     UPROPERTY()
@@ -92,6 +104,9 @@ private:
     void ReviveTower();
     void StopRespawnEffect();
     void SetTowerState(bool bActive);
+    void StartDeathLoopEffect();
+    void StopDeathLoopEffect();
+    void StartRespawnEffect();
 
 private:
     float CurrentDifficultyMultiplier = 1.0f;

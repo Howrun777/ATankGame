@@ -60,6 +60,11 @@ void AProjectile::BeginPlay()
 	Super::BeginPlay();
 	if (ProjectileMesh)
 	{
+		if (AActor* ProjectileOwner = GetOwner())
+		{
+			ProjectileMesh->IgnoreActorWhenMoving(ProjectileOwner, true);
+		}
+
 		if (HasAuthority())
 		{
 			ProjectileMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
