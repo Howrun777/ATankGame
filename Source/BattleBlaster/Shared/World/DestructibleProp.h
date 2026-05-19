@@ -15,6 +15,8 @@ class BATTLEBLASTER_API ADestructibleProp : public AActor
 
 public:
 	ADestructibleProp();
+	virtual void Tick(float DeltaTime) override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 #if WITH_EDITOR
 	// 编辑器内预览血条 UI
@@ -77,11 +79,49 @@ protected:
 	UFUNCTION()
 	virtual void OnPropDestroyed(class UHealthComponent* InHealthComp, class AController* InstigatedBy, AActor* DamageCauser);
 
+	UFUNCTION()
+	virtual void OnPropHealthChanged(class UHealthComponent* InHealthComp, float Health, float HealthDelta, const class UDamageType* DamageType, class AController* InstigatedBy, AActor* DamageCauser);
+
+	UFUNCTION()
+	void OnRep_DestroyedState();
+
+	UFUNCTION()
+	void OnRep_ReplicatedPropMeshTransform();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastHandleDestruction(FVector EffectLocation);
+
 	// 真正的破坏表现逻辑（子类去重写）
 	virtual void HandleDestruction();
+	virtual void ApplyDestructionState();
+	virtual void PlayDestructionEffects(const FVector& EffectLocation);
+	virtual FVector GetDestructionEffectLocation() const;
+	virtual void ConfigurePropMeshForNetwork();
+	virtual bool ShouldReplicatePropMeshTransform() const;
+
+	void UpdateReplicatedPropMeshTransform();
+	void SmoothReplicatedPropMeshTransform(float DeltaTime);
 
 	// 控制销毁的定时器
 	FTimerHandle DestroyTimerHandle;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_DestroyedState, Category = "Combat")
+	bool bIsDestroyed = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network")
+	bool bReplicatePropMeshTransform = true;
+
+	UPROPERTY(ReplicatedUsing = OnRep_ReplicatedPropMeshTransform)
+	FTransform ReplicatedPropMeshTransform;
+
+	FTransform PropMeshSmoothStartTransform;
+	FTransform PropMeshSmoothTargetTransform;
+	float PropMeshSmoothElapsedTime = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network")
+	float PropMeshSmoothDuration = 0.12f;
+
+	FTimerHandle PropMeshTransformReplicationTimerHandle;
 
 	// 追踪最后对油桶造成伤害的玩家（用于爆炸时归属击杀）
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")

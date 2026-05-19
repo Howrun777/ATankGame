@@ -19,6 +19,7 @@
 #include "Blueprint/UserWidget.h"
 #include "Engine/Texture2D.h"
 #include "Components/AudioComponent.h"
+#include "Net/UnrealNetwork.h"
 
 /**
  * @brief 构造函数 - 初始化组件
@@ -28,6 +29,14 @@
 UTankBuffComponent::UTankBuffComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
+	SetIsReplicatedByDefault(true);
+}
+
+void UTankBuffComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(UTankBuffComponent, ReplicatedActiveBuffs);
 }
 
 /**
@@ -90,6 +99,11 @@ void UTankBuffComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 		ActiveBuffs.Remove(Type);
 	}
 
+	if (GetOwner() && GetOwner()->HasAuthority() && BuffsToRemove.Num() > 0)
+	{
+		RefreshReplicatedActiveBuffs();
+	}
+
 	// ==================== 窒息状态逻辑 ====================
 	if (bIsInSuffocation)
 	{
@@ -149,6 +163,11 @@ void UTankBuffComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 void UTankBuffComponent::AddBuff(EBuffType BuffType, float Duration, UTexture2D* Icon)
 {
 	// 1. 一次性Buff: 立即生效,不需要加入持续列表
+	if (GetOwner() && !GetOwner()->HasAuthority())
+	{
+		return;
+	}
+
 	if (BuffType == EBuffType::Heal || BuffType == EBuffType::Shield)
 	{
 		ApplyInstantBuff(BuffType);
@@ -172,6 +191,52 @@ void UTankBuffComponent::AddBuff(EBuffType BuffType, float Duration, UTexture2D*
 		ActiveBuffs.Add(BuffType, NewBuff);
 		ApplySustainedBuffEffect(BuffType);
 	}
+
+	RefreshReplicatedActiveBuffs();
+}
+
+void UTankBuffComponent::OnRep_ReplicatedActiveBuffs()
+{
+	ActiveBuffs.Empty();
+	for (const FActiveBuffUIInfo& BuffInfo : ReplicatedActiveBuffs)
+	{
+		if (BuffInfo.Type != EBuffType::None)
+		{
+			ActiveBuffs.Add(BuffInfo.Type, BuffInfo);
+		}
+	}
+
+	OwnerTank = Cast<ATank>(GetOwner());
+	if (!OwnerTank)
+	{
+		return;
+	}
+
+	OwnerTank->bHasInfiniteAmmo = ActiveBuffs.Contains(EBuffType::Ammo);
+	OwnerTank->bHasDamageBoost = ActiveBuffs.Contains(EBuffType::Damage);
+	OwnerTank->bHasBulletPierce = ActiveBuffs.Contains(EBuffType::Pierce);
+	OwnerTank->bHasDoubleShot = ActiveBuffs.Contains(EBuffType::DoubleShot);
+	OwnerTank->bIsGhostMode = ActiveBuffs.Contains(EBuffType::Ghost);
+	OwnerTank->Speed = ActiveBuffs.Contains(EBuffType::Speed) ? OwnerTank->BaseSpeed * 2.0f : OwnerTank->BaseSpeed;
+
+	if (UPrimitiveComponent* RootComp = Cast<UPrimitiveComponent>(OwnerTank->GetRootComponent()))
+	{
+		const ECollisionResponse WorldResponse = OwnerTank->bIsGhostMode ? ECR_Overlap : ECR_Block;
+		RootComp->SetCollisionResponseToChannel(ECC_WorldStatic, WorldResponse);
+		RootComp->SetCollisionResponseToChannel(ECC_WorldDynamic, WorldResponse);
+		RootComp->SetCollisionResponseToChannel(BB_COLLISION_PROJECTILE, ECR_Block);
+	}
+}
+
+void UTankBuffComponent::RefreshReplicatedActiveBuffs()
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority())
+	{
+		return;
+	}
+
+	ReplicatedActiveBuffs.Reset();
+	ActiveBuffs.GenerateValueArray(ReplicatedActiveBuffs);
 }
 
 /**
@@ -401,6 +466,7 @@ void UTankBuffComponent::ClearAllBuffs()
 
 	// 清空列表
 	ActiveBuffs.Empty();
+	RefreshReplicatedActiveBuffs();
 }
 
 /**
@@ -437,6 +503,8 @@ void UTankBuffComponent::RestoreBuffs(const TArray<FActiveBuffUIInfo>& SavedBuff
 			ApplySustainedBuffEffect(SavedBuff.Type);
 		}
 	}
+
+	RefreshReplicatedActiveBuffs();
 }
 
 /**

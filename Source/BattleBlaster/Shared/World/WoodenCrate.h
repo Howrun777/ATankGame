@@ -13,6 +13,8 @@ class BATTLEBLASTER_API AWoodenCrate : public ADestructibleProp
 
 protected:
 	virtual void HandleDestruction() override;
+	virtual void ApplyDestructionState() override;
+	virtual void PlayDestructionEffects(const FVector& EffectLocation) override;
 
 	UPROPERTY(EditAnywhere, Category = "Effects")
 	UNiagaraSystem* BreakEffect; // 破碎特效（木屑飞溅）

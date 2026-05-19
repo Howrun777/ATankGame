@@ -39,6 +39,7 @@ public:
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void OnRep_Controller() override;
+	virtual void Tick(float DeltaTime) override;
 	virtual void HandleDestruction() override;
 	virtual void Fire() override;
 	virtual UPawnMovementComponent* GetMovementComponent() const override;
@@ -131,6 +132,15 @@ public:
 	/** 贴墙滑动时的速度比例 (0-1) */
 	UPROPERTY(EditAnywhere, Category = "Movement|Feel", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float WallSlideSpeedScale = 0.65f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network|Correction")
+	float ClientCorrectionInterval = 0.25f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network|Correction")
+	float ClientCorrectionDistanceThreshold = 120.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network|Correction")
+	float ClientCorrectionAngleThreshold = 12.0f;
 
 	// ==============================================
 	// 5. 战斗系统 (Combat)
@@ -264,7 +274,8 @@ public:
 	void ApplyMoveInput(float InputValue);
 	void ApplyTurnInput(float InputValue);
 	void ApplyTurretTurnInput(float InputValue);
-	void ApplyFire();
+	void ApplyFire(const FTransform& RequestedMuzzleTransform);
+	FTransform GetValidatedFireTransform(const FTransform& RequestedMuzzleTransform) const;
 
 	UFUNCTION(Server, Unreliable)
 	void ServerMoveInput(float InputValue);
@@ -276,7 +287,10 @@ public:
 	void ServerTurretTurnInput(float InputValue);
 
 	UFUNCTION(Server, Reliable)
-	void ServerFire();
+	void ServerFire(FTransform RequestedMuzzleTransform);
+
+	UFUNCTION(Client, Unreliable)
+	void ClientCorrectTankTransform(FVector ServerLocation, FRotator ServerRotation, FRotator ServerTurretRotation);
 
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastHandleDestruction();
@@ -313,4 +327,6 @@ private:
 	// 【缓存】最近一次死亡的凶手 Tank（由 HandleDeath 设置，ExecuteDeathAndReturnKiller 读取）
 	UPROPERTY()
 	class ATank* CachedKiller;
+
+	float ClientCorrectionAccumulator = 0.0f;
 };

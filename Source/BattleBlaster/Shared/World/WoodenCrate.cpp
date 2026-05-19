@@ -4,23 +4,33 @@
 
 void AWoodenCrate::HandleDestruction()
 {
-	// 1. 调用父类逻辑（关闭碰撞）
 	Super::HandleDestruction();
 
-	// 2. 隐藏原有的木箱模型
-	PropMesh->SetVisibility(false);
+	if (HasAuthority())
+	{
+		SetLifeSpan(TimeToDisappear);
+	}
+}
 
-	// 3. 播放破碎特效和音效
+void AWoodenCrate::ApplyDestructionState()
+{
+	Super::ApplyDestructionState();
+
+	if (PropMesh)
+	{
+		PropMesh->SetVisibility(false, true);
+	}
+}
+
+void AWoodenCrate::PlayDestructionEffects(const FVector& EffectLocation)
+{
 	if (BreakEffect)
 	{
-		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, BreakEffect, GetActorLocation());
-	}
-	if (BreakSound)
-	{
-		UGameplayStatics::PlaySoundAtLocation(this, BreakSound, GetActorLocation());
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, BreakEffect, EffectLocation);
 	}
 
-	// 4. 等待几秒钟（让特效飞一会儿），然后彻底从内存中销毁这个Actor
-	// 赋予这个木箱寿命，时间到了引擎会自动安全地把它 Destroy 掉
-	SetLifeSpan(TimeToDisappear);
+	if (BreakSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, BreakSound, EffectLocation);
+	}
 }

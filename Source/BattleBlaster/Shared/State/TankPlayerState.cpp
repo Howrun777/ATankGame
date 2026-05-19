@@ -198,6 +198,21 @@ void ATankPlayerState::OnRep_KDA()
 	}
 }
 
+void ATankPlayerState::OnRep_CurrentAmmo()
+{
+	ATank* Tank = Cast<ATank>(GetPawn());
+	if (!Tank)
+	{
+		return;
+	}
+
+	Tank->CurrentAmmo = CurrentAmmo;
+	if (ATankPlayerController* PC = Cast<ATankPlayerController>(Tank->GetController()))
+	{
+		PC->SetHUDAmmo(Tank->CurrentAmmo, Tank->MaxAmmo);
+	}
+}
+
 void ATankPlayerState::HandleKillConfirmed(ATank* Victim)
 {
 	// 基类默认什么都不做

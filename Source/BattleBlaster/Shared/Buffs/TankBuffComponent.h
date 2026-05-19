@@ -63,6 +63,7 @@ class BATTLEBLASTER_API UTankBuffComponent : public UActorComponent
 
 public:
 	UTankBuffComponent();
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	/**
 	 * @brief 每帧更新 - 处理Buff倒计时
@@ -167,6 +168,14 @@ private:
 	/** 存储当前激活的持续性Buff,Key为Buff类型,Value为Buff信息 */
 	UPROPERTY()
 	TMap<EBuffType, FActiveBuffUIInfo> ActiveBuffs;
+
+	UPROPERTY(ReplicatedUsing = OnRep_ReplicatedActiveBuffs)
+	TArray<FActiveBuffUIInfo> ReplicatedActiveBuffs;
+
+	UFUNCTION()
+	void OnRep_ReplicatedActiveBuffs();
+
+	void RefreshReplicatedActiveBuffs();
 
 	/** 是否处于窒息状态(穿墙Buff结束后卡在墙内) */
 	bool bIsInSuffocation = false;

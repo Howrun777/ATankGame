@@ -24,6 +24,7 @@ class BATTLEBLASTER_API ABuffPickup : public AActor
 public:
 	// 构造函数：初始化组件和默认值
 	ABuffPickup();
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 protected:
 	// 游戏开始时或生成时调用
@@ -82,7 +83,11 @@ private:
 	// ================= 内部状态变量 =================
 
 	// 当前Buff显示的类型（决定了外观）
-	EBuffType CurrentVisualType;
+	UPROPERTY(ReplicatedUsing = OnRep_BuffPickupState)
+	EBuffType CurrentVisualType = EBuffType::None;
+
+	UPROPERTY(ReplicatedUsing = OnRep_BuffPickupState)
+	bool bIsPickupAvailable = true;
 
 	// 记录初始位置：用于计算上下浮动（否则浮动会基于当前位置累积偏移）
 	FVector BaseLocation;
@@ -94,12 +99,20 @@ private:
 
 	// 随机初始化Buff外观：从1-9中随机选一个类型并应用对应的网格体/材质
 	void InitializeRandomBuff();
+	void ApplyBuffVisual();
+	void ApplyAvailabilityVisual();
 
 	// 隐藏Buff并开始重生倒计时
 	void HideAndStartRespawnTimer();
 
 	// 重生Buff：重新随机外观并恢复显示
 	void RespawnBuff();
+
+	UFUNCTION()
+	void OnRep_BuffPickupState();
+
+	UFUNCTION(NetMulticast, Unreliable)
+	void MulticastPlayPickupEffects();
 
 	// 重叠事件回调：当有物体进入碰撞体时调用
 	// UFUNCTION()宏是必须的，否则反射系统无法绑定这个回调

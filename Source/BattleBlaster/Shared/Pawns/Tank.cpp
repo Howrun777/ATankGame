@@ -116,6 +116,7 @@ ATank::ATank()
 	SetReplicateMovement(true);
 	SetNetUpdateFrequency(30.0f);
 	SetMinNetUpdateFrequency(10.0f);
+	PrimaryActorTick.bCanEverTick = true;
 
 	//创建弹簧臂组件并且赋值给Tank类成员
 	SpringArmComp = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArmComp"));
@@ -143,6 +144,26 @@ ATank::ATank()
 	PawnMovementComponent->bConstrainToPlane = true;
 	PawnMovementComponent->SetPlaneConstraintNormal(FVector(0.0f, 0.0f, 1.0f)); // 限制在 XY 平面移动
 	PawnMovementComponent->UpdatedComponent = RootComponent;
+}
+
+void ATank::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	if (!HasAuthority() || IsLocallyControlled() || !GetController())
+	{
+		return;
+	}
+
+	ClientCorrectionAccumulator += DeltaTime;
+	if (ClientCorrectionAccumulator < ClientCorrectionInterval)
+	{
+		return;
+	}
+
+	ClientCorrectionAccumulator = 0.0f;
+	const FRotator TurretRotation = TurretMesh ? TurretMesh->GetComponentRotation() : GetActorRotation();
+	ClientCorrectTankTransform(GetActorLocation(), GetActorRotation(), TurretRotation);
 }
 
 void ATank::BeginPlay()
@@ -290,6 +311,11 @@ void ATank::PossessedBy(AController* NewController)
 void ATank::OnRep_Controller()
 {
 	Super::OnRep_Controller();
+
+	if (ATankPlayerState* PS = GetPlayerState<ATankPlayerState>())
+	{
+		CurrentAmmo = PS->GetAmmo();
+	}
 
 	TankPC = Cast<ATankPlayerController>(Controller);
 	if (TankPC && TankPC->IsLocalController() && GetIsAlive())
@@ -658,16 +684,20 @@ void ATank::SetPlayerEnabled(bool Enabled)
 }
 void ATank::Fire()
 {
+	const FTransform RequestedMuzzleTransform = ProjectileSpawnPoint
+		? ProjectileSpawnPoint->GetComponentTransform()
+		: GetActorTransform();
+
 	if (!HasAuthority())
 	{
-		ServerFire();
+		ServerFire(RequestedMuzzleTransform);
 		return;
 	}
 
-	ApplyFire();
+	ApplyFire(RequestedMuzzleTransform);
 }
 
-void ATank::ApplyFire()
+void ATank::ApplyFire(const FTransform& RequestedMuzzleTransform)
 {
 	// 通过 PlayerController 检查回城状态
 	if (ATankPlayerController* PC = Cast<ATankPlayerController>(GetController()))
@@ -691,11 +721,12 @@ void ATank::ApplyFire()
 		return;
 	}
 
-	FVector SpawnLocation = ProjectileSpawnPoint->GetComponentLocation();
-	FRotator SpawnRotation = ProjectileSpawnPoint->GetComponentRotation();
+	const FTransform FireTransform = GetValidatedFireTransform(RequestedMuzzleTransform);
+	FVector SpawnLocation = FireTransform.GetLocation();
+	FRotator SpawnRotation = FireTransform.Rotator();
 
 	// 计算双发弹道的偏移方向（使用发射点组件的右侧向量）
-	FVector RightVector = ProjectileSpawnPoint->GetRightVector();
+	FVector RightVector = FireTransform.GetUnitAxis(EAxis::Y);
 	float ProjectileSpacing = 50.0f; // 两枚炮弹之间的距离
 
 	// 在发射炮弹之前，先扣除子弹（只扣一次，避免双发时重复扣除）
@@ -782,9 +813,63 @@ void ATank::ApplyFire()
 	}
 }
 
-void ATank::ServerFire_Implementation()
+FTransform ATank::GetValidatedFireTransform(const FTransform& RequestedMuzzleTransform) const
 {
-	ApplyFire();
+	const FTransform ServerMuzzleTransform = ProjectileSpawnPoint
+		? ProjectileSpawnPoint->GetComponentTransform()
+		: GetActorTransform();
+
+	if (IsLocallyControlled())
+	{
+		return ServerMuzzleTransform;
+	}
+
+	constexpr float MaxMuzzleLocationError = 220.0f;
+	constexpr float MaxMuzzleAngleError = 40.0f;
+	const FVector RequestedLocation = RequestedMuzzleTransform.GetLocation();
+	const FVector ServerLocation = ServerMuzzleTransform.GetLocation();
+	const float LocationErrorSq = FVector::DistSquared(RequestedLocation, ServerLocation);
+
+	const FVector RequestedForward = RequestedMuzzleTransform.GetRotation().GetForwardVector().GetSafeNormal();
+	const FVector ServerForward = ServerMuzzleTransform.GetRotation().GetForwardVector().GetSafeNormal();
+	const float ForwardDot = FVector::DotProduct(RequestedForward, ServerForward);
+	const float MinAllowedDot = FMath::Cos(FMath::DegreesToRadians(MaxMuzzleAngleError));
+
+	if (LocationErrorSq <= FMath::Square(MaxMuzzleLocationError) && ForwardDot >= MinAllowedDot)
+	{
+		return FTransform(RequestedMuzzleTransform.GetRotation(), RequestedLocation, FVector::OneVector);
+	}
+
+	return ServerMuzzleTransform;
+}
+
+void ATank::ServerFire_Implementation(FTransform RequestedMuzzleTransform)
+{
+	ApplyFire(RequestedMuzzleTransform);
+}
+
+void ATank::ClientCorrectTankTransform_Implementation(FVector ServerLocation, FRotator ServerRotation, FRotator ServerTurretRotation)
+{
+	if (!IsLocallyControlled() || !GetIsAlive())
+	{
+		return;
+	}
+
+	const float LocationErrorSq = FVector::DistSquared(GetActorLocation(), ServerLocation);
+	const float RotationError = FMath::Abs(FMath::FindDeltaAngleDegrees(GetActorRotation().Yaw, ServerRotation.Yaw));
+	if (LocationErrorSq > FMath::Square(ClientCorrectionDistanceThreshold) || RotationError > ClientCorrectionAngleThreshold)
+	{
+		SetActorLocationAndRotation(ServerLocation, ServerRotation, false, nullptr, ETeleportType::TeleportPhysics);
+	}
+
+	if (TurretMesh)
+	{
+		const float TurretRotationError = FMath::Abs(FMath::FindDeltaAngleDegrees(TurretMesh->GetComponentRotation().Yaw, ServerTurretRotation.Yaw));
+		if (TurretRotationError > ClientCorrectionAngleThreshold)
+		{
+			TurretMesh->SetWorldRotation(ServerTurretRotation);
+		}
+	}
 }
 
 UPawnMovementComponent* ATank::GetMovementComponent() const

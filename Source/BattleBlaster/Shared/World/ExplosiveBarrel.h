@@ -22,6 +22,10 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	virtual void HandleDestruction() override;
+	virtual void ApplyDestructionState() override;
+	virtual void PlayDestructionEffects(const FVector& EffectLocation) override;
+	virtual FVector GetDestructionEffectLocation() const override;
+	void ApplyExplosionDamage(const FVector& RealBarrelLocation);
 	// 【核心控制】伤害衰减系数
     // 0.0 = 完全无衰减，范围内全吃满伤害
 	// 1.0 = 线性衰减（默认，距离越远伤害匀速降低）

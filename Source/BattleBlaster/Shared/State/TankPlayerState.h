@@ -71,7 +71,7 @@ public:
 	// ================= 弹药（跨 Pawn 保留）====================
 
 	// 当前弹药数量（复活时恢复）
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category = "Combat")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_CurrentAmmo, Category = "Combat")
 	int32 CurrentAmmo;
 
 	// ================= 战斗统计 =================
@@ -129,6 +129,9 @@ protected:
 
 	UFUNCTION()
 	void OnRep_KDA();
+
+	UFUNCTION()
+	void OnRep_CurrentAmmo();
 
 	// ================= 通用函数 =================
 public:

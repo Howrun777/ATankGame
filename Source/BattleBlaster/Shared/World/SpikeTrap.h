@@ -19,6 +19,18 @@ enum class ESpikeState : uint8
 	Retracting  UMETA(DisplayName = "Retracting")    // 正在缩回地下
 };
 
+USTRUCT()
+struct FSpikeTrapReplicatedState
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	ESpikeState State = ESpikeState::Dormant;
+
+	UPROPERTY()
+	float StateStartServerTime = 0.0f;
+};
+
 UCLASS()
 class BATTLEBLASTER_API ASpikeTrap : public AActor
 {
@@ -27,6 +39,7 @@ class BATTLEBLASTER_API ASpikeTrap : public AActor
 public:
 	ASpikeTrap();
 	virtual void Tick(float DeltaTime) override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	// 增加事件与计数器：
 	UFUNCTION()
 	void OnDetectionBeginOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
@@ -43,6 +56,12 @@ protected:
 
 	// 改变尖刺状态
 	void ChangeState(ESpikeState NewState);
+	void ApplyStateVisual();
+	void UpdateClientStateVisual();
+	void SetSpikeMeshRelativeZ(float NewZ);
+	float GetSpikeMoveDuration(ESpikeState State) const;
+	float GetReplicatedStateElapsedTime() const;
+	float GetServerTimeSeconds() const;
 	// 定时器回调函数
 	void OnHiddenTimerExpired();
 	void OnActiveTimerExpired();
@@ -98,7 +117,14 @@ public:
 	class USoundBase* ThrustSound;
 private:
 	// 当前状态
-	ESpikeState CurrentState;
+	UPROPERTY()
+	ESpikeState CurrentState = ESpikeState::Dormant;
+
+	UFUNCTION()
+	void OnRep_ReplicatedState();
+
+	UPROPERTY(ReplicatedUsing = OnRep_ReplicatedState)
+	FSpikeTrapReplicatedState ReplicatedState;
 
 	// 【新增】使用 TSet 替代数字计数，防止引擎重复触发 Overlap 导致永久无法休眠
 	UPROPERTY()

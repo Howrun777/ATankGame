@@ -20,9 +20,9 @@ ANetworkBattleGameMode::ANetworkBattleGameMode()
 
 	MaxNetworkPlayers = 4;
 	bUseTaggedPlayerStarts = true;
+	InitialAmmoRatio = 0.5f;
 	RespawnDelay = 3.0f;
 	RespawnHealthPercent = 1.0f;
-	RespawnAmmoPercent = 1.0f;
 	TankClass = ATank::StaticClass();
 }
 
@@ -268,11 +268,7 @@ void ANetworkBattleGameMode::InitializeSpawnedTank(ATank* NewTank, APlayerContro
 
 	if (bResetResources)
 	{
-		const int32 RespawnAmmo = FMath::Clamp(
-			FMath::FloorToInt(NewTank->MaxAmmo * RespawnAmmoPercent),
-			0,
-			NewTank->MaxAmmo
-		);
+		const int32 RespawnAmmo = CalculateInitialAmmoForTank(NewTank);
 
 		NewTank->CurrentAmmo = RespawnAmmo;
 		NewTank->SetAmmo(RespawnAmmo);
@@ -294,6 +290,17 @@ void ANetworkBattleGameMode::InitializeSpawnedTank(ATank* NewTank, APlayerContro
 
 	NewTank->OnKilled.RemoveDynamic(this, &ANetworkBattleGameMode::HandleTankKilled);
 	NewTank->OnKilled.AddDynamic(this, &ANetworkBattleGameMode::HandleTankKilled);
+}
+
+int32 ANetworkBattleGameMode::CalculateInitialAmmoForTank(const ATank* Tank) const
+{
+	if (!Tank)
+	{
+		return 0;
+	}
+
+	const float ClampedRatio = FMath::Clamp(InitialAmmoRatio, 0.0f, 1.0f);
+	return FMath::Clamp(FMath::FloorToInt(Tank->MaxAmmo * ClampedRatio), 0, Tank->MaxAmmo);
 }
 
 void ANetworkBattleGameMode::HandleTankKilled(ATank* DeadTank, ATank* KillerTank)
