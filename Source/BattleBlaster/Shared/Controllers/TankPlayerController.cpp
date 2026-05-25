@@ -148,13 +148,7 @@ void ATankPlayerController::BeginPlay()
 	Super::BeginPlay();
 	// 1. 获取增强输入子系统并添加上下文
 	// 注意：这里的 Priority 设为 1，确保比坦克的默认 Priority (通常是0) 高一点点，或者一样都可以
-	if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
-	{
-		if (InputMappingContext)
-		{
-			Subsystem->AddMappingContext(InputMappingContext, 1);
-		}
-	}
+	EnsureInputMappingContext();
 	if (IsLocalPlayerController())
 	{
 		// 如果 Pawn 已经存在，立即初始化 UI
@@ -256,23 +250,29 @@ void ATankPlayerController::UpdateKDA()
 	}
 }
 
+void ATankPlayerController::EnsureInputMappingContext()
+{
+	if (!InputMappingContext)
+	{
+		return;
+	}
+
+	UEnhancedInputLocalPlayerSubsystem* Subsystem =
+		ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer());
+	if (!Subsystem || Subsystem->HasMappingContext(InputMappingContext))
+	{
+		return;
+	}
+
+	Subsystem->AddMappingContext(InputMappingContext, 1);
+}
+
 void ATankPlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
+	EnsureInputMappingContext();
 
 	// 1. 获取增强输入子系统并添加上下文
-	if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
-	{
-		if (InputMappingContext)
-		{
-			// 检查是否已经添加过，避免重复添加和清除其他玩家的映射
-			if (!Subsystem->HasMappingContext(InputMappingContext))
-			{
-				Subsystem->AddMappingContext(InputMappingContext, 1);
-			}
-		}
-	}
-
 	// 2. 强制转换为增强输入组件
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(InputComponent))
 	{
@@ -553,6 +553,18 @@ void ATankPlayerController::ClientShowDeathScreen_Implementation(float RespawnTi
 	ShowDeathScreen(RespawnTime);
 }
 
+void ATankPlayerController::ShowDeathScreenForOwner(float RespawnTime)
+{
+	if (IsLocalController())
+	{
+		ShowDeathScreen(RespawnTime);
+	}
+	else
+	{
+		ClientShowDeathScreen(RespawnTime);
+	}
+}
+
 void ATankPlayerController::HideDeathScreen()
 {
 	if (!IsLocalController()) return;
@@ -568,6 +580,18 @@ void ATankPlayerController::HideDeathScreen()
 void ATankPlayerController::ClientHideDeathScreen_Implementation()
 {
 	HideDeathScreen();
+}
+
+void ATankPlayerController::HideDeathScreenForOwner()
+{
+	if (IsLocalController())
+	{
+		HideDeathScreen();
+	}
+	else
+	{
+		ClientHideDeathScreen();
+	}
 }
 
 void ATankPlayerController::UpdateDeathScreenCountdown(float TimeRemaining)

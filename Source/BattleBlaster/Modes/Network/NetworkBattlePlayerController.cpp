@@ -1,6 +1,5 @@
 #include "Modes/Network/NetworkBattlePlayerController.h"
 
-#include "Modes/MOBA/UI/DeathScreenWidget.h"
 #include "Shared/UI/BulletsWidget.h"
 #include "Shared/UI/HUDWidget.h"
 #include "Shared/UI/KDAWidget.h"
@@ -26,11 +25,6 @@ ANetworkBattlePlayerController::ANetworkBattlePlayerController()
 		KDAWidgetClass = DefaultKDAWidgetClass.Class;
 	}
 
-	static ConstructorHelpers::FClassFinder<UDeathScreenWidget> DefaultDeathScreenClass(TEXT("/Game/Blueprints/MOBAMode/WBP_DeathScreenWidget"));
-	if (DefaultDeathScreenClass.Succeeded())
-	{
-		DeathScreenClass = DefaultDeathScreenClass.Class;
-	}
 }
 
 void ANetworkBattlePlayerController::BeginPlay()

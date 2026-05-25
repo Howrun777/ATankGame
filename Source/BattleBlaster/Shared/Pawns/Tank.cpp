@@ -283,14 +283,9 @@ void ATank::PossessedBy(AController* NewController)
 				  所以需要重新绑定,不然就无法控制角色
 				*/
 				// 3. 关键：先清除旧的上下文（防止切换关卡残留），再添加新的
-				Subsystem->ClearAllMappings();
-				if (DefaultMappingContext)
+				if (DefaultMappingContext && !Subsystem->HasMappingContext(DefaultMappingContext))
 				{
 					Subsystem->AddMappingContext(DefaultMappingContext, MappingPriority);
-				}
-				if (TankPC && TankPC->InputMappingContext)
-				{
-					Subsystem->AddMappingContext(TankPC->InputMappingContext, 2);
 				}
 			}
 		}
@@ -413,7 +408,7 @@ void ATank::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 		{
 			// 3. 添加映射上下文 (Mapping Context)
 			// 只要加上这一步，WASD 就会生效
-			if (DefaultMappingContext)
+			if (DefaultMappingContext && !Subsystem->HasMappingContext(DefaultMappingContext))
 			{
 				Subsystem->AddMappingContext(DefaultMappingContext, 0);
 			}
@@ -737,20 +732,11 @@ void ATank::SetPlayerEnabled(bool Enabled)
 					ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LocalPlayer))
 				{
 					// 添加默认映射上下文(用于Tank的基本输入)
-					if (DefaultMappingContext)
+					if (DefaultMappingContext && !Subsystem->HasMappingContext(DefaultMappingContext))
 					{
 						Subsystem->AddMappingContext(DefaultMappingContext, MappingPriority);
 					}
 
-					// 添加TankPlayerController中设置的InputMappingContext(包含暂停键等)
-					// 这确保复活后仍然可以呼出暂停菜单
-					if (ATankPlayerController* PlayerTankPC = Cast<ATankPlayerController>(PlayerController))
-					{
-						if (PlayerTankPC->InputMappingContext)
-						{
-							Subsystem->AddMappingContext(PlayerTankPC->InputMappingContext, 2);
-						}
-					}
 				}
 			}
 			PlayerController->bShowMouseCursor = false;
@@ -763,7 +749,10 @@ void ATank::SetPlayerEnabled(bool Enabled)
 				if (UEnhancedInputLocalPlayerSubsystem* Subsystem = 
 					ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LocalPlayer))
 				{
-					Subsystem->ClearAllMappings();
+					if (DefaultMappingContext)
+					{
+						Subsystem->RemoveMappingContext(DefaultMappingContext);
+					}
 				}
 			}
 			PlayerController->bShowMouseCursor = true;

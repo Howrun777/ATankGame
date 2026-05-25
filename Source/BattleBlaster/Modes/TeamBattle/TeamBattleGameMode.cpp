@@ -561,6 +561,11 @@ void ATeamBattleGameMode::HandleTankKilled(ATank* DeadTank, ATank* KillerTank)
 	}
 	else
 	{
+		if (ATankPlayerController* VictimPC = Cast<ATankPlayerController>(DeadTank->GetController()))
+		{
+			VictimPC->ShowDeathScreenForOwner(RespawnDelay);
+		}
+
 		FTimerDelegate RespawnDel;
 		RespawnDel.BindUObject(this, &ATeamBattleGameMode::RespawnPlayer, VictimIndex);
 		FTimerHandle RespawnTimer;
@@ -623,6 +628,11 @@ void ATeamBattleGameMode::RespawnPlayer(int32 SlotId)
 	if (TargetController)
 	{
 		TargetController->Possess(NewTank);
+
+		if (ATankPlayerController* TankPC = Cast<ATankPlayerController>(TargetController))
+		{
+			TankPC->HideDeathScreenForOwner();
+		}
 
 		// 【修复：唤醒 AI 大脑】
 		if (AAIBotPlayerController* AIPC = Cast<AAIBotPlayerController>(TargetController))

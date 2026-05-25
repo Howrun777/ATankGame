@@ -10,6 +10,7 @@
 #include "Widgets/SWidget.h"
 #include "Shared/Combat/HealthComponent.h"
 #include "Shared/Buffs/TankBuffComponent.h"
+#include "Shared/Controllers/TankPlayerController.h"
 
 ATankStageGameMode::ATankStageGameMode()
 {
@@ -237,6 +238,14 @@ void ATankStageGameMode::HandleTankKilled(ATank* DeadTank, ATank* KillerTank)
 		return;
 	}
 
+	if (DeadTank)
+	{
+		if (ATankPlayerController* TankPC = Cast<ATankPlayerController>(DeadTank->GetController()))
+		{
+			TankPC->ShowDeathScreenForOwner(RespawnDelay);
+		}
+	}
+
 	SavePlayerStateBeforeLevelEnd();
 	GetWorldTimerManager().SetTimer(RespawnTimerHandle, this, &ATankStageGameMode::OnRespawnTimerTimeout, RespawnDelay, false);
 }
@@ -328,6 +337,11 @@ void ATankStageGameMode::RespawnPlayer()
 			PlayerController->Possess(_PlayerTank);
 			_PlayerTank->SetSlotId(0);
 			_PlayerTank->SetTeamId(0);
+
+			if (ATankPlayerController* TankPC = Cast<ATankPlayerController>(PlayerController))
+			{
+				TankPC->HideDeathScreenForOwner();
+			}
 		}
 
 		// 销毁旧 Tank（释放内存，不再保留隐藏的尸体）

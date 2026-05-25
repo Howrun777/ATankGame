@@ -548,10 +548,10 @@ void ATankMOBAGameMode::HandleTankKilled(ATank* DeadTank, ATank* KillerTank)
 		}
 
 		// ====== 显示死亡倒计时 UI (只对本地真实玩家生效) ======
-		if (DeadPC && DeadPC->IsLocalController())
+		if (DeadPC)
 		{
 			float RespawnDelayToShow = VictimMOBAState ? VictimMOBAState->GetCurrentRespawnDelay() : InitialRespawnDelay;
-			DeadPC->ShowDeathScreen(RespawnDelayToShow);
+			DeadPC->ShowDeathScreenForOwner(RespawnDelayToShow);
 		}
 
 		// 【新增】：核心塔存活时，玩家只是死亡等待复活，不触发游戏结束检查
@@ -569,7 +569,7 @@ void ATankMOBAGameMode::HandleTankKilled(ATank* DeadTank, ATank* KillerTank)
 
 		if (DeadPC && DeadPC->IsLocalController())
 		{
-			DeadPC->HideDeathScreen();
+			DeadPC->HideDeathScreenForOwner();
 			DeadPC->ShowEliminatedScreen();
 		}
 
@@ -747,10 +747,14 @@ void ATankMOBAGameMode::RespawnPlayer(ATankMOBAPlayerState* MOBAState)
 	// 12. 恢复屏幕 UI
 	if (ATankPlayerController* TankPC = Cast<ATankPlayerController>(TargetController))
 	{
+		TankPC->HideDeathScreenForOwner();
 		if (TankPC->IsLocalController())
 		{
-			TankPC->HideDeathScreen();
 			TankPC->SetHUDAmmo(NewTank->CurrentAmmo, NewTank->MaxAmmo);
+		}
+		else
+		{
+			TankPC->ClientSetHUDAmmo(NewTank->CurrentAmmo, NewTank->MaxAmmo);
 		}
 	}
 }

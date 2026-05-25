@@ -134,7 +134,7 @@ public:
 	// ================= MOBA 模式 UI =================
 
 	// 死亡复活界面（倒计时）
-	UPROPERTY(EditAnywhere, Category = "UI|MOBA")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI|Death")
 	TSubclassOf<class UDeathScreenWidget> DeathScreenClass;
 	UPROPERTY()
 	UDeathScreenWidget* DeathScreenInstance;
@@ -146,21 +146,25 @@ public:
 	UEliminatedScreenWidget* EliminatedScreenInstance;
 
 	// 显示死亡界面
-	UFUNCTION(BlueprintCallable, Category = "UI|MOBA")
+	UFUNCTION(BlueprintCallable, Category = "UI|Death")
 	void ShowDeathScreen(float RespawnTime);
 
 	UFUNCTION(Client, Reliable)
 	void ClientShowDeathScreen(float RespawnTime);
 
+	void ShowDeathScreenForOwner(float RespawnTime);
+
 	// 隐藏死亡界面
-	UFUNCTION(BlueprintCallable, Category = "UI|MOBA")
+	UFUNCTION(BlueprintCallable, Category = "UI|Death")
 	void HideDeathScreen();
 
 	UFUNCTION(Client, Reliable)
 	void ClientHideDeathScreen();
 
+	void HideDeathScreenForOwner();
+
 	// 更新死亡界面倒计时
-	UFUNCTION(BlueprintCallable, Category = "UI|MOBA")
+	UFUNCTION(BlueprintCallable, Category = "UI|Death")
 	void UpdateDeathScreenCountdown(float TimeRemaining);
 
 	UFUNCTION(Client, Unreliable)
@@ -221,6 +225,7 @@ public:
 
 protected:
 	virtual void SetupInputComponent() override;
+	void EnsureInputMappingContext();
 	// 触发暂停函数
 	void TogglePauseMenu();
 

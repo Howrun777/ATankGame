@@ -522,6 +522,11 @@ void ABattleBlasterGameMode::HandleTankKilled(ATank* DeadTank, ATank* KillerTank
 	}
 	else
 	{
+		if (ATankPlayerController* VictimPC = Cast<ATankPlayerController>(DeadTank->GetController()))
+		{
+			VictimPC->ShowDeathScreenForOwner(RespawnDelay);
+		}
+
 		FTimerDelegate RespawnDel;
 		RespawnDel.BindUObject(this, &ABattleBlasterGameMode::RespawnPlayer, VictimIndex);
 		FTimerHandle RespawnTimer;
@@ -581,6 +586,11 @@ void ABattleBlasterGameMode::RespawnPlayer(int32 SlotId)
 	if (TargetController)
 	{
 		TargetController->Possess(NewTank);
+
+		if (ATankPlayerController* TankPC = Cast<ATankPlayerController>(TargetController))
+		{
+			TankPC->HideDeathScreenForOwner();
+		}
 
 		// 【修复 4：唤醒 AI 大脑】
 		// 如果是 AI 控制器，必须强制清除它脑海里关于“死掉老躯体”的记忆，否则它会原地罚站！

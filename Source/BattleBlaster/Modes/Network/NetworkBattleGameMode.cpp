@@ -333,14 +333,7 @@ void ANetworkBattleGameMode::HandleTankKilled(ATank* DeadTank, ATank* KillerTank
 
 	if (ATankPlayerController* DeadTankPC = Cast<ATankPlayerController>(DeadPlayerController))
 	{
-		if (DeadTankPC->IsLocalController())
-		{
-			DeadTankPC->ShowDeathScreen(RespawnDelay);
-		}
-		else
-		{
-			DeadTankPC->ClientShowDeathScreen(RespawnDelay);
-		}
+		DeadTankPC->ShowDeathScreenForOwner(RespawnDelay);
 	}
 
 	ScheduleRespawn(DeadPlayerController);
@@ -383,14 +376,7 @@ void ANetworkBattleGameMode::RespawnPlayer(APlayerController* PlayerController)
 
 	if (ATankPlayerController* TankPC = Cast<ATankPlayerController>(PlayerController))
 	{
-		if (TankPC->IsLocalController())
-		{
-			TankPC->HideDeathScreen();
-		}
-		else
-		{
-			TankPC->ClientHideDeathScreen();
-		}
+		TankPC->HideDeathScreenForOwner();
 	}
 
 	const int32 SlotId = NetworkPS->GetSlotId();
