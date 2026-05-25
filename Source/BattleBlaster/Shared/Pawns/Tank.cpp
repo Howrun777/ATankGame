@@ -288,6 +288,10 @@ void ATank::PossessedBy(AController* NewController)
 				{
 					Subsystem->AddMappingContext(DefaultMappingContext, MappingPriority);
 				}
+				if (TankPC && TankPC->InputMappingContext)
+				{
+					Subsystem->AddMappingContext(TankPC->InputMappingContext, 2);
+				}
 			}
 		}
 
@@ -409,7 +413,10 @@ void ATank::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 		{
 			// 3. 添加映射上下文 (Mapping Context)
 			// 只要加上这一步，WASD 就会生效
-			Subsystem->AddMappingContext(DefaultMappingContext, 0);
+			if (DefaultMappingContext)
+			{
+				Subsystem->AddMappingContext(DefaultMappingContext, 0);
+			}
 		}
 	}
 

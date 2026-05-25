@@ -567,7 +567,7 @@ MOBA 模块包含：
 结束条件：
 
 ```text
-CheckGameOver()
+CheckGameOverByElimination()
   -> 遍历当前对局阵营
   -> 统计未 IsEliminated() 的阵营数量
   -> 只剩 1 个未淘汰阵营

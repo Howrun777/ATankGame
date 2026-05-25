@@ -46,17 +46,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "MOBA")
 	bool HasAliveTowersByCamp(int32 CampIndex) const;
 
-	// 获取存活阵营数量
+	// Counts camps that still have at least one tower. This is tower-state data, not the MOBA win condition.
 	UFUNCTION(BlueprintCallable, Category = "MOBA")
 	int32 GetAliveCampCount() const;
 
-	// 获取存活阵营索引
+	// Returns the only camp with any tower left. This is tower-state data, not the MOBA winner.
 	UFUNCTION(BlueprintCallable, Category = "MOBA")
 	int32 GetAliveCampIndex() const;
-
-	// Get the only camp that still has a core turret. Returns -1 unless exactly one core camp remains.
-	UFUNCTION(BlueprintCallable, Category = "MOBA")
-	int32 GetAliveCoreCampIndex() const;
 
 	// 检查游戏是否结束（只剩一个阵营）
 	UFUNCTION(BlueprintCallable, Category = "MOBA")
@@ -78,7 +74,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "MOBA")
 	void OnTurretDestroyed(ATurret* DestroyedTurret);
 
-	// 检查游戏结束条件
+	// Deprecated compatibility entry point. GameMode owns MOBA elimination-based game over.
 	void CheckGameOverCondition();
 
 	// 重置状态

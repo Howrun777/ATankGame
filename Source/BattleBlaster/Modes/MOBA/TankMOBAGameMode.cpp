@@ -31,9 +31,6 @@ ATankMOBAGameMode::ATankMOBAGameMode()
 	GameStateClass = ATankMOBAGameState::StaticClass();
 	PlayerStateClass = ATankMOBAPlayerState::StaticClass();
 
-	// 设置 PlayerController 类（用于创建 HUD 等 UI）
-	PlayerControllerClass = ATankPlayerController::StaticClass();
-
 	// 默认值
 	InitialRespawnDelay = 2.0f;
 	MaxRespawnDelay = 10.0f;
@@ -346,7 +343,7 @@ void ATankMOBAGameMode::UpdateGameTimer()
 	}
 }
 
-void ATankMOBAGameMode::CheckGameOver()
+void ATankMOBAGameMode::CheckGameOverByElimination()
 {
 	if (!MOBAGameState || MOBAGameState->IsGameOver() || !GameState)
 	{
@@ -402,6 +399,12 @@ void ATankMOBAGameMode::CheckGameOver()
 
 		UE_LOG(LogTemp, Display, TEXT("MOBA Game Over! Winner Camp: %d"), WinnerCampIndex);
 	}
+}
+
+void ATankMOBAGameMode::HandleCampEliminated(int32 CampIndex)
+{
+	UE_LOG(LogTemp, Display, TEXT("MOBA Camp Eliminated: %d"), CampIndex);
+	CheckGameOverByElimination();
 }
 
 void ATankMOBAGameMode::HandleStartingNewPlayer(APlayerController* NewPlayer)
@@ -570,8 +573,7 @@ void ATankMOBAGameMode::HandleTankKilled(ATank* DeadTank, ATank* KillerTank)
 			DeadPC->ShowEliminatedScreen();
 		}
 
-		NotifyAllPlayersCoreDestroyed(VictimIndex);
-		CheckGameOver();
+		HandleCampEliminated(VictimIndex);
 	}
 }
 
@@ -767,6 +769,11 @@ void ATankMOBAGameMode::EliminatePlayer(ATankMOBAPlayerState* MOBAState)
 
 	// 通知玩家已被淘汰（显示永久灰色UI）
 	// TODO: 调用UI显示
+	const int32 CampIndex = MOBAState->GetCampIndex();
+	if (CampIndex >= 0)
+	{
+		HandleCampEliminated(CampIndex);
+	}
 }
 
 void ATankMOBAGameMode::UpdateRespawnTimers(float DeltaTime)
@@ -825,17 +832,6 @@ void ATankMOBAGameMode::NotifyAllPlayersTowerDestroyed(int32 CampIndex, bool bIs
 			MOBAState->AddTurretDestroyed();
 		}
 	}
-}
-
-void ATankMOBAGameMode::NotifyAllPlayersCoreDestroyed(int32 CampIndex)
-{
-	// The core turret being destroyed only disables future respawns.
-	// The camp is eliminated later, when its player dies again.
-}
-
-void ATankMOBAGameMode::CheckAllPlayersEliminated()
-{
-	CheckGameOver();
 }
 
 void ATankMOBAGameMode::ShowMOBAGameOver()

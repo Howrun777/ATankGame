@@ -159,10 +159,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "MOBA")
 	void NotifyAllPlayersTowerDestroyed(int32 CampIndex, bool bIsCoreTurret);
 
-	// 通知主防御塔被摧毁。核心塔被毁只会禁止后续复活，不会立刻淘汰阵营。
-	UFUNCTION(BlueprintCallable, Category = "MOBA")
-	void NotifyAllPlayersCoreDestroyed(int32 CampIndex);
-
 	// 获取当前游戏时间
 	float GetCurrentGameTime() const { return MatchTime; }
 
@@ -204,12 +200,11 @@ protected:
 	// 更新游戏时间
 	void UpdateGameTimer();
 
-	// 游戏结束检查
-	// 条件：只剩一个未淘汰阵营。核心塔数量只影响复活资格，不直接决定胜负。
-	void CheckGameOver();
+	// Called when a camp is actually eliminated after its core turret was already destroyed.
+	void HandleCampEliminated(int32 CampIndex);
 
-	// 兼容旧入口：转到 CheckGameOver，不按核心塔数量批量淘汰玩家。
-	void CheckAllPlayersEliminated();
+	// Game over condition: only one non-eliminated camp remains.
+	void CheckGameOverByElimination();
 
 	/** 显示 MOBA 结算全屏 UI */
 	void ShowMOBAGameOver();

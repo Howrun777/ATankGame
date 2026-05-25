@@ -162,23 +162,6 @@ int32 ATankMOBAGameState::GetAliveCampIndex() const
 	return -1;
 }
 
-int32 ATankMOBAGameState::GetAliveCoreCampIndex() const
-{
-	int32 AliveCampIndex = -1;
-	int32 AliveCoreCampCount = 0;
-
-	for (const auto& Pair : CoreTurretCountByCamp)
-	{
-		if (Pair.Value > 0)
-		{
-			AliveCampIndex = Pair.Key;
-			AliveCoreCampCount++;
-		}
-	}
-
-	return AliveCoreCampCount == 1 ? AliveCampIndex : -1;
-}
-
 void ATankMOBAGameState::CheckGameOverCondition()
 {
 	// GameMode owns the MOBA end condition because it must also check player elimination.

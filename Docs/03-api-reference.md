@@ -679,9 +679,9 @@ MOBA 模式。
 | `HandleTankKilled(ATank* DeadTank, ATank* KillerTank)` | 处理死亡、复活或淘汰 |
 | `StartPlayerRespawn(ATankMOBAPlayerState*)` | 开始复活倒计时 |
 | `RespawnPlayer(ATankMOBAPlayerState*)` | 复活指定玩家状态 |
-| `CheckGameOver()` | 判断 MOBA 是否只剩一个未淘汰阵营，当前为 protected 内部流程 |
+| `HandleCampEliminated(int32)` | 某阵营真正淘汰后触发胜负检查 |
+| `CheckGameOverByElimination()` | 判断 MOBA 是否只剩一个未淘汰阵营，当前为 protected 内部流程 |
 | `NotifyAllPlayersTowerDestroyed(int32, bool)` | 通知 Turret 摧毁 |
-| `NotifyAllPlayersCoreDestroyed(int32)` | 兼容旧入口；核心塔摧毁只影响复活资格，不直接淘汰阵营 |
 | `GetActiveCampCount()` | 当前实现返回 `ActiveTanks.Num()`，命名上更像活跃槽位数 |
 | `HideCoreTurretImage(int32)` | 隐藏指定阵营核心塔 UI 图标 |
 
@@ -805,16 +805,16 @@ MOBA 状态中心。
 | `RegisterTurret(ATurret*)` | 注册 Turret |
 | `OnTurretDestroyed(ATurret*)` | Turret 被摧毁时更新计数和 UI |
 | `GetAliveCoreTurretCount()` | 获取存活核心塔数量 |
-| `GetAliveCampIndex()` | 获取唯一存活核心塔阵营 |
+| `GetAliveCampIndex()` | 获取唯一仍有任意塔存活的阵营；不是胜负判定 |
 | `HasAliveTowersByCamp(int32)` | 查询指定阵营是否还有外围塔 |
 | `SetGameOver(bool)` / `IsGameOver()` | 设置/读取结束状态 |
 | `SetWinningCampIndex(int32)` / `GetWinningCampIndex()` | 设置/读取胜利阵营 |
-| `CheckGameOverCondition()` | 旧辅助判断，当前主要胜负流程由 GameMode 触发 |
+| `CheckGameOverCondition()` | 废弃兼容入口，当前胜负流程由 GameMode 的淘汰判定触发 |
 
 注意:
 
 - `OnTurretDestroyed()` 不直接结束游戏。
-- 当前 MOBA 游戏结束由 `ATankMOBAGameMode::CheckGameOver()` 在淘汰流程中判断。
+- 当前 MOBA 游戏结束由 `ATankMOBAGameMode::CheckGameOverByElimination()` 在淘汰流程中判断。
 
 ### 8.5 `ATankStageGameState`
 
@@ -1007,7 +1007,7 @@ Stage 状态。
 3. Turret 通知 `ATankMOBAGameState::OnTurretDestroyed()`。
 4. GameState 更新核心塔/外围塔计数和 UI。
 5. 如果是核心塔，相关玩家后续死亡会被淘汰。
-6. GameMode 在淘汰流程中调用 `CheckGameOver()`。
+6. GameMode 在淘汰流程中调用 `HandleCampEliminated()` 和 `CheckGameOverByElimination()`。
 
 ### 10.4 Stage 关卡胜负流程
 
