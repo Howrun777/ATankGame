@@ -217,6 +217,23 @@ flowchart TD
 
 全局玩家列表应该从 `GameState->PlayerArray` 和 `PlayerState` 读取。
 
+当前网络模式的 PlayerController 继承链建议固定为：
+
+```text
+BP_NetworkBattlePlayerController
+-> ANetworkBattlePlayerController
+-> ATankPlayerController
+-> APlayerController
+```
+
+职责拆分：
+
+- `ATankPlayerController`：共享战斗 UI 和输入基础能力，例如 HUD、弹药 UI、KDA、暂停、回城、死亡倒计时、手柄震动。
+- `ANetworkBattlePlayerController`：网络模式专用扩展点，保留网络模式默认 HUD 类、日志、未来网络专属 UI/RPC 入口。
+- `BP_NetworkBattlePlayerController`：编辑器资产挂载层。网络模式使用的 HUD、Ammo、KDA、DeathScreen 等 Widget 类应该挂在这个蓝图子类上。
+
+不要在网络 GameMode 里直接创建玩家个人 HUD。GameMode 可以决定玩家死亡、复活、得分和胜负，但让某个客户端显示 UI 时，应调用该玩家 PlayerController 的 Client RPC 或 owner-only 方法。
+
 ### 4.6 Pawn / Tank
 
 `ATank` 是会被生成、销毁、复活、Possess 的战斗实体。
@@ -488,6 +505,27 @@ Buff 第一版建议服务器独占修改权限：
 
 ## 9. UI 架构
 
+### 9.0 网络模式 PlayerController 蓝图约定
+
+网络模式建议使用独立的 `BP_NetworkBattlePlayerController`，父类选择 `ANetworkBattlePlayerController`。不要直接在网络 GameMode 中使用本地分屏的 `BP_TankPlayerController`，除非只是临时测试。
+
+推荐配置：
+
+```text
+NetworkBattleGameMode / BP_NetworkBattleGameMode
+-> Player Controller Class = BP_NetworkBattlePlayerController
+```
+
+`BP_NetworkBattlePlayerController` 中应挂载：
+
+- `HUDWidgetClass`
+- `AmmoWidgetClass`
+- `KDAWidgetClass`
+- `DeathScreenClass`
+- 网络模式未来专属的 Lobby、Scoreboard、Ready、Connection 状态 UI
+
+这样做的目的不是复制一套 UI 代码，而是把“通用战斗 UI 逻辑”和“网络模式资产配置/专属扩展”分开。通用创建逻辑仍然在 `ATankPlayerController`，网络模式只通过子类和蓝图决定默认资产与网络专属行为。
+
 ### 9.1 联网 UI 的读取来源
 
 | UI | 数据来源 |
@@ -524,6 +562,17 @@ GameState->PlayerArray
 当前 `ATankPlayerController::InitializeHUD()` 里有根据 `LocalPlayerIndex` 设置 KDA 颜色的逻辑。联网模式应该改成根据 `PlayerState->TeamId` 或 `SlotId` 设置颜色。
 
 结算界面、计分板、MOBA 顶部状态 UI，也应该从 `GameState` / `PlayerState` 读取复制数据，不要依赖本地数组。
+
+### 9.4 本地分屏 UI 与网络 UI 的区别
+
+本地分屏模式里，同一进程拥有多个本地 `PlayerController`。玩家个人 UI 可以直接由自己的 Controller 创建，并用 `AddToPlayerScreen()` 放到对应分屏。
+
+网络模式里，每台客户端通常只拥有自己的 `PlayerController`。服务端的 `GameMode` 可以访问所有连接的 Controller，但远端客户端不能访问其他玩家的 Controller。因此：
+
+- 玩家个人 UI：放在 owning `PlayerController` 或其 Widget 中创建。
+- 私密 UI 更新：服务端通过 `Client RPC` 发给所属客户端，例如死亡倒计时、弹药 HUD 修正。
+- 公共 UI 数据：放在 `GameState` / `PlayerState` 复制给所有客户端，例如比分、KDA、玩家列表。
+- 不要把 `GetPlayerController(0)` 当成“全局玩家 0”。在联网客户端上，它只代表本机自己的第一个本地 Controller。
 
 ---
 

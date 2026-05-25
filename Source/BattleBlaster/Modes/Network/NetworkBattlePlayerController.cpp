@@ -7,6 +7,8 @@
 
 ANetworkBattlePlayerController::ANetworkBattlePlayerController()
 {
+	// These C++ defaults are fallbacks only. The production network mode should
+	// use BP_NetworkBattlePlayerController to assign widgets per mode.
 	static ConstructorHelpers::FClassFinder<UHUDWidget> DefaultHUDWidgetClass(TEXT("/Game/Blueprints/Controller/WBP_HUD"));
 	if (DefaultHUDWidgetClass.Succeeded())
 	{
