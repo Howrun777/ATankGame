@@ -187,13 +187,9 @@ void ATurret::DetectAndAttack()
 		return;
 	}
 
-	// 💡 核心修复：如果当前锁定的目标是Tank，且它已经死亡，立刻清空目标！停止鞭尸！
-	if (ATank* CurrentTank = Cast<ATank>(CurrentTarget))
+	if (IsValid(CurrentTarget) && !ShouldAttackTarget(CurrentTarget))
 	{
-		if (!CurrentTank->IsAlive)
-		{
-			CurrentTarget = nullptr;
-		}
+		CurrentTarget = nullptr;
 	}
 
 	// 如果没有目标或目标已物理销毁，搜索新目标
@@ -235,6 +231,12 @@ void ATurret::DetectAndAttack()
 	// 如果有有效目标，发射投射物
 	if (IsValid(CurrentTarget))
 	{
+		if (!ShouldAttackTarget(CurrentTarget))
+		{
+			CurrentTarget = nullptr;
+			return;
+		}
+
 		float Distance = FVector::Dist(GetActorLocation(), CurrentTarget->GetActorLocation());
 		if (Distance <= VisionRadius)
 		{
@@ -254,46 +256,64 @@ bool ATurret::ShouldAttackTarget(AActor* Target) const
 		return false;
 	}
 
-	// Turret 只攻击 Tank，不攻击 Tower
-	if (Cast<ATower>(Target))
+	ATank* TargetTank = Cast<ATank>(Target);
+	if (!TargetTank)
 	{
 		return false;
 	}
 
-	// 绝对不要把死人列入攻击白名单！
+	if (!TargetTank->GetIsAlive())
+	{
+		return false;
+	}
+
+	const int32 TargetCampIndex = ResolveTargetCampIndex(TargetTank);
+	if (TargetCampIndex < 0 || CampIndex < 0)
+	{
+		return false;
+	}
+
+	return TargetCampIndex != CampIndex;
+}
+
+int32 ATurret::ResolveTargetCampIndex(AActor* Target) const
+{
+	if (!IsValid(Target))
+	{
+		return -1;
+	}
+
 	if (ATank* TargetTank = Cast<ATank>(Target))
 	{
-		if (!TargetTank->IsAlive)
+		const int32 TeamId = TargetTank->GetTeamId();
+		if (TeamId >= 0)
 		{
-			return false;
+			return TeamId;
 		}
-	}
 
-	// 获取目标所属的阵营
-	int32 TargetCampIndex = -1;
-
-	// 直接使用 Tank 的 SlotId（比分屏模式下的 PlayerState 更可靠）
-	ATank* TargetTank = Cast<ATank>(Target);
-	if (TargetTank)
-	{
-		TargetCampIndex = TargetTank->GetTeamId();
-	}
-	// 如果不是 Tank，通过 PlayerState 获取（用于 AI 等其他 Pawn）
-	else
-	{
-		APawn* TargetPawn = Cast<APawn>(Target);
-		if (TargetPawn && TargetPawn->GetPlayerState())
+		if (ATankMOBAPlayerState* MOBAState = TargetTank->GetPlayerState<ATankMOBAPlayerState>())
 		{
-			class ATankMOBAPlayerState* MOBAState = Cast<ATankMOBAPlayerState>(TargetPawn->GetPlayerState());
-			if (MOBAState)
+			const int32 Camp = MOBAState->GetCampIndex();
+			if (Camp >= 0)
 			{
-				TargetCampIndex = MOBAState->GetCampIndex();
+				return Camp;
 			}
 		}
+
+		const int32 SlotId = TargetTank->GetSlotId();
+		return SlotId >= 0 ? SlotId : -1;
 	}
 
-	// 目标不是自己阵营的，才攻击
-	return TargetCampIndex != CampIndex;
+	if (APawn* TargetPawn = Cast<APawn>(Target))
+	{
+		if (ATankMOBAPlayerState* MOBAState = TargetPawn->GetPlayerState<ATankMOBAPlayerState>())
+		{
+			const int32 Camp = MOBAState->GetCampIndex();
+			return Camp >= 0 ? Camp : -1;
+		}
+	}
+
+	return -1;
 }
 
 void ATurret::FireProjectile()
@@ -487,10 +507,10 @@ float ATurret::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, A
 		
 		if (AttackerTank)
 		{
-			int32 AttackerCamp = AttackerTank->GetTeamId();
+			const int32 AttackerCamp = ResolveTargetCampIndex(AttackerTank);
 			
 			// 如果是同阵营，治疗防御塔
-			if (AttackerCamp == CampIndex)
+			if (AttackerCamp >= 0 && AttackerCamp == CampIndex)
 			{
 				// 计算治疗量
 				float HealAmount = DamageAmount * HealPercent;

@@ -102,6 +102,7 @@ private:
     FTimerHandle TimerHandle_StopRespawnFx;
 
     void ReviveTower();
+    void RefreshTargetsInRange();
     void StopRespawnEffect();
     void SetTowerState(bool bActive);
     void StartDeathLoopEffect();

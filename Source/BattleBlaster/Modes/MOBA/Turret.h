@@ -164,6 +164,9 @@ protected:
 	// 初始化视野范围显示
 	void InitializeVisionRangeVisualization();
 
+	// Resolve the MOBA camp for a target. Returns -1 while the target has no stable camp yet.
+	int32 ResolveTargetCampIndex(AActor* Target) const;
+
 	// 更新发射点位置
 	void UpdateMuzzleLocation();
 

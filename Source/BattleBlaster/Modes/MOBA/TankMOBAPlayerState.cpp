@@ -1,16 +1,30 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Modes/MOBA/TankMOBAPlayerState.h"
+#include "Net/UnrealNetwork.h"
 
 ATankMOBAPlayerState::ATankMOBAPlayerState()
 {
-	CampIndex = 0;
+	CampIndex = -1;
 	bIsDead = false;
 	bIsEliminated = false;
 	RespawnTimeRemaining = 0.0f;
 	CurrentRespawnDelay = 2.0f;
 	bIsWaitingForRespawn = false;
 	TurretDestroyedCount = 0;
+}
+
+void ATankMOBAPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(ATankMOBAPlayerState, CampIndex);
+	DOREPLIFETIME(ATankMOBAPlayerState, bIsDead);
+	DOREPLIFETIME(ATankMOBAPlayerState, bIsEliminated);
+	DOREPLIFETIME(ATankMOBAPlayerState, RespawnTimeRemaining);
+	DOREPLIFETIME(ATankMOBAPlayerState, CurrentRespawnDelay);
+	DOREPLIFETIME(ATankMOBAPlayerState, bIsWaitingForRespawn);
+	DOREPLIFETIME(ATankMOBAPlayerState, TurretDestroyedCount);
 }
 
 FLinearColor ATankMOBAPlayerState::GetCampColor() const
@@ -29,7 +43,7 @@ void ATankMOBAPlayerState::ResetForNewGame()
 {
 	Super::ResetForNewGame();
 
-	CampIndex = 0;
+	CampIndex = -1;
 	bIsDead = false;
 	bIsEliminated = false;
 	RespawnTimeRemaining = 0.0f;

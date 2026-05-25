@@ -162,19 +162,27 @@ int32 ATankMOBAGameState::GetAliveCampIndex() const
 	return -1;
 }
 
+int32 ATankMOBAGameState::GetAliveCoreCampIndex() const
+{
+	int32 AliveCampIndex = -1;
+	int32 AliveCoreCampCount = 0;
+
+	for (const auto& Pair : CoreTurretCountByCamp)
+	{
+		if (Pair.Value > 0)
+		{
+			AliveCampIndex = Pair.Key;
+			AliveCoreCampCount++;
+		}
+	}
+
+	return AliveCoreCampCount == 1 ? AliveCampIndex : -1;
+}
+
 void ATankMOBAGameState::CheckGameOverCondition()
 {
-	int32 AliveCamps = GetAliveCampCount();
-	
-	// 只剩一个阵营时游戏结束
-	if (AliveCamps <= 1 && !bIsGameOver)
-	{
-		bIsGameOver = true;
-		WinningCampIndex = GetAliveCampIndex();
-		GameStatus = EGameStatus::Ended;
-		
-		UE_LOG(LogTemp, Display, TEXT("MOBA Game Over! Winner Camp: %d"), WinningCampIndex);
-	}
+	// GameMode owns the MOBA end condition because it must also check player elimination.
+	// This legacy entry point must not end the match by tower counts alone.
 }
 
 void ATankMOBAGameState::ResetForNewGame()

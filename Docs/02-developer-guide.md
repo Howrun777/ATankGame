@@ -1,6 +1,6 @@
 # BattleBlaster 开发者指南
 
-> 基于当前代码库整理：2026-05-15
+> 基于当前代码库整理：2026-05-19
 > 目标：给继续开发本项目的人一张真实的代码地图，同时给后续按功能模块整理 `Source/BattleBlaster` 提供迁移建议。
 
 ---
@@ -139,6 +139,31 @@ APlayerState
 - `AProjectile` 和 `ATurretProjectile` 默认 `BlockAll`，因此炮弹相撞会阻挡。这是当前设计特性，不应该随手取消。
 - 穿墙 Buff 只让炮弹忽略 `WorldStatic` / `WorldDynamic` / `PhysicsBody`，不能忽略 `Pawn`。
 - Ghost Mode 只改变坦克对世界几何的响应，不能让坦克忽略 `Projectile`。
+
+### 2.4 网络同步数据归属速查
+
+当前项目的联网模式采用“状态归属分散，但规则集中”的方式：不要把所有同步数据塞进 `PlayerState` 或某个全局类，而是谁拥有这个状态，谁负责同步。
+
+| 数据类型 | 推荐归属 |
+| --- | --- |
+| 玩家身份、槽位、队伍、KDA、跨 Pawn 弹药显示 | `ATankPlayerState` / `ANetworkBattlePlayerState` |
+| 对局人数、比赛阶段、全局比分、胜负状态 | `ANetworkBattleGameState` 或具体模式 GameState |
+| Tank 移动、转向、炮塔输入、开火请求、死亡表现 | `ATank` |
+| 血量和护盾 | `UHealthComponent` |
+| Tank 身上的 Buff UI 状态 | `UTankBuffComponent` |
+| 地图 Buff 类型和是否可拾取 | `ABuffPickup` |
+| 子弹移动、穿透、强化表现、命中特效 | `AProjectile` |
+| Tower 死亡状态和炮塔朝向 | `ATower` |
+| 木箱、油桶等可破坏物的破坏状态和推动后位置 | `ADestructibleProp` |
+| 尖刺状态机和状态开始时间 | `ASpikeTrap` |
+
+判断规则：
+
+- 描述“玩家是谁”的数据放 `PlayerState`。
+- 描述“比赛整体怎样”的数据放 `GameState`。
+- 描述“这个角色当前怎样”的数据放 Pawn 或组件。
+- 描述“世界里这个物体怎样”的数据放该 Actor 自己。
+- 表现类事件优先用 Multicast 或本地表现，不要长期存进中心状态。
 
 ---
 
@@ -543,14 +568,15 @@ MOBA 模块包含：
 
 ```text
 CheckGameOver()
-  -> 只剩 1 个核心塔存活
-  -> 除获胜阵营外，其他玩家都 IsEliminated()
+  -> 遍历当前对局阵营
+  -> 统计未 IsEliminated() 的阵营数量
+  -> 只剩 1 个未淘汰阵营
   -> SetGameOver(true)
   -> SetWinningCampIndex()
   -> 延迟显示 MOBAGameOverWidget
 ```
 
-`TankMOBAGameState::OnTurretDestroyed()` 会更新塔数量，但当前设计不是核心塔一倒就直接结束。
+`TankMOBAGameState::OnTurretDestroyed()` 会更新塔数量，但当前设计不是核心塔一倒就直接结束。核心塔数量只决定阵营玩家下一次死亡时能否复活，不直接决定胜负。
 
 ### 5.5 单人闯关 / PVE：`ATankStageGameMode`
 

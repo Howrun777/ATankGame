@@ -108,6 +108,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HapticFeedback")
 	void TriggerDamageVibration();
 
+	UFUNCTION(Client, Unreliable)
+	void ClientTriggerDamageFeedback();
+
 	// 停止手柄震动
 	UFUNCTION(BlueprintCallable, Category = "HapticFeedback")
 	void StopVibration();

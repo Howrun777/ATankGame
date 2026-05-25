@@ -49,16 +49,7 @@ void ATower::BeginPlay()
         {
             DetectionSphere->OnComponentBeginOverlap.AddDynamic(this, &ATower::OnDetectionSphereBeginOverlap);
             DetectionSphere->OnComponentEndOverlap.AddDynamic(this, &ATower::OnDetectionSphereEndOverlap);
-
-            TArray<AActor*> InitialOverlappingActors;
-            DetectionSphere->GetOverlappingActors(InitialOverlappingActors, ATank::StaticClass());
-            for (AActor* Actor : InitialOverlappingActors)
-            {
-                if (ATank* OverlappingTank = Cast<ATank>(Actor))
-                {
-                    TargetsInRange.AddUnique(OverlappingTank);
-                }
-            }
+            RefreshTargetsInRange();
         }
         else
         {
@@ -332,8 +323,32 @@ void ATower::ReviveTower()
         HealthComp->ResetHealth();
     }
 
+    RefreshTargetsInRange();
     ForceNetUpdate();
     StartRespawnEffect();
+}
+
+void ATower::RefreshTargetsInRange()
+{
+    if (!HasAuthority() || !DetectionSphere || bIsDead)
+    {
+        return;
+    }
+
+    TargetsInRange.Empty();
+
+    TArray<AActor*> OverlappingActors;
+    DetectionSphere->GetOverlappingActors(OverlappingActors, ATank::StaticClass());
+    for (AActor* Actor : OverlappingActors)
+    {
+        if (ATank* OverlappingTank = Cast<ATank>(Actor))
+        {
+            if (OverlappingTank->GetIsAlive())
+            {
+                TargetsInRange.AddUnique(OverlappingTank);
+            }
+        }
+    }
 }
 
 void ATower::StopRespawnEffect()

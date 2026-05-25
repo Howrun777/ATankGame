@@ -17,6 +17,7 @@ class BATTLEBLASTER_API ATankMOBAPlayerState : public ATankPlayerState
 
 public:
 	ATankMOBAPlayerState();
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	// ================= 阵营系统 =================
 
@@ -101,30 +102,30 @@ protected:
 
 protected:
 	// 阵营索引 (0=红色,1=蓝色,2=绿色,3=黄色)
-	UPROPERTY(VisibleAnywhere, Category = "MOBA")
+	UPROPERTY(VisibleAnywhere, Replicated, Category = "MOBA")
 	int32 CampIndex;
 
 	// 是否已死亡
-	UPROPERTY(VisibleAnywhere, Category = "MOBA")
+	UPROPERTY(VisibleAnywhere, Replicated, Category = "MOBA")
 	bool bIsDead;
 
 	// 是否被淘汰（主防御塔被摧毁，无法复活）
-	UPROPERTY(VisibleAnywhere, Category = "MOBA")
+	UPROPERTY(VisibleAnywhere, Replicated, Category = "MOBA")
 	bool bIsEliminated;
 
 	// 复活剩余时间（秒）
-	UPROPERTY(VisibleAnywhere, Category = "MOBA")
+	UPROPERTY(VisibleAnywhere, Replicated, Category = "MOBA")
 	float RespawnTimeRemaining;
 
 	// 当前复活等待时间（秒）
-	UPROPERTY(VisibleAnywhere, Category = "MOBA")
+	UPROPERTY(VisibleAnywhere, Replicated, Category = "MOBA")
 	float CurrentRespawnDelay;
 
 	// 是否正在等待复活
-	UPROPERTY(VisibleAnywhere, Category = "MOBA")
+	UPROPERTY(VisibleAnywhere, Replicated, Category = "MOBA")
 	bool bIsWaitingForRespawn;
 
 	// 摧毁的防御塔数量
-	UPROPERTY(VisibleAnywhere, Category = "MOBA")
+	UPROPERTY(VisibleAnywhere, Replicated, Category = "MOBA")
 	int32 TurretDestroyedCount;
 };

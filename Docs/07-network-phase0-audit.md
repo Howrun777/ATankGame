@@ -4,6 +4,8 @@
 > 范围：`Source/BattleBlaster` 当前 C++ 代码。  
 > 目标：确认现有代码中哪些地方依赖本地分屏，哪些状态尚未支持网络复制，后续开发联网模式时应保留、隔离或迁移哪些逻辑。
 
+> 维护说明：这是阶段 0 的历史审计快照。2026-05-19 之后项目已经新增 `Modes/Network`、RPC、Replication、网络化 Projectile / Health / Buff / Tower / DestructibleProp / SpikeTrap 等实现。当前联网同步归属以 `Docs/06-network-mode-developer-guide.md` 的“当前同步数据归属清单”为准。
+
 ---
 
 ## 1. 阶段 0 结论

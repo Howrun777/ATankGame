@@ -54,6 +54,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "MOBA")
 	int32 GetAliveCampIndex() const;
 
+	// Get the only camp that still has a core turret. Returns -1 unless exactly one core camp remains.
+	UFUNCTION(BlueprintCallable, Category = "MOBA")
+	int32 GetAliveCoreCampIndex() const;
+
 	// 检查游戏是否结束（只剩一个阵营）
 	UFUNCTION(BlueprintCallable, Category = "MOBA")
 	bool IsGameOver() const { return bIsGameOver; }

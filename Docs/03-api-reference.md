@@ -1,8 +1,8 @@
 # BattleBlaster API 参考手册
 
-> 版本: v1.1
+> 版本: v1.2
 > 扫描范围: `Source/BattleBlaster` 下 68 个 `.h` 与 66 个 `.cpp`
-> 最后更新: 2026-05-15
+> 最后更新: 2026-05-19
 > 说明: 本文记录当前 C++ 代码中对玩法开发最重要的类、函数、委托和调用约束。完整签名以源码为准。
 
 ## 1. 阅读约定
@@ -98,8 +98,9 @@
 | 字段 | 默认/用途 |
 | --- | --- |
 | `MaxHealth` | 最大生命值 |
-| `Health` | 当前生命值 |
-| `Shield` | 当前护盾值 |
+| `CurrentHealth` | 当前生命值，复制给客户端 |
+| `MaxShield` | 最大护盾值 |
+| `CurrentShield` | 当前护盾值，复制给客户端 |
 
 委托:
 
@@ -124,6 +125,7 @@
 
 - `UpdateHUD()` 不直接调用 `ATankPlayerController`，它只广播生命变化。
 - 模式胜负不写在 HealthComponent 中，由 GameMode/PlayerState 处理。
+- 网络模式下生命和护盾由服务器修改，客户端通过复制值和 `OnRep_HealthState()` 刷新表现。
 
 ### 3.2 `ABasePawn`
 
@@ -193,6 +195,12 @@
 | `SetPlayerEnabled(bool)` | 启用/禁用玩家控制 |
 | `HandleKillReward()` | 击杀奖励，恢复弹药和生命 |
 | `ExecuteDeathAndReturnKiller()` | 返回并清空缓存的 `CachedKiller` |
+| `ServerMoveInput(float)` | 网络模式下把前后移动输入发给服务器 |
+| `ServerTurnInput(float)` | 网络模式下把车身转向输入发给服务器 |
+| `ServerTurretTurnInput(float)` | 网络模式下把炮塔转向输入发给服务器 |
+| `ServerFire(FTransform)` | 网络模式下请求服务器开火 |
+| `ClientCorrectTankTransform(...)` | 服务器定期校正客户端位置和炮塔朝向 |
+| `MulticastHandleDestruction()` | 广播 Tank 死亡表现 |
 
 死亡流程说明:
 
@@ -205,6 +213,12 @@ Buff 使用建议:
 - 外部玩法代码优先通过 `UTankBuffComponent::AddBuff(...)` 添加 Buff。
 - `ATank` 自身保存弹药、速度、双发、穿墙、Ghost 等运行时状态，但没有公开一组统一的 `SetXXXBuffEnabled` API。
 
+网络同步备注:
+
+- `Tank` 是当前 Pawn 生命周期内的战斗实体，负责移动、转向、开火 RPC 和死亡表现。
+- 玩家身份、队伍、KDA、跨 Pawn 弹药显示以 `ATankPlayerState` 为权威来源。
+- 开火时只有服务器成功生成 Projectile 后才扣弹药，避免客户端出现扣弹药但没有子弹的情况。
+
 ### 3.4 `AProjectile`
 
 普通炮弹，供玩家、AI 和 Tower 使用。
@@ -215,8 +229,9 @@ Buff 使用建议:
 | --- | --- |
 | `Damage` | 基础伤害 |
 | `ProjectileMovement` | 炮弹移动组件 |
-| `bPierceMode` | 是否穿墙 |
-| `PierceRemaining` | 预留穿透计数，当前命中 Pawn/Destructible 后仍销毁 |
+| `bBoostVisualsEnabled` | 是否启用强化炮弹表现，复制给客户端 |
+| `bCanPierce` | 是否穿墙，复制给客户端 |
+| `MaxPenetrationCount` | 穿透计数上限，复制给客户端 |
 
 常用接口:
 
@@ -236,6 +251,7 @@ Buff 使用建议:
 - 命中 Pawn 或 `ADestructibleProp` 后会造成伤害并销毁。
 - 命中普通世界障碍时，非 Pierce 炮弹销毁，Pierce 炮弹通常不会产生阻挡命中。
 - 炮弹和炮弹相撞抵消是设计特色，应保留。
+- 网络模式下 Projectile 由服务器生成并判定命中，Actor 和移动组件复制给客户端；命中特效通过 `MulticastPlayHitEffects(...)` 播放。
 
 ### 3.5 `ATurretProjectile`
 
@@ -269,6 +285,8 @@ PVE/NPC 敌方单位，继承自 `ABasePawn`。注意它不是 MOBA Turret，也
 | `FireRange` | 开火距离 |
 | `FireRate` | 开火间隔 |
 | `RespawnTotalTime` | 非 Stage 模式复活时间 |
+| `bIsDead` | Tower 死亡状态，复制给客户端 |
+| `ReplicatedTurretRotation` | Tower 炮塔朝向，复制给客户端 |
 
 常用接口:
 
@@ -296,6 +314,7 @@ PVE/NPC 敌方单位，继承自 `ABasePawn`。注意它不是 MOBA Turret，也
 - `GetTargetInRange()` 只负责选择最近存活目标，不负责遮挡过滤。
 - 遮挡判断在 Tick 中通过 `IsTargetBlocked()` 决定是否开火。
 - Stage 模式中 Tower 死亡后禁用复活。
+- 网络模式下 Tower AI、开火、死亡只在服务器执行；客户端通过复制的死亡状态和炮塔朝向显示结果。
 
 ## 4. Buff 与拾取物
 
@@ -340,6 +359,7 @@ PVE/NPC 敌方单位，继承自 `ABasePawn`。注意它不是 MOBA Turret，也
 - Ghost Buff 将世界几何改为 Overlap，但 Projectile 保持 Block。
 - Ghost Buff 会检测是否卡在几何体内，必要时做防卡处理。
 - Pierce Buff 通过 Tank 开火时传递给生成的 Projectile。
+- 网络模式下 `ReplicatedActiveBuffs` 负责同步给客户端 UI；Buff 的真实添加、移除和效果结算应由服务器执行。
 
 ### 4.3 `ABuffPickup`
 
@@ -358,6 +378,7 @@ PVE/NPC 敌方单位，继承自 `ABasePawn`。注意它不是 MOBA Turret，也
 
 - Stage 模式中拾取后不自动重生。
 - `RandomIcon` 会在拾取时映射成实际 Buff。
+- 网络模式下 `CurrentVisualType` 和 `bIsPickupAvailable` 复制给客户端，保证刷出的 Buff 类型和可拾取状态一致。
 
 ## 5. AI
 
@@ -405,10 +426,11 @@ PVE/NPC 敌方单位，继承自 `ABasePawn`。注意它不是 MOBA Turret，也
 
 | 字段 | 用途 |
 | --- | --- |
-| `MaxHealth` / `CurrentHealth` | 生命值 |
 | `DetectionRadius` | 血条显示检测半径 |
 | `LastAttacker` | 最近攻击者 |
 | `HealthBarWidget` | 世界空间血条 |
+| `bIsDestroyed` | 是否已被破坏，复制给客户端 |
+| `ReplicatedPropMeshTransform` | 可推动 Mesh 的同步 Transform |
 
 常用接口:
 
@@ -424,6 +446,7 @@ PVE/NPC 敌方单位，继承自 `ABasePawn`。注意它不是 MOBA Turret，也
 
 - `CheckPlayerDistance()` 应遍历所有 PlayerController。
 - 本地分屏下，只检查 Player 0 会导致其他玩家看不到血条。
+- 网络模式下破坏状态由 `bIsDestroyed` 复制；油桶、木箱这类可推动物体的渲染位置通过 `ReplicatedPropMeshTransform` 平滑同步。
 
 ### 6.2 `ATurret`
 
@@ -504,6 +527,7 @@ MOBA 防御塔，继承自 `ADestructibleProp`。
 | `DamageAmount` | 每次伤害 |
 | `HiddenDuration` / `ActiveDuration` | 隐藏/激活持续时间 |
 | `ThrustSpeed` / `RetractSpeed` | 伸出/收回速度 |
+| `ReplicatedState` | 复制尖刺状态和服务器状态开始时间 |
 
 关键内部流程:
 
@@ -515,6 +539,11 @@ MOBA 防御塔，继承自 `ADestructibleProp`。
 | `OnHiddenTimerExpired()` / `OnActiveTimerExpired()` | 状态计时回调 |
 | `DealDamageToActors()` | 对合法目标造成伤害 |
 | `OnOverlapBegin(...)` | 激活状态下的伤害触发 |
+
+网络同步备注:
+
+- 服务器只同步尖刺进入哪个状态以及状态开始的服务器时间。
+- 客户端根据 `ReplicatedState.StateStartServerTime` 自行计算动画进度，避免每帧同步尖刺位置。
 
 ### 6.6 `ASlideTrack`
 
@@ -650,16 +679,16 @@ MOBA 模式。
 | `HandleTankKilled(ATank* DeadTank, ATank* KillerTank)` | 处理死亡、复活或淘汰 |
 | `StartPlayerRespawn(ATankMOBAPlayerState*)` | 开始复活倒计时 |
 | `RespawnPlayer(ATankMOBAPlayerState*)` | 复活指定玩家状态 |
-| `CheckGameOver()` | 判断 MOBA 是否结束，当前为 protected 内部流程 |
+| `CheckGameOver()` | 判断 MOBA 是否只剩一个未淘汰阵营，当前为 protected 内部流程 |
 | `NotifyAllPlayersTowerDestroyed(int32, bool)` | 通知 Turret 摧毁 |
-| `NotifyAllPlayersCoreDestroyed(int32)` | 通知核心塔摧毁 |
+| `NotifyAllPlayersCoreDestroyed(int32)` | 兼容旧入口；核心塔摧毁只影响复活资格，不直接淘汰阵营 |
 | `GetActiveCampCount()` | 当前实现返回 `ActiveTanks.Num()`，命名上更像活跃槽位数 |
 | `HideCoreTurretImage(int32)` | 隐藏指定阵营核心塔 UI 图标 |
 
 当前胜负条件:
 
-- 只剩一个核心 Turret 存活。
-- 其他阵营玩家均已淘汰。
+- 只剩一个未淘汰阵营。
+- 核心 Turret 数量不直接决定胜负，只影响玩家死亡后是否可以复活。
 - 满足后写入 GameState 胜利阵营并显示结算。
 
 注意:
@@ -824,6 +853,22 @@ Stage 状态。
 | `UpdateAmmo(int32)` / `GetAmmo()` | 同步弹药 |
 | `SetAlive(bool)` | 同步存活状态 |
 | `ResetForNewGame()` | 重置状态 |
+
+当前复制字段:
+
+| 字段 | 用途 |
+| --- | --- |
+| `SlotId` | 本局比赛槽位 |
+| `TeamId` | 队伍 / 阵营 ID |
+| `IsAlive` | 玩家存活状态 |
+| `CurrentAmmo` | 弹药显示和跨 Pawn 保留 |
+| `KillCount` / `DeathCount` / `AssistCount` | KDA |
+
+网络模式规则:
+
+- `PlayerState` 保存玩家身份和跨 Pawn 保留的信息。
+- Tank 死亡重生后可以换 Pawn，但 PlayerState 中的身份、队伍、KDA 不应丢失。
+- 不要把 Tank 位置、Tower 炮塔角度、油桶位置这类世界对象状态塞进 PlayerState。
 
 ## 9. Controller 与 UI
 

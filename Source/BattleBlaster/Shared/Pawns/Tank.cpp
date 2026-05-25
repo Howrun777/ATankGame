@@ -436,6 +436,7 @@ void ATank::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 void ATank::MoveInput(const FInputActionValue& Value)
 {
 	float InputValue = Value.Get<float>();
+	const float DeltaSeconds = GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0f;
 
 	if (ATankPlayerController* PC = Cast<ATankPlayerController>(GetController()))
 	{
@@ -445,11 +446,11 @@ void ATank::MoveInput(const FInputActionValue& Value)
 		}
 	}
 
-	ApplyMoveInput(InputValue);
+	ApplyMoveInput(InputValue, DeltaSeconds);
 
 	if (!HasAuthority())
 	{
-		ServerMoveInput(InputValue);
+		ServerMoveInput(InputValue, DeltaSeconds);
 	}
 }
 
@@ -503,9 +504,49 @@ void ATank::ApplyMoveInput(float InputValue)
 	}
 }
 
-void ATank::ServerMoveInput_Implementation(float InputValue)
+void ATank::ServerMoveInput_Implementation(float InputValue, float ClientDeltaSeconds)
 {
-	ApplyMoveInput(InputValue);
+	ApplyMoveInput(InputValue, ClientDeltaSeconds);
+}
+
+void ATank::ApplyMoveInput(float InputValue, float DeltaSeconds)
+{
+	if (ATankPlayerController* PC = Cast<ATankPlayerController>(GetController()))
+	{
+		if (PC->bIsHoldingReturnToSpawn)
+		{
+			return;
+		}
+	}
+
+	DeltaSeconds = FMath::Clamp(DeltaSeconds, 0.0f, 0.05f);
+	if (FMath::IsNearlyZero(DeltaSeconds) || FMath::IsNearlyZero(InputValue))
+	{
+		return;
+	}
+
+	FVector MoveDir = GetActorForwardVector();
+	MoveDir.Z = 0.0f;
+	MoveDir.Normalize();
+
+	const FVector DesiredWorldDelta = MoveDir * (Speed * InputValue * DeltaSeconds);
+	const bool bSweep = !bIsGhostMode;
+
+	FHitResult Hit;
+	AddActorWorldOffset(DesiredWorldDelta, bSweep, &Hit);
+
+	if (bSweep && bEnableWallSlide && Hit.IsValidBlockingHit())
+	{
+		const float RemainingTime = FMath::Clamp(1.0f - Hit.Time, 0.0f, 1.0f);
+		const FVector RemainderDelta = DesiredWorldDelta * RemainingTime;
+		FVector SlideDelta = FVector::VectorPlaneProject(RemainderDelta, Hit.Normal) * WallSlideSpeedScale;
+		SlideDelta.Z = 0.0f;
+
+		if (!SlideDelta.IsNearlyZero(0.1f))
+		{
+			AddActorWorldOffset(SlideDelta, true);
+		}
+	}
 }
 
 // 移动函数（AI 控制器直接调用）
@@ -518,12 +559,13 @@ void ATank::MoveAI(const FVector2D& MoveInput)
 void ATank::TurnInput(const FInputActionValue& Value)
 {
 	float InputValue = Value.Get<float>();
+	const float DeltaSeconds = GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0f;
 
-	ApplyTurnInput(InputValue);
+	ApplyTurnInput(InputValue, DeltaSeconds);
 
 	if (!HasAuthority())
 	{
-		ServerTurnInput(InputValue);
+		ServerTurnInput(InputValue, DeltaSeconds);
 	}
 }
 
@@ -542,20 +584,34 @@ void ATank::ApplyTurnInput(float InputValue)
 	AddActorLocalRotation(DeltaAngle);
 }
 
-void ATank::ServerTurnInput_Implementation(float InputValue)
+void ATank::ServerTurnInput_Implementation(float InputValue, float ClientDeltaSeconds)
 {
-	ApplyTurnInput(InputValue);
+	ApplyTurnInput(InputValue, ClientDeltaSeconds);
+}
+
+void ATank::ApplyTurnInput(float InputValue, float DeltaSeconds)
+{
+	DeltaSeconds = FMath::Clamp(DeltaSeconds, 0.0f, 0.05f);
+	if (FMath::IsNearlyZero(DeltaSeconds) || FMath::IsNearlyZero(InputValue))
+	{
+		return;
+	}
+
+	FRotator DeltaAngle = FRotator::ZeroRotator;
+	DeltaAngle.Yaw = TurnRate * InputValue * DeltaSeconds;
+	AddActorLocalRotation(DeltaAngle);
 }
 //炮塔转动函数
 void ATank::TurretTurnInput(const FInputActionValue& Value)
 {
 	float InputValue = Value.Get<float>();
+	const float DeltaSeconds = GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0f;
 
-	ApplyTurretTurnInput(InputValue);
+	ApplyTurretTurnInput(InputValue, DeltaSeconds);
 
 	if (!HasAuthority())
 	{
-		ServerTurretTurnInput(InputValue);
+		ServerTurretTurnInput(InputValue, DeltaSeconds);
 	}
 }
 
@@ -593,9 +649,36 @@ void ATank::ApplyTurretTurnInput(float InputValue)
 	TurretMesh->AddRelativeRotation(FRotator(0.0f, RotationAmount, 0.0f));
 }
 
-void ATank::ServerTurretTurnInput_Implementation(float InputValue)
+void ATank::ServerTurretTurnInput_Implementation(float InputValue, float ClientDeltaSeconds)
 {
-	ApplyTurretTurnInput(InputValue);
+	ApplyTurretTurnInput(InputValue, ClientDeltaSeconds);
+}
+
+void ATank::ApplyTurretTurnInput(float InputValue, float DeltaSeconds)
+{
+	DeltaSeconds = FMath::Clamp(DeltaSeconds, 0.0f, 0.05f);
+	if (FMath::IsNearlyZero(DeltaSeconds))
+	{
+		return;
+	}
+
+	float TargetSpeed = InputValue * TurnRate;
+	if (bIsAiming)
+	{
+		TargetSpeed *= 0.3f;
+	}
+
+	CurrentTurnSpeed = FMath::FInterpTo(CurrentTurnSpeed, TargetSpeed, DeltaSeconds, 1000.0f);
+	if (FMath::IsNearlyZero(CurrentTurnSpeed))
+	{
+		return;
+	}
+
+	const float RotationAmount = CurrentTurnSpeed * DeltaSeconds;
+	if (TurretMesh)
+	{
+		TurretMesh->AddRelativeRotation(FRotator(0.0f, RotationAmount, 0.0f));
+	}
 }
 
 void ATank::MulticastHandleDestruction_Implementation()
@@ -692,6 +775,11 @@ void ATank::Fire()
 
 	if (!HasAuthority())
 	{
+		if (ATankPlayerController* LocalTankPC = Cast<ATankPlayerController>(GetController()))
+		{
+			LocalTankPC->TriggerFireVibration();
+		}
+
 		ServerFire(RequestedMuzzleTransform);
 		return;
 	}
@@ -814,7 +902,6 @@ void ATank::ApplyFire(const FTransform& RequestedMuzzleTransform)
 		else
 		{
 			TankPC->ClientSetHUDAmmo(DisplayAmmo, MaxAmmo);
-			TankPC->ClientTriggerFireFeedback();
 		}
 	}
 }
@@ -946,6 +1033,10 @@ void ATank::HandleHealthChanged(UHealthComponent* InHealthComp, float Health, fl
 		if (IsLocallyControlled() && LocalTankPC)
 		{
 			LocalTankPC->TriggerDamageVibration();
+		}
+		else if (LocalTankPC)
+		{
+			LocalTankPC->ClientTriggerDamageFeedback();
 		}
 
 		AActor* KillerActor = nullptr;

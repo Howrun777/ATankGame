@@ -492,6 +492,11 @@ void ATankPlayerController::TriggerDamageVibration()
 	}
 }
 
+void ATankPlayerController::ClientTriggerDamageFeedback_Implementation()
+{
+	TriggerDamageVibration();
+}
+
 void ATankPlayerController::StopVibration()
 {
 	if (!IsLocalController()) return;

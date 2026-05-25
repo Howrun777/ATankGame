@@ -1,6 +1,6 @@
 # BattleBlaster 联网模式开发者文档
 
-> 版本：2026-05-17  
+> 版本：2026-05-19  
 > 目标：说明 BattleBlaster 后续开发联网模式时的模块架构、数据归属、服务器权威规则、迁移步骤和当前代码风险点。  
 > 范围：先以局域网 Listen Server 为第一阶段目标，后续再扩展 Dedicated Server、公网访问和内网穿透。
 
@@ -53,17 +53,25 @@ Source/BattleBlaster/Core/Networking/
 
 这一步很重要，因为联网游戏不能依赖本机 Controller 的索引来判断玩家身份。客户端上的 `PlayerController 0` 只代表“这台机器自己的控制器”，不是全局玩家 0。
 
-### 2.2 当前还不具备的联网基础
+### 2.2 当前已经落地的联网基础
 
-代码里目前基本还没有正式的 UE Replication/RPC 体系。后续需要逐步补上：
+截至 2026-05-19，项目已经不再是“完全没有网络层”的状态。当前最小网络战斗链路已经具备：
 
-- `ATankPlayerState` 里的 `SlotId`、`TeamId`、KDA、死亡状态、弹药等需要复制。
-- `ATankGameState` 和各模式 GameState 里的比赛时间、分数、胜负状态需要复制。
-- `ATank` 需要启用 Actor 复制和移动复制，或者实现自定义移动同步。
-- `UHealthComponent` 需要复制血量/护盾，并用 `OnRep` 刷 UI。
-- `UTankBuffComponent` 需要服务器管理 Buff，并复制 Buff 状态给客户端。
-- `AProjectile` 应由服务器生成和判定命中，客户端只看复制出来的 projectile 和特效。
-- 现有 GameMode 里的本地分屏创建逻辑不能直接搬进联网模式。
+- `Modes/Network` 已有 `NetworkBattleGameMode`、`NetworkBattleGameState`、`NetworkBattlePlayerState`、`NetworkBattlePlayerController`。
+- `Core/Networking` 已有 `BattleBlasterSessionSubsystem`，用于 Host / Join 入口。
+- `ATankPlayerState` 已复制 `SlotId`、`TeamId`、`IsAlive`、`CurrentAmmo`、KDA。
+- `ANetworkBattlePlayerState` 已复制 `bIsReady`。
+- `ANetworkBattleGameState` 已复制连接人数和最大玩家数。
+- `ATank` 已具备网络模式下的移动、转向、炮塔转向和开火 RPC。
+- `AProjectile` 已开启 Actor / Movement 复制，服务器负责命中与伤害。
+- `UHealthComponent` 已复制生命和护盾。
+- `UTankBuffComponent` 已复制用于 UI 显示的 Buff 列表。
+- `ABuffPickup` 已复制刷出的 Buff 类型和可拾取状态。
+- `ADestructibleProp` 已复制破坏状态和可推动物体的 Mesh Transform。
+- `ASpikeTrap` 已复制状态机和服务端状态开始时间，客户端自行播放插值动画。
+- `ATower` 已复制死亡状态和炮塔朝向。
+
+仍然要注意：旧的 FreeForAll、TeamBattle、MOBA 依然是本地分屏模式，不能直接当作网络模式使用。联网模式应该继续放在独立 `Modes/Network` 下，逐步复用共享类。
 
 ---
 
@@ -188,7 +196,7 @@ flowchart TD
 - 是否准备。
 - 当前分数。
 
-后续应让 `ATankPlayerState` 的这些基础字段支持 `GetLifetimeReplicatedProps`，并根据需要加 `OnRep`。
+当前 `ATankPlayerState` 已经复制这些基础字段中的核心部分。后续如果加入选坦克、皮肤、网络大厅阵营选择，也应该继续优先放在 PlayerState 或其网络子类中。
 
 ### 4.5 PlayerController
 
@@ -215,15 +223,51 @@ flowchart TD
 
 适合复制：
 
-- Transform 或自定义移动状态。
-- 当前生命/护盾。
-- 当前弹药。
-- 当前 Buff 简要状态。
-- 是否死亡/无敌/穿墙等战斗状态。
+- Transform 或自定义移动校正状态。
+- 移动、转向、炮塔转向输入对应的服务器 RPC。
+- 开火请求对应的服务器 RPC。
+- 死亡表现对应的 Multicast。
+- 只属于当前 Pawn 生命周期的战斗运行时状态。
 
 不适合长期保存：
 
 - 玩家永久身份。身份应该以 `PlayerState` 为主，Tank 只缓存或转发。
+
+当前弹药采用折中方案：`Tank` 负责实际开火时的运行时判断，`TankPlayerState::CurrentAmmo` 负责复制和跨 Pawn 保留。这样复活、HUD、网络同步都能读到同一个权威结果。
+
+### 4.7 当前同步数据归属清单
+
+这张表是后续继续网络化时最重要的判断依据：不要把所有同步数据集中塞进一个类，而是让“拥有这个状态的对象”负责同步自己的状态。
+
+| 系统 | 同步数据存放位置 | 当前同步内容 |
+| --- | --- | --- |
+| 玩家身份 | `ATankPlayerState` | `SlotId`、`TeamId`、`IsAlive` |
+| 玩家战斗统计 | `ATankPlayerState` | `KillCount`、`DeathCount`、`AssistCount` |
+| 玩家弹药显示 / 跨 Pawn 保留 | `ATankPlayerState` | `CurrentAmmo` |
+| 联机大厅准备状态 | `ANetworkBattlePlayerState` | `bIsReady` |
+| 对局公共状态 | `ANetworkBattleGameState` | `ConnectedPlayerCount`、`MaxNetworkPlayers` |
+| Tank 移动 / 开火输入 | `ATank` | `ServerMoveInput`、`ServerTurnInput`、`ServerTurretTurnInput`、`ServerFire` |
+| Tank 强制校正 | `ATank` | `ClientCorrectTankTransform` |
+| Tank 死亡表现 | `ATank` | `MulticastHandleDestruction` |
+| 血量 / 护盾 | `UHealthComponent` | `MaxHealth`、`CurrentHealth`、`MaxShield`、`CurrentShield` |
+| Tank 身上的 Buff UI 状态 | `UTankBuffComponent` | `ReplicatedActiveBuffs` |
+| 地图 Buff 拾取物 | `ABuffPickup` | `CurrentVisualType`、`bIsPickupAvailable` |
+| 子弹 | `AProjectile` | Actor、Movement、`bBoostVisualsEnabled`、`bCanPierce`、`MaxPenetrationCount` |
+| 子弹命中特效 | `AProjectile` | `MulticastPlayHitEffects` |
+| Tower | `ATower` | `bIsDead`、`ReplicatedTurretRotation` |
+| Tower 血量 | `UHealthComponent` | Tower 自己身上的血量组件 |
+| 木箱 / 油桶等可破坏物 | `ADestructibleProp` | `bIsDestroyed`、`ReplicatedPropMeshTransform` |
+| 可破坏物血量 | `UHealthComponent` | 可破坏物自己身上的血量组件 |
+| 尖刺 | `ASpikeTrap` | `ReplicatedState.State`、`ReplicatedState.StateStartServerTime` |
+| 油桶爆炸参数 | `AExplosiveBarrel` | 蓝图/本地配置为主，动态破坏状态由 `ADestructibleProp` 管 |
+
+判断原则：
+
+- 描述“玩家是谁”的数据放 `PlayerState`。
+- 描述“整场比赛怎样”的数据放 `GameState`。
+- 描述“这个角色当前怎样”的数据放 `Pawn` 或它的组件。
+- 描述“世界里这个物体怎样”的数据放这个 Actor 自己。
+- 描述“表现事件”的内容优先用 Multicast 或本地表现，不长期塞进状态中心。
 
 ---
 
@@ -388,7 +432,7 @@ OnRep_ActiveBuffs();
 
 ### 8.1 开火
 
-当前 `ATank::Fire()` 本地会扣弹药、生成 Projectile、刷新 HUD。联网模式需要拆成三层：
+当前 `ATank` 已经有网络模式下的服务器权威开火入口。客户端按下开火后请求服务器，服务器检查冷却、弹药、死亡状态和炮口 Transform，再生成 Projectile。弹药只应在 Projectile 实际成功生成后扣除，避免出现“客户端扣弹药但子弹没有生成”的问题。
 
 ```text
 客户端按下开火
@@ -400,6 +444,8 @@ OnRep_ActiveBuffs();
 -> Projectile 复制给客户端
 -> PlayerState/Tank 弹药复制后刷新 HUD
 ```
+
+注意：开火反馈可以是本地预测，但扣弹药、生成 Projectile、造成伤害必须以服务器结果为准。
 
 ### 8.2 Projectile
 
@@ -564,6 +610,8 @@ Unreal 实时游戏主要依赖 UDP。内网穿透方案必须支持 UDP 转发�
 
 ## 13. 分阶段开发计划
 
+截至 2026-05-19，阶段 0 到阶段 4 的最小链路已经基本跑通：Host / Join、身份分配、Tank 生成、移动同步、开火、伤害、死亡、复活、HUD 弹药/KDA/血量同步已经进入可测试状态。下面的阶段描述仍然保留为路线图；继续开发时应把重点放在稳定性、同步归属统一、Lobby / 选坦克、LAN Session 和公网方案上。
+
 ### 阶段 0：代码审计和边界确认
 
 目标：列出本地分屏依赖点。
@@ -715,18 +763,23 @@ Unreal 实时游戏主要依赖 UDP。内网穿透方案必须支持 UDP 转发�
 -> PlayerState 复制给所有客户端
 ```
 
-### 14.4 Health / Buff / KDA 尚未复制
+### 14.4 Health / Buff / KDA 已部分网络化，后续要继续统一规则
 
-当前这些数据可以在本地分屏里直接访问，但联网里必须复制：
+这些核心数据当前已经有复制基础：
 
+- `UHealthComponent::MaxHealth`
 - `UHealthComponent::CurrentHealth`
+- `UHealthComponent::MaxShield`
 - `UHealthComponent::CurrentShield`
 - `ATankPlayerState::KillCount`
 - `ATankPlayerState::DeathCount`
 - `ATankPlayerState::AssistCount`
 - `ATankPlayerState::SlotId`
 - `ATankPlayerState::TeamId`
-- Buff 列表或 Buff 标记
+- `ATankPlayerState::CurrentAmmo`
+- `UTankBuffComponent::ReplicatedActiveBuffs`
+
+后续风险不再是“完全没有复制”，而是要避免复制归属再次变乱：不要在 `Tank`、`PlayerState`、`PlayerController` 之间重复保存同一个权威状态。需要新增同步字段时，先查第 4.7 节的归属表。
 
 ### 14.5 开火和子弹需要服务器化
 

@@ -348,58 +348,53 @@ void ATankMOBAGameMode::UpdateGameTimer()
 
 void ATankMOBAGameMode::CheckGameOver()
 {
-	if (!MOBAGameState || MOBAGameState->IsGameOver())
+	if (!MOBAGameState || MOBAGameState->IsGameOver() || !GameState)
 	{
 		return;
 	}
 
-	// 【修改后的游戏结束判定逻辑】
-	// 条件1：场上只剩1个核心塔
-	// 条件2：无核心塔的阵营，所有玩家都已被淘汰（不是死亡状态）
+	int32 RemainingCampCount = 0;
+	int32 WinnerCampIndex = -1;
 
-	// 条件1：检查是否只剩一个核心塔存活
-	int32 TotalCoreTurretCount = MOBAGameState->GetAliveCoreTurretCount();
-	if (TotalCoreTurretCount != 1)
+	for (int32 CampIndex = 0; CampIndex < TargetPlayerCount; CampIndex++)
 	{
-		return; // 不满足条件，不结束游戏
-	}
+		bool bFoundPlayerStateForCamp = false;
+		bool bCampEliminated = true;
 
-	// 获取唯一存活核心塔的阵营索引
-	int32 WinnerCampIndex = MOBAGameState->GetAliveCampIndex();
-	if (WinnerCampIndex < 0)
-	{
-		return; // 没有存活阵营
-	}
-
-	// 条件2：检查除了获胜阵营外，其他所有玩家是否都已被淘汰
-	bool bAllOtherPlayersEliminated = true;
-
-	for (APlayerState* PS : GameState->PlayerArray)
-	{
-		ATankMOBAPlayerState* MOBAState = Cast<ATankMOBAPlayerState>(PS);
-		if (!MOBAState)
+		for (APlayerState* PS : GameState->PlayerArray)
 		{
-			continue;
+			ATankMOBAPlayerState* MOBAState = Cast<ATankMOBAPlayerState>(PS);
+			if (!MOBAState || MOBAState->GetCampIndex() != CampIndex)
+			{
+				continue;
+			}
+
+			bFoundPlayerStateForCamp = true;
+			if (!MOBAState->IsEliminated())
+			{
+				bCampEliminated = false;
+				break;
+			}
 		}
 
-		int32 PlayerCampIndex = MOBAState->GetCampIndex();
-
-		// 跳过获胜阵营的玩家
-		if (PlayerCampIndex == WinnerCampIndex)
+		if (!bFoundPlayerStateForCamp)
 		{
-			continue;
+			return;
 		}
 
-		// 检查该玩家是否已被淘汰
-		if (!MOBAState->IsEliminated())
+		if (!bCampEliminated)
 		{
-			bAllOtherPlayersEliminated = false;
-			break;
+			RemainingCampCount++;
+			WinnerCampIndex = CampIndex;
+
+			if (RemainingCampCount > 1)
+			{
+				return;
+			}
 		}
 	}
 
-	// 两个条件都满足，游戏结束
-	if (bAllOtherPlayersEliminated)
+	if (RemainingCampCount == 1 && WinnerCampIndex >= 0)
 	{
 		MOBAGameState->SetGameOver(true);
 		MOBAGameState->SetWinningCampIndex(WinnerCampIndex);
@@ -576,8 +571,6 @@ void ATankMOBAGameMode::HandleTankKilled(ATank* DeadTank, ATank* KillerTank)
 		}
 
 		NotifyAllPlayersCoreDestroyed(VictimIndex);
-
-		// 【修改】：只有在玩家被淘汰时才检查游戏是否结束
 		CheckGameOver();
 	}
 }
@@ -836,53 +829,13 @@ void ATankMOBAGameMode::NotifyAllPlayersTowerDestroyed(int32 CampIndex, bool bIs
 
 void ATankMOBAGameMode::NotifyAllPlayersCoreDestroyed(int32 CampIndex)
 {
-	// 遍历所有玩家，通知他们某阵营主防御塔被摧毁
-	for (APlayerState* PS : GameState->PlayerArray)
-	{
-		ATankMOBAPlayerState* MOBAState = Cast<ATankMOBAPlayerState>(PS);
-		if (!MOBAState)
-		{
-			continue;
-		}
-
-		// 如果是同阵营，玩家被淘汰
-		if (MOBAState->GetCampIndex() == CampIndex)
-		{
-			MOBAState->SetEliminated(true);
-		}
-	}
-
-	// 检查是否有更多玩家被淘汰
-	CheckAllPlayersEliminated();
+	// The core turret being destroyed only disables future respawns.
+	// The camp is eliminated later, when its player dies again.
 }
 
 void ATankMOBAGameMode::CheckAllPlayersEliminated()
 {
-	if (!MOBAGameState)
-	{
-		return;
-	}
-
-	// 检查每个阵营
-	for (int32 CampIndex = 0; CampIndex < 4; CampIndex++)
-	{
-		int32 CoreCount = MOBAGameState->GetAliveCoreTurretCountByCamp(CampIndex);
-		int32 OuterCount = MOBAGameState->GetAliveOuterTurretCountByCamp(CampIndex);
-
-		// 如果主防御塔已摧毁
-		if (CoreCount == 0)
-		{
-			// 标记该阵营所有玩家为被淘汰
-			for (APlayerState* PS : GameState->PlayerArray)
-			{
-				ATankMOBAPlayerState* MOBAState = Cast<ATankMOBAPlayerState>(PS);
-				if (MOBAState && MOBAState->GetCampIndex() == CampIndex && !MOBAState->IsEliminated())
-				{
-					MOBAState->SetEliminated(true);
-				}
-			}
-		}
-	}
+	CheckGameOver();
 }
 
 void ATankMOBAGameMode::ShowMOBAGameOver()

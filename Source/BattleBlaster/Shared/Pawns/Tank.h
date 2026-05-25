@@ -272,19 +272,22 @@ public:
 	void TurretTurnInput(const FInputActionValue& Value);
 
 	void ApplyMoveInput(float InputValue);
+	void ApplyMoveInput(float InputValue, float DeltaSeconds);
 	void ApplyTurnInput(float InputValue);
+	void ApplyTurnInput(float InputValue, float DeltaSeconds);
 	void ApplyTurretTurnInput(float InputValue);
+	void ApplyTurretTurnInput(float InputValue, float DeltaSeconds);
 	void ApplyFire(const FTransform& RequestedMuzzleTransform);
 	FTransform GetValidatedFireTransform(const FTransform& RequestedMuzzleTransform) const;
 
 	UFUNCTION(Server, Unreliable)
-	void ServerMoveInput(float InputValue);
+	void ServerMoveInput(float InputValue, float ClientDeltaSeconds);
 
 	UFUNCTION(Server, Unreliable)
-	void ServerTurnInput(float InputValue);
+	void ServerTurnInput(float InputValue, float ClientDeltaSeconds);
 
 	UFUNCTION(Server, Unreliable)
-	void ServerTurretTurnInput(float InputValue);
+	void ServerTurretTurnInput(float InputValue, float ClientDeltaSeconds);
 
 	UFUNCTION(Server, Reliable)
 	void ServerFire(FTransform RequestedMuzzleTransform);

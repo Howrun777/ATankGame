@@ -12,6 +12,35 @@
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraComponent.h"
 
+namespace
+{
+int32 ResolveMOBATankCampIndex(ATank* Tank)
+{
+	if (!IsValid(Tank))
+	{
+		return -1;
+	}
+
+	const int32 TeamId = Tank->GetTeamId();
+	if (TeamId >= 0)
+	{
+		return TeamId;
+	}
+
+	if (ATankMOBAPlayerState* MOBAState = Tank->GetPlayerState<ATankMOBAPlayerState>())
+	{
+		const int32 Camp = MOBAState->GetCampIndex();
+		if (Camp >= 0)
+		{
+			return Camp;
+		}
+	}
+
+	const int32 SlotId = Tank->GetSlotId();
+	return SlotId >= 0 ? SlotId : -1;
+}
+}
+
 ATurretProjectile::ATurretProjectile()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -165,11 +194,10 @@ void ATurretProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, 
 		// MOBA 模式：每个玩家独立阵营，同 SlotId = 同阵营
 		if (Cast<ATankMOBAGameMode>(CurrentGM))
 		{
-			if (VictimTank && VictimTank->GetTeamId() >= 0)
+			const int32 VictimCamp = ResolveMOBATankCampIndex(VictimTank);
+			if (CampIndex >= 0 && VictimCamp >= 0)
 			{
-				// MOBA 模式：防御塔的 CampIndex 应该等于目标的 SlotId
-				// 不同 SlotId 可以互相伤害
-				bCanDamage = (CampIndex != VictimTank->GetTeamId());
+				bCanDamage = (CampIndex != VictimCamp);
 			}
 		}
 		// TeamBattle 模式：同阵营（0/2=红色，1/3=蓝色）不能互相伤害
