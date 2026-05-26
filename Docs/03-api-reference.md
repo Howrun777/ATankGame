@@ -845,8 +845,10 @@ Stage 状态。
 
 | 函数 | 用途 |
 | --- | --- |
-| `RecordAttacker(ATank*)` | 记录最近攻击者 |
-| `ProcessDeath()` | 处理死亡结算，返回 Killer，并广播死亡 Tank 的 `OnKilled` |
+| `RecordAttacker(ATank*)` | 记录最近 Tank 攻击者；同一攻击者重复伤害会移动到队头，并启动 1 秒一次的过期清理 Timer |
+| `CleanUpExpiredAttackers()` | 清理超过 7 秒或已经失效的攻击者记录 |
+| `StartAttackerCleanupTimer()` / `StopAttackerCleanupTimer()` | 管理仇人队列的 1 秒清理 Timer，队列为空、死亡、重置或 EndPlay 时停止 |
+| `ProcessDeath()` | 处理死亡结算，队头算 Killer，其他有效记录算 Assist，返回 Killer，并广播死亡 Tank 的 `OnKilled` |
 | `AddKill()` / `AddDeath()` / `AddAssist()` | 修改战绩 |
 | `SaveCurrentBuffs(...)` / `GetBuffs()` / `ClearBuffs()` | 保存、读取或清空 Buff |
 | `RecordSpawnLocation(...)` | 记录出生点 |
@@ -868,6 +870,8 @@ Stage 状态。
 
 - `PlayerState` 保存玩家身份和跨 Pawn 保留的信息。
 - Tank 死亡重生后可以换 Pawn，但 PlayerState 中的身份、队伍、KDA 不应丢失。
+- `AttackerQueue` 是服务端临时归因数据，用于死亡时推导 Killer / Assist；最终复制给客户端的是 `KillCount`、`DeathCount`、`AssistCount`，不是整条队列。
+- 非 Tank 对象造成最终击杀时，`ProcessDeath()` 仍可通过 7 秒内的最近 Tank 攻击记录把击杀归给玩家；如果没有有效记录，则返回 `nullptr`，由具体 GameMode 决定扣分或不计分。
 - 不要把 Tank 位置、Tower 炮塔角度、油桶位置这类世界对象状态塞进 PlayerState。
 
 ## 9. Controller 与 UI

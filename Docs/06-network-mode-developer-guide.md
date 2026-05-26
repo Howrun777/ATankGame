@@ -112,7 +112,7 @@ flowchart TD
 
 | 类 | 是否存在于客户端 | 主要职责 |
 | --- | --- | --- |
-| `ANetworkBattleGameMode` | 否，只在服务器 | 玩家加入/离开、分配槽位和队伍、生成 Pawn、伤害结算入口、复活、胜负判断 |
+| `ANetworkBattleGameMode` | 否，只在服务器 | 网络战斗基类：玩家加入/离开、分配槽位和基础队伍、生成 Pawn、死亡入口、复活、通用网络战斗流程 |
 | `ANetworkBattleGameState` | 是，复制 | 比赛状态、倒计时、全局分数、胜者、可公开的房间/比赛信息 |
 | `ANetworkBattlePlayerState` | 是，复制 | `SlotId`、`TeamId`、玩家名、坦克选择、KDA、死亡状态、准备状态 |
 | `ANetworkBattlePlayerController` | 服务器和所属客户端 | 客户端到服务器的 RPC 桥梁，本地 HUD 管理，Owner-only 数据 |
@@ -121,6 +121,44 @@ flowchart TD
 | `UHealthComponent` | 随 Owner Actor 存在 | 服务器改血量，客户端通过复制刷新 UI |
 | `UTankBuffComponent` | 随 Owner Actor 存在 | 服务器添加/移除 Buff，客户端显示 Buff |
 | `UBattleBlasterSessionSubsystem` | 每个进程都有 | Host/Join/LAN Search/Travel 等会话入口 |
+
+### 3.3 网络玩法模式继承结构
+
+`ANetworkBattleGameMode` 当前没有写死具体玩法规则，更适合作为所有网络战斗模式的公共基类，而不是“网络死斗模式本身”。
+
+推荐继承结构：
+
+```text
+ANetworkBattleGameMode
+├── ANetworkDeathmatchGameMode
+├── ANetworkTeamBattleGameMode
+└── ANetworkMOBAGameMode
+```
+
+`ANetworkBattleGameMode` 应保持“流程基类”定位，主要负责：
+
+- 连接进入和离开：`PostLogin()`、`Logout()`、`HandleStartingNewPlayer_Implementation()`。
+- 玩家身份：分配 `SlotId`、写入基础 `TeamId`、刷新连接人数。
+- Pawn 生命周期：选择出生点、Spawn Tank、Possess、初始化生命和弹药、绑定死亡事件。
+- 通用死亡入口：收到 `OnKilled` 后标记死亡、显示死亡倒计时、安排复活。
+- 网络 UI 入口：只调用 PlayerController 的 owner-only 方法或 Client RPC，不直接创建 UMG。
+
+具体网络玩法子类负责：
+
+- 死斗：击杀加分、自杀或环境死亡扣分、目标分胜利、个人排行榜。
+- 团队战：队伍分配、友伤过滤、团队分数、团队胜负。
+- MOBA：阵营分配、Tower / Turret 规则、核心塔被摧毁后的淘汰规则、复活条件、最终胜负。
+
+为了让子类更干净，后续可以逐步把基类中的关键节点改成可覆盖钩子，例如：
+
+```cpp
+virtual int32 ChooseTeamIdForSlot(int32 SlotId) const;
+virtual bool ShouldRespawnPlayer(ANetworkBattlePlayerState* PlayerState) const;
+virtual void HandleNetworkTankKilled(ATank* DeadTank, ATank* KillerTank);
+virtual void CheckNetworkGameOver();
+```
+
+原则：基类负责“网络对局怎么运转”，子类负责“这个模式怎么算赢、怎么算分、能不能复活、谁能打谁”。
 
 ---
 
@@ -142,6 +180,8 @@ flowchart TD
 联网模式里，客户端的选择需要通过 RPC 发给服务器，再由服务器写入 `PlayerState`。
 
 ### 4.2 GameMode
+
+在网络模块里，`ANetworkBattleGameMode` 应被视为网络战斗基类。不要把某一种具体玩法的计分或胜负规则直接写死在这个类里；需要做网络死斗、网络 MOBA、网络团队战时，新建子类并覆盖规则钩子。
 
 `GameMode` 是服务器权威类，只能在服务器上使用。
 
@@ -259,7 +299,7 @@ BP_NetworkBattlePlayerController
 | 系统 | 同步数据存放位置 | 当前同步内容 |
 | --- | --- | --- |
 | 玩家身份 | `ATankPlayerState` | `SlotId`、`TeamId`、`IsAlive` |
-| 玩家战斗统计 | `ATankPlayerState` | `KillCount`、`DeathCount`、`AssistCount` |
+| 玩家战斗统计 | `ATankPlayerState` | `KillCount`、`DeathCount`、`AssistCount`；`AttackerQueue` 只在服务端临时用于 Killer / Assist 归因 |
 | 玩家弹药显示 / 跨 Pawn 保留 | `ATankPlayerState` | `CurrentAmmo` |
 | 联机大厅准备状态 | `ANetworkBattlePlayerState` | `bIsReady` |
 | 对局公共状态 | `ANetworkBattleGameState` | `ConnectedPlayerCount`、`MaxNetworkPlayers` |
@@ -277,6 +317,8 @@ BP_NetworkBattlePlayerController
 | 可破坏物血量 | `UHealthComponent` | 可破坏物自己身上的血量组件 |
 | 尖刺 | `ASpikeTrap` | `ReplicatedState.State`、`ReplicatedState.StateStartServerTime` |
 | 油桶爆炸参数 | `AExplosiveBarrel` | 蓝图/本地配置为主，动态破坏状态由 `ADestructibleProp` 管 |
+
+`AttackerQueue` 不需要复制给客户端。它的职责是让服务器在玩家死亡时计算“谁是最近 7 秒内最后一个有效 Tank 攻击者、谁是助攻者”。客户端只需要看到结算后的 KDA 和分数，因此复制 `KillCount`、`DeathCount`、`AssistCount` 即可。
 
 判断原则：
 

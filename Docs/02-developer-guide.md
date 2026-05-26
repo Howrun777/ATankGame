@@ -381,14 +381,31 @@ Ghost 结束时有两条路径：
 - `CurrentBuffs`
 - `AttackerQueue`
 
-`RecordAttacker(ATank* Attacker)` 会把最近攻击者放到队头。`ProcessDeath()` 中：
+`AttackerQueue` 是当前项目的“仇人队列”击杀归因算法，用来解决玩家助攻、NPC 补刀、环境伤害和最终击杀归属问题。
 
-- 自己死亡数 +1。
+算法规则：
+
+- `ATank` 每次受到伤害时，只会把 `ATank` 类型攻击者传给 `RecordAttacker(ATank* Attacker)`。
+- 无效攻击者和自己攻击自己不会入队。
+- 同一个攻击者重复造成伤害时，会先从旧位置移除，再插入队头。
+- 队头永远表示最近一次有效 Tank 攻击者。
+- 队列记录 `TWeakObjectPtr<ATank>` 和最后攻击时间，避免攻击者销毁后留下野指针。
+- `CleanUpExpiredAttackers()` 每 1 秒运行一次，移除超过 7 秒或已经失效的攻击者。
+- 队列为空时停止清理 Timer，下一次受击时再重新启动。
+- PlayerState `EndPlay()`、死亡结算、重置新游戏时都会停止清理 Timer，避免生命周期残留。
+
+死亡结算规则：
+
+- `ProcessDeath()` 会先让自己 `DeathCount + 1`。
+- 结算前再调用一次 `CleanUpExpiredAttackers()`，确保最后结果只包含有效攻击者。
 - 队头攻击者算 Killer。
 - 其他有效攻击者算 Assist。
 - Killer 触发 `HandleKillConfirmed()` 和 `HandleKillReward()`。
-- 刷新相关真人玩家 KDA UI。
-- 广播 `DeadTank->OnKilled` 给 GameMode。
+- 刷新死亡者、Killer、Assist 相关真人玩家的 KDA UI。
+- 广播 `DeadTank->OnKilled(DeadTank, KillerTank)` 给 GameMode。
+- 结算后清空 `AttackerQueue`，等待复活后的新一轮战斗。
+
+这个算法的关键价值是：如果 NPC、Tower、尖刺、油桶等非玩家对象最终击杀了玩家，只要 7 秒内有玩家 Tank 对该玩家造成过伤害，击杀仍然可以归给最近的玩家攻击者；如果 7 秒内没有任何有效 Tank 攻击者，`KillerTank` 会是 `nullptr`，具体模式可以按自杀、环境死亡或不计分处理。
 
 各模式 PlayerState 的差异：
 
