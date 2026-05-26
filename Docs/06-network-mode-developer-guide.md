@@ -1,7 +1,7 @@
 # BattleBlaster 联网模式开发者文档
 
-> 版本：2026-05-19  
-> 目标：说明 BattleBlaster 后续开发联网模式时的模块架构、数据归属、服务器权威规则、迁移步骤和当前代码风险点。  
+> 版本：2026-05-27
+> 目标：说明 BattleBlaster 后续开发联网模式时的模块架构、数据归属、服务器权威规则、迁移步骤和当前代码风险点。
 > 范围：先以局域网 Listen Server 为第一阶段目标，后续再扩展 Dedicated Server、公网访问和内网穿透。
 
 ---
@@ -26,6 +26,96 @@ Source/BattleBlaster/Core/Networking/
 ├── BattleBlasterSessionSubsystem.h/.cpp
 └── BattleBlasterNetworkTypes.h
 ```
+
+### 1.1 未来网络入口宏观架构
+
+网络菜单建议按“连接方式”和“玩法模式”分层，不要把局域网死斗、服务器死斗、局域网 MOBA、服务器 MOBA 写成四套互相独立的玩法代码。
+
+目标入口流程：
+
+```text
+主菜单
+-> 网络游戏菜单
+   -> 局域网游戏
+      -> 加入：输入 IP:Port
+      -> 主持：进入游戏设置页
+   -> 服务器游戏
+      -> 加入：输入 IP:Port，后续可扩展服务器列表
+      -> 主持：进入游戏设置页，后续可扩展 Dedicated Server / 内网穿透配置
+
+游戏设置页
+-> 选择游戏模式：多人死斗 / 团队死斗 / MOBA / 团队 MOBA
+-> 选择玩家人数、AI 玩家数、地图、目标分数等
+-> HostNetworkGame(Settings)
+```
+
+推荐分成三层：
+
+```text
+连接层
+├── LAN
+│   ├── Host: OpenLevel(Map?listen)
+│   └── Join: ClientTravel(IP:Port)
+└── Server
+    ├── Host: Dedicated Server / 公网云服务器 / 内网穿透主机
+    └── Join: 公网 IP:Port / 后续服务器列表
+
+房间设置层
+└── FNetworkMatchSettings
+    ├── ConnectionType: LAN / Server
+    ├── ModeType: Deathmatch / TeamDeathmatch / MOBA / TeamMOBA
+    ├── Map
+    ├── MaxPlayers
+    ├── AIBotCount
+    └── TargetScore / 其他模式参数
+
+玩法模式层
+└── ANetworkBattleGameMode
+    ├── ANetworkDeathmatchGameMode
+    ├── ANetworkTeamDeathmatchGameMode
+    ├── ANetworkMOBAGameMode
+    └── ANetworkTeamMOBAGameMode
+```
+
+关键原则：
+
+- LAN 和 Server 只是连接、发现、部署方式不同，不应该拥有两套死斗或 MOBA 玩法代码。
+- 多人死斗、团队死斗、MOBA、团队 MOBA 应该是 `ANetworkBattleGameMode` 的不同子类。
+- UMG 蓝图负责绘制菜单、收集输入和调用 C++ 暴露的 `BlueprintCallable` 接口。
+- C++ 负责保存设置、校验设置、选择地图、选择 GameMode、Host / Join / Travel。
+- `GameInstance` 或 `GameInstanceSubsystem` 可以保存本机菜单临时设置，但进入对局后服务器才是权威来源。
+- 进入地图后，服务器应从 URL Options、Subsystem 或未来 Lobby 数据读取 `FNetworkMatchSettings`，再写入 `GameMode` / `GameState` / `PlayerState`。
+- 不要在 `ANetworkBattleGameMode` 里写菜单 UI、IP 输入、服务器列表、LAN 搜索 UI 或主菜单跳转细节。
+
+这部分目前是架构约定，不要求立刻实现完整 UI。后续新增 C++ 时，应优先补齐 `BattleBlasterNetworkTypes`、`BattleBlasterSessionSubsystem` 的设置结构和蓝图调用接口，让 UMG 蓝图只负责界面，不承载网络规则。
+
+### 1.2 Dedicated Server 兼容约束
+
+项目后续要同时支持两种运行方式：
+
+```text
+Listen Server
+-> 某个玩家客户端同时承担服务器职责
+-> 适合局域网、内网穿透、小范围测试
+
+Dedicated Server
+-> 独立服务器进程只跑权威规则，不渲染画面，也没有本地玩家 UI
+-> 适合真正的服务器游戏、公网房间、长期运行
+```
+
+两者运行形态不同，但网络玩法代码应按 Dedicated Server 标准写。原因是：Listen Server 只是比 Dedicated Server 多了一个同进程的本地客户端；服务器规则不应该依赖这个本地客户端存在。
+
+因此 `Modes/Network` 下的所有对局内代码必须遵守：
+
+- `GameMode` 不创建 UMG，不访问 Viewport，不播放本地 UI 动画。
+- `GameMode` 不使用 `GetFirstPlayerController()` 或 `GetPlayerController(0)` 代表房主或全局玩家。
+- `GameMode` 不依赖本机 `GameInstance` 的菜单状态推进规则；对局参数应来自 URL Options、服务器配置、Subsystem 或未来 Lobby 数据。
+- 公共状态写入 `GameState` / `PlayerState` / 复制 Actor。
+- 私有 UI 和输入逻辑放在 owning `PlayerController` 或 Widget。
+- 服务器逻辑用 `HasAuthority()` 判断，本地 UI / 输入用 `IsLocalController()` 或 `IsLocallyControlled()` 判断。
+- 网络玩法子类不能假设服务器上存在本地玩家、手柄、音频设备或屏幕。
+
+如果代码满足 Dedicated Server 要求，它通常也能在 Listen Server 上运行；反过来，只在 Listen Server 上能工作的代码不一定能在 Dedicated Server 上工作。
 
 第一版建议只做一个最小联网 FFA 或 2v2 模式，目标是先跑通：
 
@@ -81,11 +171,15 @@ Source/BattleBlaster/Core/Networking/
 
 ```mermaid
 flowchart TD
-    Menu["Main Menu / Network Lobby UI"]
+    Menu["Main Menu / Network Game Menu"]
+    Connection["Connection Type: LAN / Server"]
+    JoinSettings["Join: IP:Port"]
+    HostSettings["Host Settings: Mode / Players / AI / Map / Score"]
     Session["BattleBlasterSessionSubsystem"]
     Host["Host: OpenLevel(Map?listen)"]
     Join["Client: ClientTravel / OpenLevel(IP)"]
-    GM["NetworkBattleGameMode (Server Only)"]
+    Settings["FNetworkMatchSettings"]
+    GM["NetworkBattleGameMode subclass (Server Only)"]
     GS["NetworkBattleGameState (Replicated)"]
     PC["NetworkBattlePlayerController (Owner Client + Server Copy)"]
     PS["NetworkBattlePlayerState (Replicated)"]
@@ -93,7 +187,12 @@ flowchart TD
     Combat["Projectile / Health / Buff (Server Authoritative)"]
     UI["HUD / Scoreboard (Local UI)"]
 
-    Menu --> Session
+    Menu --> Connection
+    Connection --> JoinSettings
+    Connection --> HostSettings
+    JoinSettings --> Session
+    HostSettings --> Settings
+    Settings --> Session
     Session --> Host
     Session --> Join
     Host --> GM
@@ -149,7 +248,7 @@ ANetworkBattleGameMode
 - 团队战：队伍分配、友伤过滤、团队分数、团队胜负。
 - MOBA：阵营分配、Tower / Turret 规则、核心塔被摧毁后的淘汰规则、复活条件、最终胜负。
 
-为了让子类更干净，后续可以逐步把基类中的关键节点改成可覆盖钩子，例如：
+为了让子类更干净，基类已经提供了这些可覆盖钩子：
 
 ```cpp
 virtual int32 ChooseTeamIdForSlot(int32 SlotId) const;
@@ -157,6 +256,8 @@ virtual bool ShouldRespawnPlayer(ANetworkBattlePlayerState* PlayerState) const;
 virtual void HandleNetworkTankKilled(ATank* DeadTank, ATank* KillerTank);
 virtual void CheckNetworkGameOver();
 ```
+
+默认行为保持最小网络战斗链路不变：`ChooseTeamIdForSlot()` 返回 `SlotId`，`ShouldRespawnPlayer()` 默认允许复活，`HandleNetworkTankKilled()` 只处理死亡 UI 和复活调度，`CheckNetworkGameOver()` 默认为空。
 
 原则：基类负责“网络对局怎么运转”，子类负责“这个模式怎么算赢、怎么算分、能不能复活、谁能打谁”。
 

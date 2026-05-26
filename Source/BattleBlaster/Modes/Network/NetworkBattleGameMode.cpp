@@ -133,7 +133,7 @@ void ANetworkBattleGameMode::InitializePlayerIdentity(APlayerController* PlayerC
 	}
 
 	NetworkPS->SetSlotId(SlotId);
-	NetworkPS->SetTeamId(SlotId);
+	NetworkPS->SetTeamId(ChooseTeamIdForSlot(SlotId));
 	NetworkPS->SetReady(false);
 
 	UE_LOG(LogTemp, Display, TEXT("NetworkBattle: assigned SlotId=%d TeamId=%d to %s"),
@@ -303,7 +303,22 @@ int32 ANetworkBattleGameMode::CalculateInitialAmmoForTank(const ATank* Tank) con
 	return FMath::Clamp(FMath::FloorToInt(Tank->MaxAmmo * ClampedRatio), 0, Tank->MaxAmmo);
 }
 
+int32 ANetworkBattleGameMode::ChooseTeamIdForSlot(int32 SlotId) const
+{
+	return SlotId;
+}
+
+bool ANetworkBattleGameMode::ShouldRespawnPlayer(ANetworkBattlePlayerState* PlayerState) const
+{
+	return PlayerState != nullptr;
+}
+
 void ANetworkBattleGameMode::HandleTankKilled(ATank* DeadTank, ATank* KillerTank)
+{
+	HandleNetworkTankKilled(DeadTank, KillerTank);
+}
+
+void ANetworkBattleGameMode::HandleNetworkTankKilled(ATank* DeadTank, ATank* KillerTank)
 {
 	if (!DeadTank)
 	{
@@ -336,7 +351,16 @@ void ANetworkBattleGameMode::HandleTankKilled(ATank* DeadTank, ATank* KillerTank
 		DeadTankPC->ShowDeathScreenForOwner(RespawnDelay);
 	}
 
-	ScheduleRespawn(DeadPlayerController);
+	if (ShouldRespawnPlayer(NetworkPS))
+	{
+		ScheduleRespawn(DeadPlayerController);
+	}
+
+	CheckNetworkGameOver();
+}
+
+void ANetworkBattleGameMode::CheckNetworkGameOver()
+{
 }
 
 void ANetworkBattleGameMode::ScheduleRespawn(APlayerController* PlayerController)

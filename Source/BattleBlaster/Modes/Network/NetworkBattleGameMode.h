@@ -47,6 +47,11 @@ protected:
 	UFUNCTION()
 	void HandleTankKilled(ATank* DeadTank, ATank* KillerTank);
 
+	virtual int32 ChooseTeamIdForSlot(int32 SlotId) const;
+	virtual bool ShouldRespawnPlayer(ANetworkBattlePlayerState* PlayerState) const;
+	virtual void HandleNetworkTankKilled(ATank* DeadTank, ATank* KillerTank);
+	virtual void CheckNetworkGameOver();
+
 	int32 AllocateSlotId() const;
 	void InitializePlayerIdentity(APlayerController* PlayerController, int32 SlotId) const;
 	AActor* FindSpawnPointForSlot(int32 SlotId) const;
