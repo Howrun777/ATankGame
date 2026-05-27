@@ -1,14 +1,14 @@
-#include "Modes/Network/NetworkBattlePlayerController.h"
+#include "Modes/Network/NetworkPlayerControllerBase.h"
 
 #include "Shared/UI/BulletsWidget.h"
 #include "Shared/UI/HUDWidget.h"
 #include "Shared/UI/KDAWidget.h"
 #include "UObject/ConstructorHelpers.h"
 
-ANetworkBattlePlayerController::ANetworkBattlePlayerController()
+ANetworkPlayerControllerBase::ANetworkPlayerControllerBase()
 {
 	// These C++ defaults are fallbacks only. The production network mode should
-	// use BP_NetworkBattlePlayerController to assign widgets per mode.
+	// use BP_NetworkPlayerControllerBase to assign widgets per mode.
 	static ConstructorHelpers::FClassFinder<UHUDWidget> DefaultHUDWidgetClass(TEXT("/Game/Blueprints/Controller/WBP_HUD"));
 	if (DefaultHUDWidgetClass.Succeeded())
 	{
@@ -29,11 +29,11 @@ ANetworkBattlePlayerController::ANetworkBattlePlayerController()
 
 }
 
-void ANetworkBattlePlayerController::BeginPlay()
+void ANetworkPlayerControllerBase::BeginPlay()
 {
 	Super::BeginPlay();
 
-	UE_LOG(LogTemp, Display, TEXT("NetworkBattlePlayerController BeginPlay: Local=%d, NetMode=%d"),
+	UE_LOG(LogTemp, Display, TEXT("NetworkPlayerControllerBase BeginPlay: Local=%d, NetMode=%d"),
 		IsLocalController() ? 1 : 0,
 		static_cast<int32>(GetNetMode()));
 }

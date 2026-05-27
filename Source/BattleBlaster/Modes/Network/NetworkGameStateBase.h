@@ -2,15 +2,15 @@
 
 #include "CoreMinimal.h"
 #include "Shared/State/TankGameState.h"
-#include "NetworkBattleGameState.generated.h"
+#include "NetworkGameStateBase.generated.h"
 
 UCLASS()
-class BATTLEBLASTER_API ANetworkBattleGameState : public ATankGameState
+class BATTLEBLASTER_API ANetworkGameStateBase : public ATankGameState
 {
 	GENERATED_BODY()
 
 public:
-	ANetworkBattleGameState();
+	ANetworkGameStateBase();
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 

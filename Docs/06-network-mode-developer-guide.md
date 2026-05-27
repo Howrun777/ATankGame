@@ -14,10 +14,10 @@
 
 ```text
 Source/BattleBlaster/Modes/Network/
-├── NetworkBattleGameMode.h/.cpp
-├── NetworkBattleGameState.h/.cpp
-├── NetworkBattlePlayerState.h/.cpp
-├── NetworkBattlePlayerController.h/.cpp
+├── NetworkGameModeBase.h/.cpp
+├── NetworkGameStateBase.h/.cpp
+├── NetworkPlayerStateBase.h/.cpp
+├── NetworkPlayerControllerBase.h/.cpp
 └── UI/
     ├── NetworkLobbyWidget.h/.cpp
     └── NetworkScoreboardWidget.h/.cpp
@@ -70,7 +70,7 @@ Source/BattleBlaster/Core/Networking/
     └── TargetScore / 其他模式参数
 
 玩法模式层
-└── ANetworkBattleGameMode
+└── ANetworkGameModeBase
     ├── ANetworkDeathmatchGameMode
     ├── ANetworkTeamDeathmatchGameMode
     ├── ANetworkMOBAGameMode
@@ -80,12 +80,12 @@ Source/BattleBlaster/Core/Networking/
 关键原则：
 
 - LAN 和 Server 只是连接、发现、部署方式不同，不应该拥有两套死斗或 MOBA 玩法代码。
-- 多人死斗、团队死斗、MOBA、团队 MOBA 应该是 `ANetworkBattleGameMode` 的不同子类。
+- 多人死斗、团队死斗、MOBA、团队 MOBA 应该是 `ANetworkGameModeBase` 的不同子类。
 - UMG 蓝图负责绘制菜单、收集输入和调用 C++ 暴露的 `BlueprintCallable` 接口。
 - C++ 负责保存设置、校验设置、选择地图、选择 GameMode、Host / Join / Travel。
 - `GameInstance` 或 `GameInstanceSubsystem` 可以保存本机菜单临时设置，但进入对局后服务器才是权威来源。
 - 进入地图后，服务器应从 URL Options、Subsystem 或未来 Lobby 数据读取 `FNetworkMatchSettings`，再写入 `GameMode` / `GameState` / `PlayerState`。
-- 不要在 `ANetworkBattleGameMode` 里写菜单 UI、IP 输入、服务器列表、LAN 搜索 UI 或主菜单跳转细节。
+- 不要在 `ANetworkGameModeBase` 里写菜单 UI、IP 输入、服务器列表、LAN 搜索 UI 或主菜单跳转细节。
 
 这部分目前是架构约定，不要求立刻实现完整 UI。后续新增 C++ 时，应优先补齐 `BattleBlasterNetworkTypes`、`BattleBlasterSessionSubsystem` 的设置结构和蓝图调用接口，让 UMG 蓝图只负责界面，不承载网络规则。
 
@@ -147,11 +147,11 @@ Dedicated Server
 
 截至 2026-05-19，项目已经不再是“完全没有网络层”的状态。当前最小网络战斗链路已经具备：
 
-- `Modes/Network` 已有 `NetworkBattleGameMode`、`NetworkBattleGameState`、`NetworkBattlePlayerState`、`NetworkBattlePlayerController`。
+- `Modes/Network` 已有 `NetworkGameModeBase`、`NetworkGameStateBase`、`NetworkPlayerStateBase`、`NetworkPlayerControllerBase`。
 - `Core/Networking` 已有 `BattleBlasterSessionSubsystem`，用于 Host / Join 入口。
 - `ATankPlayerState` 已复制 `SlotId`、`TeamId`、`IsAlive`、`CurrentAmmo`、KDA。
-- `ANetworkBattlePlayerState` 已复制 `bIsReady`。
-- `ANetworkBattleGameState` 已复制连接人数和最大玩家数。
+- `ANetworkPlayerStateBase` 已复制 `bIsReady`。
+- `ANetworkGameStateBase` 已复制连接人数和最大玩家数。
 - `ATank` 已具备网络模式下的移动、转向、炮塔转向和开火 RPC。
 - `AProjectile` 已开启 Actor / Movement 复制，服务器负责命中与伤害。
 - `UHealthComponent` 已复制生命和护盾。
@@ -179,10 +179,10 @@ flowchart TD
     Host["Host: OpenLevel(Map?listen)"]
     Join["Client: ClientTravel / OpenLevel(IP)"]
     Settings["FNetworkMatchSettings"]
-    GM["NetworkBattleGameMode subclass (Server Only)"]
-    GS["NetworkBattleGameState (Replicated)"]
-    PC["NetworkBattlePlayerController (Owner Client + Server Copy)"]
-    PS["NetworkBattlePlayerState (Replicated)"]
+    GM["NetworkGameModeBase subclass (Server Only)"]
+    GS["NetworkGameStateBase (Replicated)"]
+    PC["NetworkPlayerControllerBase (Owner Client + Server Copy)"]
+    PS["NetworkPlayerStateBase (Replicated)"]
     Tank["ATank (Replicated Pawn)"]
     Combat["Projectile / Health / Buff (Server Authoritative)"]
     UI["HUD / Scoreboard (Local UI)"]
@@ -211,10 +211,10 @@ flowchart TD
 
 | 类 | 是否存在于客户端 | 主要职责 |
 | --- | --- | --- |
-| `ANetworkBattleGameMode` | 否，只在服务器 | 网络战斗基类：玩家加入/离开、分配槽位和基础队伍、生成 Pawn、死亡入口、复活、通用网络战斗流程 |
-| `ANetworkBattleGameState` | 是，复制 | 比赛状态、倒计时、全局分数、胜者、可公开的房间/比赛信息 |
-| `ANetworkBattlePlayerState` | 是，复制 | `SlotId`、`TeamId`、玩家名、坦克选择、KDA、死亡状态、准备状态 |
-| `ANetworkBattlePlayerController` | 服务器和所属客户端 | 客户端到服务器的 RPC 桥梁，本地 HUD 管理，Owner-only 数据 |
+| `ANetworkGameModeBase` | 否，只在服务器 | 网络战斗基类：玩家加入/离开、分配槽位和基础队伍、生成 Pawn、死亡入口、复活、通用网络战斗流程 |
+| `ANetworkGameStateBase` | 是，复制 | 比赛状态、倒计时、全局分数、胜者、可公开的房间/比赛信息 |
+| `ANetworkPlayerStateBase` | 是，复制 | `SlotId`、`TeamId`、玩家名、坦克选择、KDA、死亡状态、准备状态 |
+| `ANetworkPlayerControllerBase` | 服务器和所属客户端 | 客户端到服务器的 RPC 桥梁，本地 HUD 管理，Owner-only 数据 |
 | `ATank` | 是，复制 | 玩家实际控制的 Pawn，移动、开火入口、当前战斗状态 |
 | `AProjectile` | 是，复制 | 服务器生成、服务器命中、客户端显示 |
 | `UHealthComponent` | 随 Owner Actor 存在 | 服务器改血量，客户端通过复制刷新 UI |
@@ -223,18 +223,18 @@ flowchart TD
 
 ### 3.3 网络玩法模式继承结构
 
-`ANetworkBattleGameMode` 当前没有写死具体玩法规则，更适合作为所有网络战斗模式的公共基类，而不是“网络死斗模式本身”。
+`ANetworkGameModeBase` 当前没有写死具体玩法规则，更适合作为所有网络战斗模式的公共基类，而不是“网络死斗模式本身”。
 
 推荐继承结构：
 
 ```text
-ANetworkBattleGameMode
+ANetworkGameModeBase
 ├── ANetworkDeathmatchGameMode
 ├── ANetworkTeamBattleGameMode
 └── ANetworkMOBAGameMode
 ```
 
-`ANetworkBattleGameMode` 应保持“流程基类”定位，主要负责：
+`ANetworkGameModeBase` 应保持“流程基类”定位，主要负责：
 
 - 连接进入和离开：`PostLogin()`、`Logout()`、`HandleStartingNewPlayer_Implementation()`。
 - 玩家身份：分配 `SlotId`、写入基础 `TeamId`、刷新连接人数。
@@ -252,7 +252,7 @@ ANetworkBattleGameMode
 
 ```cpp
 virtual int32 ChooseTeamIdForSlot(int32 SlotId) const;
-virtual bool ShouldRespawnPlayer(ANetworkBattlePlayerState* PlayerState) const;
+virtual bool ShouldRespawnPlayer(ANetworkPlayerStateBase* PlayerState) const;
 virtual void HandleNetworkTankKilled(ATank* DeadTank, ATank* KillerTank);
 virtual void CheckNetworkGameOver();
 ```
@@ -282,7 +282,7 @@ virtual void CheckNetworkGameOver();
 
 ### 4.2 GameMode
 
-在网络模块里，`ANetworkBattleGameMode` 应被视为网络战斗基类。不要把某一种具体玩法的计分或胜负规则直接写死在这个类里；需要做网络死斗、网络 MOBA、网络团队战时，新建子类并覆盖规则钩子。
+在网络模块里，`ANetworkGameModeBase` 应被视为网络战斗基类。不要把某一种具体玩法的计分或胜负规则直接写死在这个类里；需要做网络死斗、网络 MOBA、网络团队战时，新建子类并覆盖规则钩子。
 
 `GameMode` 是服务器权威类，只能在服务器上使用。
 
@@ -361,8 +361,8 @@ virtual void CheckNetworkGameOver();
 当前网络模式的 PlayerController 继承链建议固定为：
 
 ```text
-BP_NetworkBattlePlayerController
--> ANetworkBattlePlayerController
+BP_NetworkPlayerControllerBase
+-> ANetworkPlayerControllerBase
 -> ATankPlayerController
 -> APlayerController
 ```
@@ -370,8 +370,8 @@ BP_NetworkBattlePlayerController
 职责拆分：
 
 - `ATankPlayerController`：共享战斗 UI 和输入基础能力，例如 HUD、弹药 UI、KDA、暂停、回城、死亡倒计时、手柄震动。
-- `ANetworkBattlePlayerController`：网络模式专用扩展点，保留网络模式默认 HUD 类、日志、未来网络专属 UI/RPC 入口。
-- `BP_NetworkBattlePlayerController`：编辑器资产挂载层。网络模式使用的 HUD、Ammo、KDA、DeathScreen 等 Widget 类应该挂在这个蓝图子类上。
+- `ANetworkPlayerControllerBase`：网络模式专用扩展点，保留网络模式默认 HUD 类、日志、未来网络专属 UI/RPC 入口。
+- `BP_NetworkPlayerControllerBase`：编辑器资产挂载层。网络模式使用的 HUD、Ammo、KDA、DeathScreen 等 Widget 类应该挂在这个蓝图子类上。
 
 不要在网络 GameMode 里直接创建玩家个人 HUD。GameMode 可以决定玩家死亡、复活、得分和胜负，但让某个客户端显示 UI 时，应调用该玩家 PlayerController 的 Client RPC 或 owner-only 方法。
 
@@ -402,8 +402,8 @@ BP_NetworkBattlePlayerController
 | 玩家身份 | `ATankPlayerState` | `SlotId`、`TeamId`、`IsAlive` |
 | 玩家战斗统计 | `ATankPlayerState` | `KillCount`、`DeathCount`、`AssistCount`；`AttackerQueue` 只在服务端临时用于 Killer / Assist 归因 |
 | 玩家弹药显示 / 跨 Pawn 保留 | `ATankPlayerState` | `CurrentAmmo` |
-| 联机大厅准备状态 | `ANetworkBattlePlayerState` | `bIsReady` |
-| 对局公共状态 | `ANetworkBattleGameState` | `ConnectedPlayerCount`、`MaxNetworkPlayers` |
+| 联机大厅准备状态 | `ANetworkPlayerStateBase` | `bIsReady` |
+| 对局公共状态 | `ANetworkGameStateBase` | `ConnectedPlayerCount`、`MaxNetworkPlayers` |
 | Tank 移动 / 开火输入 | `ATank` | `ServerMoveInput`、`ServerTurnInput`、`ServerTurretTurnInput`、`ServerFire` |
 | Tank 强制校正 | `ATank` | `ClientCorrectTankTransform` |
 | Tank 死亡表现 | `ATank` | `MulticastHandleDestruction` |
@@ -440,7 +440,7 @@ BP_NetworkBattlePlayerController
 -> SessionSubsystem 记录本机 Host 设置
 -> OpenLevel(NetworkBattleMap, true, "?listen")
 -> 服务器加载地图
--> NetworkBattleGameMode::BeginPlay
+-> NetworkGameModeBase::BeginPlay
 -> Host 玩家进入 PostLogin
 -> 分配 SlotId / TeamId
 -> 写入 PlayerState
@@ -650,22 +650,24 @@ Buff 第一版建议服务器独占修改权限：
 
 ### 9.0 网络模式 PlayerController 蓝图约定
 
-网络模式建议使用独立的 `BP_NetworkBattlePlayerController`，父类选择 `ANetworkBattlePlayerController`。不要直接在网络 GameMode 中使用本地分屏的 `BP_TankPlayerController`，除非只是临时测试。
+网络模式建议使用独立的 `BP_NetworkPlayerControllerBase`，父类选择 `ANetworkPlayerControllerBase`。不要直接在网络 GameMode 中使用本地分屏的 `BP_TankPlayerController`，除非只是临时测试。
 
 推荐配置：
 
 ```text
-NetworkBattleGameMode / BP_NetworkBattleGameMode
--> Player Controller Class = BP_NetworkBattlePlayerController
+NetworkGameModeBase / BP_NetworkGameModeBase
+-> Player Controller Class = BP_NetworkPlayerControllerBase
 ```
 
-`BP_NetworkBattlePlayerController` 中应挂载：
+`BP_NetworkPlayerControllerBase` 中应挂载：
 
 - `HUDWidgetClass`
 - `AmmoWidgetClass`
 - `KDAWidgetClass`
 - `DeathScreenClass`
 - 网络模式未来专属的 Lobby、Scoreboard、Ready、Connection 状态 UI
+
+本次网络基类重命名采用“C++ 改为 `Network*Base`，编辑器中新建 BP 子类”的方式。旧的 `BP_NetworkBattleGameMode` / `BP_NetworkBattlePlayerController` 不需要原地迁移；确认地图和网络模式都改用新的 `BP_NetworkGameModeBase` / `BP_NetworkPlayerControllerBase` 后，可以在编辑器中删除旧 BP 资产。
 
 这样做的目的不是复制一套 UI 代码，而是把“通用战斗 UI 逻辑”和“网络模式资产配置/专属扩展”分开。通用创建逻辑仍然在 `ATankPlayerController`，网络模式只通过子类和蓝图决定默认资产与网络专属行为。
 
@@ -829,7 +831,7 @@ Unreal 实时游戏主要依赖 UDP。内网穿透方案必须支持 UDP 转发�
 - 主菜单加 Host / Join IP 入口。
 - Host 打开 `NetworkBattleMap?listen`。
 - Client 输入 IP 加入。
-- `NetworkBattleGameMode::PostLogin` 打日志。
+- `NetworkGameModeBase::PostLogin` 打日志。
 
 验收：
 
@@ -842,7 +844,7 @@ Unreal 实时游戏主要依赖 UDP。内网穿透方案必须支持 UDP 转发�
 
 内容：
 
-- 新建 `NetworkBattlePlayerState`。
+- 新建 `NetworkPlayerStateBase`。
 - 复制 `SlotId`、`TeamId`、Ready、TankClass。
 - `PostLogin` 分配槽位。
 - 服务器 Spawn Tank 并 Possess。
@@ -1071,7 +1073,7 @@ Net PktLagVariance=0
 1. 新建 `Modes/Network` 目录和四个核心类：GameMode、GameState、PlayerState、PlayerController。
 2. 新建 `Core/Networking/BattleBlasterSessionSubsystem`，只实现 Host/Join IP。
 3. 做 `PostLogin` 分配 `SlotId`、`TeamId`，先只打日志。
-4. 让 `NetworkBattlePlayerState` 复制身份字段。
+4. 让 `NetworkPlayerStateBase` 复制身份字段。
 5. 服务器 Spawn 一个默认 Tank，并 Possess。
 6. 开启 Tank 复制和移动复制。
 7. 改造网络模式下的输入和移动 RPC。

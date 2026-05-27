@@ -2,20 +2,20 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameMode.h"
-#include "NetworkBattleGameMode.generated.h"
+#include "NetworkGameModeBase.generated.h"
 
 class APlayerStart;
 class ATank;
-class ANetworkBattleGameState;
-class ANetworkBattlePlayerState;
+class ANetworkGameStateBase;
+class ANetworkPlayerStateBase;
 
 UCLASS()
-class BATTLEBLASTER_API ANetworkBattleGameMode : public AGameMode
+class BATTLEBLASTER_API ANetworkGameModeBase : public AGameMode
 {
 	GENERATED_BODY()
 
 public:
-	ANetworkBattleGameMode();
+	ANetworkGameModeBase();
 
 	virtual void BeginPlay() override;
 	virtual void PostLogin(APlayerController* NewPlayer) override;
@@ -48,7 +48,7 @@ protected:
 	void HandleTankKilled(ATank* DeadTank, ATank* KillerTank);
 
 	virtual int32 ChooseTeamIdForSlot(int32 SlotId) const;
-	virtual bool ShouldRespawnPlayer(ANetworkBattlePlayerState* PlayerState) const;
+	virtual bool ShouldRespawnPlayer(ANetworkPlayerStateBase* PlayerState) const;
 	virtual void HandleNetworkTankKilled(ATank* DeadTank, ATank* KillerTank);
 	virtual void CheckNetworkGameOver();
 
@@ -56,11 +56,11 @@ protected:
 	void InitializePlayerIdentity(APlayerController* PlayerController, int32 SlotId) const;
 	AActor* FindSpawnPointForSlot(int32 SlotId) const;
 	void SpawnTankForPlayer(APlayerController* PlayerController);
-	void InitializeSpawnedTank(ATank* NewTank, APlayerController* PlayerController, ANetworkBattlePlayerState* NetworkPS, bool bResetResources);
+	void InitializeSpawnedTank(ATank* NewTank, APlayerController* PlayerController, ANetworkPlayerStateBase* NetworkPS, bool bResetResources);
 	int32 CalculateInitialAmmoForTank(const ATank* Tank) const;
 	void ScheduleRespawn(APlayerController* PlayerController);
 	void RespawnPlayer(APlayerController* PlayerController);
 	void RefreshConnectedPlayerCount() const;
 
-	ANetworkBattleGameState* GetNetworkGameState() const;
+	ANetworkGameStateBase* GetNetworkGameState() const;
 };

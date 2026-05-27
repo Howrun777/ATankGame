@@ -571,10 +571,10 @@ Source/BattleBlaster/Modes/Network/
 
 ```text
 UBattleBlasterSessionSubsystem
-ANetworkBattleGameMode
-ANetworkBattleGameState
-ANetworkBattlePlayerState
-ANetworkBattlePlayerController
+ANetworkGameModeBase
+ANetworkGameStateBase
+ANetworkPlayerStateBase
+ANetworkPlayerControllerBase
 ```
 
 ### 11.3 最小功能
@@ -582,8 +582,8 @@ ANetworkBattlePlayerController
 - 主菜单或临时测试入口调用 Host。
 - Host 打开 `NetworkBattleMap?listen`。
 - Client 输入 IP 后连接 Host。
-- `ANetworkBattleGameMode::PostLogin` 打印玩家加入日志。
-- `ANetworkBattleGameMode::Logout` 打印玩家离开日志。
+- `ANetworkGameModeBase::PostLogin` 打印玩家加入日志。
+- `ANetworkGameModeBase::Logout` 打印玩家离开日志。
 - 暂时不生成 Tank。
 - 暂时不做移动和战斗。
 
@@ -602,7 +602,7 @@ ANetworkBattlePlayerController
 阶段 2 再做服务器身份分配和 Tank 生成：
 
 - `PostLogin` 分配 `SlotId` / `TeamId`。
-- 写入 `NetworkBattlePlayerState`。
+- 写入 `NetworkPlayerStateBase`。
 - `SlotId` / `TeamId` 加复制。
 - 服务器 Spawn Tank。
 - 服务器 Possess。

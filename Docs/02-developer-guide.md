@@ -146,8 +146,8 @@ APlayerState
 
 | 数据类型 | 推荐归属 |
 | --- | --- |
-| 玩家身份、槽位、队伍、KDA、跨 Pawn 弹药显示 | `ATankPlayerState` / `ANetworkBattlePlayerState` |
-| 对局人数、比赛阶段、全局比分、胜负状态 | `ANetworkBattleGameState` 或具体模式 GameState |
+| 玩家身份、槽位、队伍、KDA、跨 Pawn 弹药显示 | `ATankPlayerState` / `ANetworkPlayerStateBase` |
+| 对局人数、比赛阶段、全局比分、胜负状态 | `ANetworkGameStateBase` 或具体模式 GameState |
 | Tank 移动、转向、炮塔输入、开火请求、死亡表现 | `ATank` |
 | 血量和护盾 | `UHealthComponent` |
 | Tank 身上的 Buff UI 状态 | `UTankBuffComponent` |

@@ -1,21 +1,21 @@
-#include "Modes/Network/NetworkBattleGameMode.h"
+#include "Modes/Network/NetworkGameModeBase.h"
 
 #include "EngineUtils.h"
 #include "GameFramework/PlayerStart.h"
 #include "Kismet/GameplayStatics.h"
-#include "Modes/Network/NetworkBattleGameState.h"
-#include "Modes/Network/NetworkBattlePlayerController.h"
-#include "Modes/Network/NetworkBattlePlayerState.h"
+#include "Modes/Network/NetworkGameStateBase.h"
+#include "Modes/Network/NetworkPlayerControllerBase.h"
+#include "Modes/Network/NetworkPlayerStateBase.h"
 #include "Shared/Combat/HealthComponent.h"
 #include "Shared/Controllers/TankPlayerController.h"
 #include "Shared/Pawns/Tank.h"
 #include "TimerManager.h"
 
-ANetworkBattleGameMode::ANetworkBattleGameMode()
+ANetworkGameModeBase::ANetworkGameModeBase()
 {
-	GameStateClass = ANetworkBattleGameState::StaticClass();
-	PlayerStateClass = ANetworkBattlePlayerState::StaticClass();
-	PlayerControllerClass = ANetworkBattlePlayerController::StaticClass();
+	GameStateClass = ANetworkGameStateBase::StaticClass();
+	PlayerStateClass = ANetworkPlayerStateBase::StaticClass();
+	PlayerControllerClass = ANetworkPlayerControllerBase::StaticClass();
 	DefaultPawnClass = nullptr;
 
 	MaxNetworkPlayers = 4;
@@ -26,22 +26,22 @@ ANetworkBattleGameMode::ANetworkBattleGameMode()
 	TankClass = ATank::StaticClass();
 }
 
-void ANetworkBattleGameMode::BeginPlay()
+void ANetworkGameModeBase::BeginPlay()
 {
 	Super::BeginPlay();
 
 	ActiveTanks.SetNum(MaxNetworkPlayers);
 
-	if (ANetworkBattleGameState* NetworkGS = GetNetworkGameState())
+	if (ANetworkGameStateBase* NetworkGS = GetNetworkGameState())
 	{
 		NetworkGS->SetMaxNetworkPlayers(MaxNetworkPlayers);
 		NetworkGS->SetConnectedPlayerCount(0);
 	}
 
-	UE_LOG(LogTemp, Display, TEXT("NetworkBattleGameMode BeginPlay. MaxNetworkPlayers=%d"), MaxNetworkPlayers);
+	UE_LOG(LogTemp, Display, TEXT("NetworkGameModeBase BeginPlay. MaxNetworkPlayers=%d"), MaxNetworkPlayers);
 }
 
-void ANetworkBattleGameMode::PostLogin(APlayerController* NewPlayer)
+void ANetworkGameModeBase::PostLogin(APlayerController* NewPlayer)
 {
 	Super::PostLogin(NewPlayer);
 
@@ -49,9 +49,9 @@ void ANetworkBattleGameMode::PostLogin(APlayerController* NewPlayer)
 	RefreshConnectedPlayerCount();
 }
 
-void ANetworkBattleGameMode::Logout(AController* Exiting)
+void ANetworkGameModeBase::Logout(AController* Exiting)
 {
-	if (ANetworkBattlePlayerState* NetworkPS = Exiting ? Exiting->GetPlayerState<ANetworkBattlePlayerState>() : nullptr)
+	if (ANetworkPlayerStateBase* NetworkPS = Exiting ? Exiting->GetPlayerState<ANetworkPlayerStateBase>() : nullptr)
 	{
 		const int32 SlotId = NetworkPS->GetSlotId();
 		if (ActiveTanks.IsValidIndex(SlotId) && ActiveTanks[SlotId])
@@ -67,14 +67,14 @@ void ANetworkBattleGameMode::Logout(AController* Exiting)
 	RefreshConnectedPlayerCount();
 }
 
-void ANetworkBattleGameMode::HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer)
+void ANetworkGameModeBase::HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer)
 {
 	if (!NewPlayer)
 	{
 		return;
 	}
 
-	if (ANetworkBattlePlayerState* NetworkPS = NewPlayer->GetPlayerState<ANetworkBattlePlayerState>())
+	if (ANetworkPlayerStateBase* NetworkPS = NewPlayer->GetPlayerState<ANetworkPlayerStateBase>())
 	{
 		if (NetworkPS->GetSlotId() < 0)
 		{
@@ -94,7 +94,7 @@ void ANetworkBattleGameMode::HandleStartingNewPlayer_Implementation(APlayerContr
 	RefreshConnectedPlayerCount();
 }
 
-int32 ANetworkBattleGameMode::AllocateSlotId() const
+int32 ANetworkGameModeBase::AllocateSlotId() const
 {
 	const AGameStateBase* GS = GameState;
 	if (!GS)
@@ -107,7 +107,7 @@ int32 ANetworkBattleGameMode::AllocateSlotId() const
 		bool bUsed = false;
 		for (APlayerState* PlayerState : GS->PlayerArray)
 		{
-			const ANetworkBattlePlayerState* NetworkPS = Cast<ANetworkBattlePlayerState>(PlayerState);
+			const ANetworkPlayerStateBase* NetworkPS = Cast<ANetworkPlayerStateBase>(PlayerState);
 			if (NetworkPS && NetworkPS->GetSlotId() == Candidate)
 			{
 				bUsed = true;
@@ -124,9 +124,9 @@ int32 ANetworkBattleGameMode::AllocateSlotId() const
 	return -1;
 }
 
-void ANetworkBattleGameMode::InitializePlayerIdentity(APlayerController* PlayerController, int32 SlotId) const
+void ANetworkGameModeBase::InitializePlayerIdentity(APlayerController* PlayerController, int32 SlotId) const
 {
-	ANetworkBattlePlayerState* NetworkPS = PlayerController ? PlayerController->GetPlayerState<ANetworkBattlePlayerState>() : nullptr;
+	ANetworkPlayerStateBase* NetworkPS = PlayerController ? PlayerController->GetPlayerState<ANetworkPlayerStateBase>() : nullptr;
 	if (!NetworkPS)
 	{
 		return;
@@ -142,7 +142,7 @@ void ANetworkBattleGameMode::InitializePlayerIdentity(APlayerController* PlayerC
 		*GetNameSafe(PlayerController));
 }
 
-AActor* ANetworkBattleGameMode::FindSpawnPointForSlot(int32 SlotId) const
+AActor* ANetworkGameModeBase::FindSpawnPointForSlot(int32 SlotId) const
 {
 	UWorld* World = GetWorld();
 	if (!World)
@@ -175,9 +175,9 @@ AActor* ANetworkBattleGameMode::FindSpawnPointForSlot(int32 SlotId) const
 	return PlayerStarts.Num() > 0 ? PlayerStarts[0] : nullptr;
 }
 
-void ANetworkBattleGameMode::SpawnTankForPlayer(APlayerController* PlayerController)
+void ANetworkGameModeBase::SpawnTankForPlayer(APlayerController* PlayerController)
 {
-	ANetworkBattlePlayerState* NetworkPS = PlayerController ? PlayerController->GetPlayerState<ANetworkBattlePlayerState>() : nullptr;
+	ANetworkPlayerStateBase* NetworkPS = PlayerController ? PlayerController->GetPlayerState<ANetworkPlayerStateBase>() : nullptr;
 	if (!PlayerController || !NetworkPS)
 	{
 		return;
@@ -203,7 +203,7 @@ void ANetworkBattleGameMode::SpawnTankForPlayer(APlayerController* PlayerControl
 			return;
 		}
 
-		ActiveTanks[SlotId]->OnKilled.RemoveDynamic(this, &ANetworkBattleGameMode::HandleTankKilled);
+		ActiveTanks[SlotId]->OnKilled.RemoveDynamic(this, &ANetworkGameModeBase::HandleTankKilled);
 		ActiveTanks[SlotId]->Destroy();
 		ActiveTanks[SlotId] = nullptr;
 	}
@@ -243,7 +243,7 @@ void ANetworkBattleGameMode::SpawnTankForPlayer(APlayerController* PlayerControl
 		NetworkPS->GetTeamId());
 }
 
-void ANetworkBattleGameMode::InitializeSpawnedTank(ATank* NewTank, APlayerController* PlayerController, ANetworkBattlePlayerState* NetworkPS, bool bResetResources)
+void ANetworkGameModeBase::InitializeSpawnedTank(ATank* NewTank, APlayerController* PlayerController, ANetworkPlayerStateBase* NetworkPS, bool bResetResources)
 {
 	if (!NewTank || !PlayerController || !NetworkPS)
 	{
@@ -288,11 +288,11 @@ void ANetworkBattleGameMode::InitializeSpawnedTank(ATank* NewTank, APlayerContro
 		}
 	}
 
-	NewTank->OnKilled.RemoveDynamic(this, &ANetworkBattleGameMode::HandleTankKilled);
-	NewTank->OnKilled.AddDynamic(this, &ANetworkBattleGameMode::HandleTankKilled);
+	NewTank->OnKilled.RemoveDynamic(this, &ANetworkGameModeBase::HandleTankKilled);
+	NewTank->OnKilled.AddDynamic(this, &ANetworkGameModeBase::HandleTankKilled);
 }
 
-int32 ANetworkBattleGameMode::CalculateInitialAmmoForTank(const ATank* Tank) const
+int32 ANetworkGameModeBase::CalculateInitialAmmoForTank(const ATank* Tank) const
 {
 	if (!Tank)
 	{
@@ -303,22 +303,22 @@ int32 ANetworkBattleGameMode::CalculateInitialAmmoForTank(const ATank* Tank) con
 	return FMath::Clamp(FMath::FloorToInt(Tank->MaxAmmo * ClampedRatio), 0, Tank->MaxAmmo);
 }
 
-int32 ANetworkBattleGameMode::ChooseTeamIdForSlot(int32 SlotId) const
+int32 ANetworkGameModeBase::ChooseTeamIdForSlot(int32 SlotId) const
 {
 	return SlotId;
 }
 
-bool ANetworkBattleGameMode::ShouldRespawnPlayer(ANetworkBattlePlayerState* PlayerState) const
+bool ANetworkGameModeBase::ShouldRespawnPlayer(ANetworkPlayerStateBase* PlayerState) const
 {
 	return PlayerState != nullptr;
 }
 
-void ANetworkBattleGameMode::HandleTankKilled(ATank* DeadTank, ATank* KillerTank)
+void ANetworkGameModeBase::HandleTankKilled(ATank* DeadTank, ATank* KillerTank)
 {
 	HandleNetworkTankKilled(DeadTank, KillerTank);
 }
 
-void ANetworkBattleGameMode::HandleNetworkTankKilled(ATank* DeadTank, ATank* KillerTank)
+void ANetworkGameModeBase::HandleNetworkTankKilled(ATank* DeadTank, ATank* KillerTank)
 {
 	if (!DeadTank)
 	{
@@ -326,7 +326,7 @@ void ANetworkBattleGameMode::HandleNetworkTankKilled(ATank* DeadTank, ATank* Kil
 	}
 
 	APlayerController* DeadPlayerController = Cast<APlayerController>(DeadTank->GetController());
-	ANetworkBattlePlayerState* NetworkPS = DeadPlayerController ? DeadPlayerController->GetPlayerState<ANetworkBattlePlayerState>() : DeadTank->GetPlayerState<ANetworkBattlePlayerState>();
+	ANetworkPlayerStateBase* NetworkPS = DeadPlayerController ? DeadPlayerController->GetPlayerState<ANetworkPlayerStateBase>() : DeadTank->GetPlayerState<ANetworkPlayerStateBase>();
 	if (!DeadPlayerController && NetworkPS)
 	{
 		DeadPlayerController = Cast<APlayerController>(NetworkPS->GetOwner());
@@ -359,11 +359,11 @@ void ANetworkBattleGameMode::HandleNetworkTankKilled(ATank* DeadTank, ATank* Kil
 	CheckNetworkGameOver();
 }
 
-void ANetworkBattleGameMode::CheckNetworkGameOver()
+void ANetworkGameModeBase::CheckNetworkGameOver()
 {
 }
 
-void ANetworkBattleGameMode::ScheduleRespawn(APlayerController* PlayerController)
+void ANetworkGameModeBase::ScheduleRespawn(APlayerController* PlayerController)
 {
 	if (!PlayerController)
 	{
@@ -390,9 +390,9 @@ void ANetworkBattleGameMode::ScheduleRespawn(APlayerController* PlayerController
 	GetWorldTimerManager().SetTimer(RespawnTimerHandle, RespawnDelegate, RespawnDelay, false);
 }
 
-void ANetworkBattleGameMode::RespawnPlayer(APlayerController* PlayerController)
+void ANetworkGameModeBase::RespawnPlayer(APlayerController* PlayerController)
 {
-	ANetworkBattlePlayerState* NetworkPS = PlayerController ? PlayerController->GetPlayerState<ANetworkBattlePlayerState>() : nullptr;
+	ANetworkPlayerStateBase* NetworkPS = PlayerController ? PlayerController->GetPlayerState<ANetworkPlayerStateBase>() : nullptr;
 	if (!PlayerController || !NetworkPS)
 	{
 		return;
@@ -422,7 +422,7 @@ void ANetworkBattleGameMode::RespawnPlayer(APlayerController* PlayerController)
 
 	if (OldTank && IsValid(OldTank))
 	{
-		OldTank->OnKilled.RemoveDynamic(this, &ANetworkBattleGameMode::HandleTankKilled);
+		OldTank->OnKilled.RemoveDynamic(this, &ANetworkGameModeBase::HandleTankKilled);
 		if (PlayerController->GetPawn() == OldTank)
 		{
 			PlayerController->UnPossess();
@@ -433,16 +433,16 @@ void ANetworkBattleGameMode::RespawnPlayer(APlayerController* PlayerController)
 	SpawnTankForPlayer(PlayerController);
 }
 
-void ANetworkBattleGameMode::RefreshConnectedPlayerCount() const
+void ANetworkGameModeBase::RefreshConnectedPlayerCount() const
 {
-	if (ANetworkBattleGameState* NetworkGS = GetNetworkGameState())
+	if (ANetworkGameStateBase* NetworkGS = GetNetworkGameState())
 	{
 		const int32 PlayerCount = GameState ? GameState->PlayerArray.Num() : 0;
 		NetworkGS->SetConnectedPlayerCount(PlayerCount);
 	}
 }
 
-ANetworkBattleGameState* ANetworkBattleGameMode::GetNetworkGameState() const
+ANetworkGameStateBase* ANetworkGameModeBase::GetNetworkGameState() const
 {
-	return GetGameState<ANetworkBattleGameState>();
+	return GetGameState<ANetworkGameStateBase>();
 }
