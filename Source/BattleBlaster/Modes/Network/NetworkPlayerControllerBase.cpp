@@ -1,8 +1,11 @@
 #include "Modes/Network/NetworkPlayerControllerBase.h"
 
+#include "Blueprint/UserWidget.h"
+#include "Modes/Network/NetworkDeathmatchGameState.h"
 #include "Shared/UI/BulletsWidget.h"
 #include "Shared/UI/HUDWidget.h"
 #include "Shared/UI/KDAWidget.h"
+#include "Shared/UI/ScoresDisplayWidget.h"
 #include "UObject/ConstructorHelpers.h"
 
 ANetworkPlayerControllerBase::ANetworkPlayerControllerBase()
@@ -36,4 +39,100 @@ void ANetworkPlayerControllerBase::BeginPlay()
 	UE_LOG(LogTemp, Display, TEXT("NetworkPlayerControllerBase BeginPlay: Local=%d, NetMode=%d"),
 		IsLocalController() ? 1 : 0,
 		static_cast<int32>(GetNetMode()));
+
+	InitializeNetworkScoreUI();
+}
+
+void ANetworkPlayerControllerBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	GetWorldTimerManager().ClearTimer(NetworkScoreUIRetryTimerHandle);
+	UnbindDeathmatchScoreState();
+
+	if (IsValid(ScoresWidget))
+	{
+		ScoresWidget->RemoveFromParent();
+		ScoresWidget = nullptr;
+	}
+
+	Super::EndPlay(EndPlayReason);
+}
+
+void ANetworkPlayerControllerBase::InitializeNetworkScoreUI()
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+
+	if (ScoresWidgetClass && !ScoresWidget)
+	{
+		ScoresWidget = CreateWidget<UScoresDisplayWidget>(this, ScoresWidgetClass);
+		if (ScoresWidget)
+		{
+			ScoresWidget->AddToPlayerScreen();
+		}
+	}
+
+	ANetworkDeathmatchGameState* DeathmatchGameState = GetWorld() ? GetWorld()->GetGameState<ANetworkDeathmatchGameState>() : nullptr;
+	BindDeathmatchScoreState(DeathmatchGameState);
+	RefreshNetworkScoreUI();
+
+	if (!DeathmatchGameState && NetworkScoreUIRetryCount < 20)
+	{
+		++NetworkScoreUIRetryCount;
+		GetWorldTimerManager().SetTimer(NetworkScoreUIRetryTimerHandle, this, &ANetworkPlayerControllerBase::InitializeNetworkScoreUI, 0.25f, false);
+	}
+}
+
+void ANetworkPlayerControllerBase::RefreshNetworkScoreUI()
+{
+	if (!IsLocalController() || !ScoresWidget)
+	{
+		return;
+	}
+
+	const ANetworkDeathmatchGameState* DeathmatchGameState = GetWorld() ? GetWorld()->GetGameState<ANetworkDeathmatchGameState>() : nullptr;
+	if (!DeathmatchGameState)
+	{
+		return;
+	}
+
+	const int32 VisiblePlayerCount = FMath::Clamp(DeathmatchGameState->PlayerScores.Num(), 2, 4);
+	ScoresWidget->SetVisiblePlayerCount(VisiblePlayerCount);
+	ScoresWidget->InitTargetScore(DeathmatchGameState->TargetScore);
+	ScoresWidget->UpdateScoresFour(
+		DeathmatchGameState->GetPlayerScore(0),
+		DeathmatchGameState->GetPlayerScore(1),
+		DeathmatchGameState->GetPlayerScore(2),
+		DeathmatchGameState->GetPlayerScore(3));
+}
+
+void ANetworkPlayerControllerBase::HandleDeathmatchScoreStateChanged()
+{
+	RefreshNetworkScoreUI();
+}
+
+void ANetworkPlayerControllerBase::BindDeathmatchScoreState(ANetworkDeathmatchGameState* DeathmatchGameState)
+{
+	if (BoundDeathmatchGameState == DeathmatchGameState)
+	{
+		return;
+	}
+
+	UnbindDeathmatchScoreState();
+
+	BoundDeathmatchGameState = DeathmatchGameState;
+	if (BoundDeathmatchGameState)
+	{
+		BoundDeathmatchGameState->OnScoreStateChanged.AddDynamic(this, &ANetworkPlayerControllerBase::HandleDeathmatchScoreStateChanged);
+	}
+}
+
+void ANetworkPlayerControllerBase::UnbindDeathmatchScoreState()
+{
+	if (BoundDeathmatchGameState)
+	{
+		BoundDeathmatchGameState->OnScoreStateChanged.RemoveDynamic(this, &ANetworkPlayerControllerBase::HandleDeathmatchScoreStateChanged);
+		BoundDeathmatchGameState = nullptr;
+	}
 }

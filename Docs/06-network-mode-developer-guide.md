@@ -261,6 +261,30 @@ virtual void CheckNetworkGameOver();
 
 原则：基类负责“网络对局怎么运转”，子类负责“这个模式怎么算赢、怎么算分、能不能复活、谁能打谁”。
 
+### 3.4 网络多人死斗
+
+`ANetworkDeathmatchGameMode` 是第一套具体网络玩法模式，继承 `ANetworkGameModeBase`。
+
+职责：
+
+- 复用 `ANetworkGameModeBase` 的连接、分配、生成、死亡和复活流程。
+- 复用 `ATankPlayerState::ProcessDeath()` 的 KDA 与仇人队列结算。
+- 只处理死斗“比赛积分”：玩家击杀加 1 分，无有效击杀者时死者扣 1 分且不低于 0。
+- 达到 `TargetScore` 后把胜者槽位写入 `ANetworkDeathmatchGameState::WinnerSlotId`。
+- 比赛结束后不再安排玩家复活。
+
+`ANetworkDeathmatchGameState` 负责复制死斗公共状态：
+
+- `PlayerScores`
+- `TargetScore`
+- `WinnerSlotId`
+
+`PlayerScores`、`TargetScore`、`WinnerSlotId` 使用复制回调触发 `OnScoreStateChanged`，让本地 UI 在数据变化时刷新。Host / Listen Server 的本地 UI 不依赖 `OnRep`，服务器改分数时也会主动广播一次。
+
+`ANetworkPlayerControllerBase` 负责创建网络比分 UI。它暴露 `ScoresWidgetClass`，编辑器中应在 `BP_NetworkPlayerControllerBase` 或其模式子类里挂载 `WBP_ScoresDisplayWidget`。创建后它会读取 `ANetworkDeathmatchGameState` 并调用 `UScoresDisplayWidget::InitTargetScore()`、`SetVisiblePlayerCount()`、`UpdateScoresFour()`。
+
+编辑器中建议新建 `BP_NetworkDeathmatchGameMode`，父类选择 `ANetworkDeathmatchGameMode`，然后在网络死斗地图中把 GameMode Override 指向该蓝图。
+
 ---
 
 ## 4. 数据归属规则
@@ -665,6 +689,7 @@ NetworkGameModeBase / BP_NetworkGameModeBase
 - `AmmoWidgetClass`
 - `KDAWidgetClass`
 - `DeathScreenClass`
+- `ScoresWidgetClass`：网络多人死斗当前复用 `UScoresDisplayWidget`，这里挂 `WBP_ScoresDisplayWidget`
 - 网络模式未来专属的 Lobby、Scoreboard、Ready、Connection 状态 UI
 
 本次网络基类重命名采用“C++ 改为 `Network*Base`，编辑器中新建 BP 子类”的方式。旧的 `BP_NetworkBattleGameMode` / `BP_NetworkBattlePlayerController` 不需要原地迁移；确认地图和网络模式都改用新的 `BP_NetworkGameModeBase` / `BP_NetworkPlayerControllerBase` 后，可以在编辑器中删除旧 BP 资产。

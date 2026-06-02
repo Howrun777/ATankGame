@@ -4,6 +4,9 @@
 #include "Shared/Controllers/TankPlayerController.h"
 #include "NetworkPlayerControllerBase.generated.h"
 
+class ANetworkDeathmatchGameState;
+class UScoresDisplayWidget;
+
 UCLASS()
 class BATTLEBLASTER_API ANetworkPlayerControllerBase : public ATankPlayerController
 {
@@ -16,4 +19,30 @@ public:
 	ANetworkPlayerControllerBase();
 
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+	UFUNCTION(BlueprintCallable, Category = "Network|UI")
+	void InitializeNetworkScoreUI();
+
+	UFUNCTION(BlueprintCallable, Category = "Network|UI")
+	void RefreshNetworkScoreUI();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network|UI")
+	TSubclassOf<UScoresDisplayWidget> ScoresWidgetClass;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Network|UI")
+	UScoresDisplayWidget* ScoresWidget = nullptr;
+
+private:
+	UPROPERTY()
+	ANetworkDeathmatchGameState* BoundDeathmatchGameState = nullptr;
+
+	FTimerHandle NetworkScoreUIRetryTimerHandle;
+	int32 NetworkScoreUIRetryCount = 0;
+
+	UFUNCTION()
+	void HandleDeathmatchScoreStateChanged();
+
+	void BindDeathmatchScoreState(ANetworkDeathmatchGameState* DeathmatchGameState);
+	void UnbindDeathmatchScoreState();
 };

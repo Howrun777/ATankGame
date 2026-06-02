@@ -1,0 +1,94 @@
+#include "Modes/Network/NetworkDeathmatchGameMode.h"
+
+#include "Modes/Network/NetworkDeathmatchGameState.h"
+#include "Modes/Network/NetworkPlayerStateBase.h"
+#include "Shared/Pawns/Tank.h"
+
+ANetworkDeathmatchGameMode::ANetworkDeathmatchGameMode()
+{
+	GameStateClass = ANetworkDeathmatchGameState::StaticClass();
+	TargetScore = 7;
+}
+
+void ANetworkDeathmatchGameMode::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (ANetworkDeathmatchGameState* DeathmatchGS = GetDeathmatchGameState())
+	{
+		DeathmatchGS->InitializeDeathmatchScores(MaxNetworkPlayers, TargetScore);
+	}
+}
+
+bool ANetworkDeathmatchGameMode::ShouldRespawnPlayer(ANetworkPlayerStateBase* PlayerState) const
+{
+	const ANetworkDeathmatchGameState* DeathmatchGS = GetGameState<ANetworkDeathmatchGameState>();
+	return PlayerState != nullptr && (!DeathmatchGS || !DeathmatchGS->IsMatchOver());
+}
+
+void ANetworkDeathmatchGameMode::HandleNetworkTankKilled(ATank* DeadTank, ATank* KillerTank)
+{
+	AddDeathmatchScore(DeadTank, KillerTank);
+	Super::HandleNetworkTankKilled(DeadTank, KillerTank);
+}
+
+void ANetworkDeathmatchGameMode::CheckNetworkGameOver()
+{
+	ANetworkDeathmatchGameState* DeathmatchGS = GetDeathmatchGameState();
+	if (!DeathmatchGS || DeathmatchGS->IsMatchOver())
+	{
+		return;
+	}
+
+	for (int32 SlotId = 0; SlotId < DeathmatchGS->PlayerScores.Num(); ++SlotId)
+	{
+		if (DeathmatchGS->GetPlayerScore(SlotId) >= DeathmatchGS->TargetScore)
+		{
+			DeathmatchGS->SetWinnerSlotId(SlotId);
+			UE_LOG(LogTemp, Display, TEXT("NetworkDeathmatch: SlotId=%d wins with score %d / %d"),
+				SlotId,
+				DeathmatchGS->GetPlayerScore(SlotId),
+				DeathmatchGS->TargetScore);
+			break;
+		}
+	}
+}
+
+ANetworkDeathmatchGameState* ANetworkDeathmatchGameMode::GetDeathmatchGameState() const
+{
+	return GetGameState<ANetworkDeathmatchGameState>();
+}
+
+void ANetworkDeathmatchGameMode::AddDeathmatchScore(ATank* DeadTank, ATank* KillerTank)
+{
+	ANetworkDeathmatchGameState* DeathmatchGS = GetDeathmatchGameState();
+	if (!DeathmatchGS || DeathmatchGS->IsMatchOver() || !DeadTank)
+	{
+		return;
+	}
+
+	const int32 VictimSlotId = DeadTank->GetSlotId();
+	const int32 KillerSlotId = KillerTank ? KillerTank->GetSlotId() : INDEX_NONE;
+
+	if (KillerTank && KillerTank != DeadTank && DeathmatchGS->PlayerScores.IsValidIndex(KillerSlotId))
+	{
+		DeathmatchGS->AddPlayerScore(KillerSlotId, 1);
+		if (DeathmatchGS->GetPlayerScore(KillerSlotId) >= DeathmatchGS->TargetScore)
+		{
+			DeathmatchGS->SetWinnerSlotId(KillerSlotId);
+		}
+
+		UE_LOG(LogTemp, Display, TEXT("NetworkDeathmatch: SlotId=%d scored. Score=%d"),
+			KillerSlotId,
+			DeathmatchGS->GetPlayerScore(KillerSlotId));
+		return;
+	}
+
+	if (DeathmatchGS->PlayerScores.IsValidIndex(VictimSlotId))
+	{
+		DeathmatchGS->AddPlayerScore(VictimSlotId, -1);
+		UE_LOG(LogTemp, Display, TEXT("NetworkDeathmatch: SlotId=%d lost one point. Score=%d"),
+			VictimSlotId,
+			DeathmatchGS->GetPlayerScore(VictimSlotId));
+	}
+}

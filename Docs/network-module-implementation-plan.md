@@ -153,15 +153,18 @@ struct FNetworkMatchSettings
 我负责：
 
 - 新建 `ANetworkDeathmatchGameMode`。
-- 添加目标分数、击杀加分、环境死亡 / 自杀处理。
+- 新建 `ANetworkDeathmatchGameState`。
+- 添加目标分数、击杀加分、环境死亡 / 自杀扣分。
 - 复用 `ATankPlayerState::ProcessDeath()` 的 Killer / Assist 归因。
-- 把分数和胜负状态写入合适的 `GameState` / `PlayerState`。
+- 把 `PlayerScores`、`TargetScore`、`WinnerSlotId` 写入并复制到 `ANetworkDeathmatchGameState`。
+- 在 `ANetworkPlayerControllerBase` 暴露 `ScoresWidgetClass`，复用 `UScoresDisplayWidget` 刷新网络死斗比分。
 - 更新 API 和网络开发文档。
 
 你负责：
 
 - 在编辑器中创建或配置 `BP_NetworkDeathmatchGameMode`。
 - 配置网络死斗地图使用正确 GameMode 蓝图。
+- 在 `BP_NetworkPlayerControllerBase` 或其模式子类中把 `ScoresWidgetClass` 设置为 `WBP_ScoresDisplayWidget`。
 - 在 UMG 中准备或调整网络死斗 HUD / 计分板 / 结算 UI。
 - 测试目标分数、击杀、死亡、复活和结算表现。
 

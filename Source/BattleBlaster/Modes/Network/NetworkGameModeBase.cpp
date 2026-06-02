@@ -81,7 +81,7 @@ void ANetworkGameModeBase::HandleStartingNewPlayer_Implementation(APlayerControl
 			const int32 SlotId = AllocateSlotId();
 			if (SlotId < 0)
 			{
-				UE_LOG(LogTemp, Warning, TEXT("NetworkBattle: no free SlotId for %s"), *GetNameSafe(NewPlayer));
+				UE_LOG(LogTemp, Warning, TEXT("NetworkGameModeBase: no free SlotId for %s"), *GetNameSafe(NewPlayer));
 				NewPlayer->ClientTravel(TEXT("/Game/Maps/MainMenuLevel_1"), TRAVEL_Absolute);
 				return;
 			}
@@ -136,7 +136,7 @@ void ANetworkGameModeBase::InitializePlayerIdentity(APlayerController* PlayerCon
 	NetworkPS->SetTeamId(ChooseTeamIdForSlot(SlotId));
 	NetworkPS->SetReady(false);
 
-	UE_LOG(LogTemp, Display, TEXT("NetworkBattle: assigned SlotId=%d TeamId=%d to %s"),
+	UE_LOG(LogTemp, Display, TEXT("NetworkGameModeBase: assigned SlotId=%d TeamId=%d to %s"),
 		NetworkPS->GetSlotId(),
 		NetworkPS->GetTeamId(),
 		*GetNameSafe(PlayerController));
@@ -226,7 +226,7 @@ void ANetworkGameModeBase::SpawnTankForPlayer(APlayerController* PlayerControlle
 	ATank* NewTank = GetWorld()->SpawnActor<ATank>(ClassToSpawn, SpawnLocation, SpawnRotation, SpawnParams);
 	if (!NewTank)
 	{
-		UE_LOG(LogTemp, Error, TEXT("NetworkBattle: failed to spawn Tank for SlotId=%d"), SlotId);
+		UE_LOG(LogTemp, Error, TEXT("NetworkGameModeBase: failed to spawn Tank for SlotId=%d"), SlotId);
 		return;
 	}
 
@@ -237,7 +237,7 @@ void ANetworkGameModeBase::SpawnTankForPlayer(APlayerController* PlayerControlle
 	InitializeSpawnedTank(NewTank, PlayerController, NetworkPS, true);
 	ActiveTanks[SlotId] = NewTank;
 
-	UE_LOG(LogTemp, Display, TEXT("NetworkBattle: spawned Tank %s for SlotId=%d TeamId=%d"),
+	UE_LOG(LogTemp, Display, TEXT("NetworkGameModeBase: spawned Tank %s for SlotId=%d TeamId=%d"),
 		*GetNameSafe(NewTank),
 		SlotId,
 		NetworkPS->GetTeamId());
@@ -341,7 +341,7 @@ void ANetworkGameModeBase::HandleNetworkTankKilled(ATank* DeadTank, ATank* Kille
 		}
 	}
 
-	UE_LOG(LogTemp, Display, TEXT("NetworkBattle: Tank killed. Dead=%s Killer=%s SlotId=%d"),
+	UE_LOG(LogTemp, Display, TEXT("NetworkGameModeBase: Tank killed. Dead=%s Killer=%s SlotId=%d"),
 		*GetNameSafe(DeadTank),
 		*GetNameSafe(KillerTank),
 		SlotId);
@@ -394,6 +394,11 @@ void ANetworkGameModeBase::RespawnPlayer(APlayerController* PlayerController)
 {
 	ANetworkPlayerStateBase* NetworkPS = PlayerController ? PlayerController->GetPlayerState<ANetworkPlayerStateBase>() : nullptr;
 	if (!PlayerController || !NetworkPS)
+	{
+		return;
+	}
+
+	if (!ShouldRespawnPlayer(NetworkPS))
 	{
 		return;
 	}
