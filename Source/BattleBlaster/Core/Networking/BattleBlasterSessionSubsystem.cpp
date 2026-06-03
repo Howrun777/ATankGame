@@ -6,6 +6,11 @@
 
 void UBattleBlasterSessionSubsystem::HostListenServer(FName MapName)
 {
+	HostListenServerWithOptions(MapName, TEXT("listen"));
+}
+
+void UBattleBlasterSessionSubsystem::HostListenServerWithOptions(FName MapName, const FString& Options)
+{
 	UWorld* World = GetWorld();
 	if (!World || MapName.IsNone())
 	{
@@ -13,7 +18,8 @@ void UBattleBlasterSessionSubsystem::HostListenServer(FName MapName)
 		return;
 	}
 
-	UGameplayStatics::OpenLevel(World, MapName, true, TEXT("listen"));
+	const FString TravelOptions = Options.IsEmpty() ? TEXT("listen") : Options;
+	UGameplayStatics::OpenLevel(World, MapName, true, TravelOptions);
 }
 
 void UBattleBlasterSessionSubsystem::JoinByIp(const FString& Address)
@@ -33,4 +39,21 @@ void UBattleBlasterSessionSubsystem::JoinByIp(const FString& Address)
 	}
 
 	PC->ClientTravel(Address, TRAVEL_Absolute);
+}
+
+void UBattleBlasterSessionSubsystem::JoinByIpAndPort(const FString& IP, const FString& Port)
+{
+	const FString TrimmedIP = IP.TrimStartAndEnd();
+	const FString TrimmedPort = Port.TrimStartAndEnd();
+	if (TrimmedIP.IsEmpty())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("JoinByIpAndPort failed: empty IP."));
+		return;
+	}
+
+	const FString Address = TrimmedPort.IsEmpty()
+		? TrimmedIP
+		: FString::Printf(TEXT("%s:%s"), *TrimmedIP, *TrimmedPort);
+
+	JoinByIp(Address);
 }

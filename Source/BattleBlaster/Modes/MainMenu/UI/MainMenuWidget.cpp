@@ -4,6 +4,7 @@
 #include "Modes/Stage/UI/TankStageStartWidget.h"
 #include "Modes/FreeForAll/UI/MutiBattleMenuWidget.h" 
 #include "Modes/MainMenu/UI/GameSettingsMenuWidget.h"
+#include "Modes/Network/UI/Menu/NetworkModeSelectWidget.h"
 void UMainMenuWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
@@ -17,6 +18,9 @@ void UMainMenuWidget::NativeConstruct()
 
 	if (BtnSettings)
 		BtnSettings->OnClicked.AddDynamic(this, &UMainMenuWidget::OnSettingsClicked);
+
+	if (BtnNetworkGame)
+		BtnNetworkGame->OnClicked.AddDynamic(this, &UMainMenuWidget::OnNetworkGameClicked);
 
 	if (BtnQuitGame)
 		BtnQuitGame->OnClicked.AddDynamic(this, &UMainMenuWidget::OnQuitClicked);
@@ -60,6 +64,28 @@ void UMainMenuWidget::OnMultiPlayersClicked()
 			this->RemoveFromParent();
 		}
 	}
+}
+
+void UMainMenuWidget::OpenNetworkMenu()
+{
+	TSubclassOf<UNetworkModeSelectWidget> MenuClass = NetworkMenuClass;
+	if (!MenuClass)
+	{
+		MenuClass = UNetworkModeSelectWidget::StaticClass();
+	}
+
+	UNetworkModeSelectWidget* NetworkMenu = CreateWidget<UNetworkModeSelectWidget>(GetWorld(), MenuClass);
+	if (NetworkMenu)
+	{
+		NetworkMenu->ParentMenuWidget = this;
+		NetworkMenu->AddToViewport(100);
+		SetVisibility(ESlateVisibility::Hidden);
+	}
+}
+
+void UMainMenuWidget::OnNetworkGameClicked()
+{
+	OpenNetworkMenu();
 }
 
 void UMainMenuWidget::OnSettingsClicked()

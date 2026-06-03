@@ -27,6 +27,7 @@ void ANetworkDeathmatchGameState::InitializeDeathmatchScores(int32 MaxPlayers, i
 	PlayerScores.Init(0, FMath::Max(0, MaxPlayers));
 	TargetScore = FMath::Max(1, InTargetScore);
 	WinnerSlotId = -1;
+	SetMatchOver(false);
 	BroadcastScoreStateChanged();
 }
 
@@ -44,6 +45,7 @@ void ANetworkDeathmatchGameState::AddPlayerScore(int32 SlotId, int32 Delta)
 void ANetworkDeathmatchGameState::SetWinnerSlotId(int32 SlotId)
 {
 	WinnerSlotId = SlotId;
+	SetMatchOver(SlotId >= 0);
 	BroadcastScoreStateChanged();
 }
 

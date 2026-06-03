@@ -1,6 +1,6 @@
 # BattleBlaster 网络模块项目落地文档
 
-> 版本：2026-05-27
+> 版本：2026-06-03
 > 目标：把网络模块从当前最小联机链路推进到可选择 LAN / Dedicated Server、可选择多种网络玩法模式的可落地方案。
 
 ---
@@ -158,6 +158,8 @@ struct FNetworkMatchSettings
 - 复用 `ATankPlayerState::ProcessDeath()` 的 Killer / Assist 归因。
 - 把 `PlayerScores`、`TargetScore`、`WinnerSlotId` 写入并复制到 `ANetworkDeathmatchGameState`。
 - 在 `ANetworkPlayerControllerBase` 暴露 `ScoresWidgetClass`，复用 `UScoresDisplayWidget` 刷新网络死斗比分。
+- 新增 `UNetworkDeathmatchGameOverWidget`，由本地 `ANetworkPlayerControllerBase` 在 `WinnerSlotId` 同步后创建结算界面。
+- 在 `ANetworkGameStateBase` 复制 `bIsMatchOver`，比赛结束后 Tank 移动和开火入口拒绝继续执行。
 - 更新 API 和网络开发文档。
 
 你负责：
@@ -165,6 +167,7 @@ struct FNetworkMatchSettings
 - 在编辑器中创建或配置 `BP_NetworkDeathmatchGameMode`。
 - 配置网络死斗地图使用正确 GameMode 蓝图。
 - 在 `BP_NetworkPlayerControllerBase` 或其模式子类中把 `ScoresWidgetClass` 设置为 `WBP_ScoresDisplayWidget`。
+- 在 `BP_NetworkPlayerControllerBase` 或其模式子类中把 `DeathmatchGameOverWidgetClass` 设置为网络死斗结算 Widget 蓝图。
 - 在 UMG 中准备或调整网络死斗 HUD / 计分板 / 结算 UI。
 - 测试目标分数、击杀、死亡、复活和结算表现。
 
@@ -177,6 +180,14 @@ struct FNetworkMatchSettings
 
 目标：让 UMG 蓝图可以通过 C++ 接口发起 Host / Join。
 
+当前状态：
+
+- 已新增正式 C++ 菜单入口：`UNetworkModeSelectWidget`、`ULANMenuWidget`、`ULANHostSettingsWidget`、`ULANJoinWidget`。
+- `UMainMenuWidget::OpenNetworkMenu()` 已作为主菜单进入网络菜单的入口。
+- `UBattleBlasterSessionSubsystem` 已提供 `HostListenServerWithOptions()` 和 `JoinByIpAndPort()`。
+- `ANetworkGameModeBase` 已解析 `MaxPlayers` URL Option。
+- `ANetworkDeathmatchGameMode` 已解析 `TargetScore` URL Option。
+
 我负责：
 
 - 新建或完善 `BattleBlasterNetworkTypes.h`。
@@ -186,20 +197,20 @@ struct FNetworkMatchSettings
   - `BuildTravelURL(const FNetworkMatchSettings& Settings)`
 - 设计 URL Options，让服务器进入地图后能读取模式、人数、AI 数、目标分数等。
 - 保证 LAN / Dedicated Server 连接方式和玩法模式解耦。
+- 继续把当前零散的 URL 字符串升级为 `FNetworkMatchSettings` 结构化入口。
 
 你负责：
 
-- 绘制网络游戏选择菜单 UMG。
-- 绘制 LAN / Server 选择 UI。
-- 绘制 Join IP:Port 输入 UI。
-- 绘制 Host 游戏设置 UI。
-- 在蓝图中调用 C++ 暴露的 Host / Join 接口。
+- 在 `MainMenuWidget` 蓝图中把网络游戏按钮绑定到 `OpenNetworkMenu()`。
+- 在 `MainMenuWidget` 蓝图中设置 `NetworkMenuClass`。
+- 后续如果需要正式美术表现，可以创建继承当前 C++ 菜单类的 UMG 蓝图，替换外观而不重写 Host / Join 规则。
+- 等 `FNetworkMatchSettings` 完成后，再把蓝图调用入口切换到结构化 Host / Join 接口。
 
 验收：
 
-- UMG 可以发起 LAN Host。
-- UMG 可以输入 IP:Port 加入。
-- 设置页能把模式、地图、人数、目标分数传给 C++。
+- C++ 默认菜单可以发起 LAN Host。
+- C++ 默认菜单可以输入 IP:Port 加入。
+- 设置页能把地图、人数、目标分数传给 C++，其中人数和目标分数已被网络 GameMode 解析。
 
 ### 阶段 4：Dedicated Server 目标
 
@@ -297,10 +308,10 @@ struct FNetworkMatchSettings
 
 ## 5. 近期建议执行顺序
 
-1. 先实现 `ANetworkDeathmatchGameMode`。
-2. 再补 `BattleBlasterNetworkTypes` 和 `FNetworkMatchSettings`。
-3. 再完善 `BattleBlasterSessionSubsystem` 的蓝图 Host / Join 接口。
-4. 然后你开始绘制网络菜单 UMG，并挂接 C++ 接口。
+1. 继续把当前 Host 设置从 URL 字符串整理成 `FNetworkMatchSettings`。
+2. 让 `BattleBlasterSessionSubsystem` 提供结构化 Host / Join 蓝图接口。
+3. 给 Server Game 分支接入 Dedicated Server / 公网地址的最小 Join 流程。
+4. 你按当前 C++ 菜单类创建正式 UMG 表现层，或者先继续使用 C++ 默认菜单测试。
 5. 最后再进入 Dedicated Server 编译和外网部署测试。
 
 这样做的好处是：先有一个真实可玩的网络玩法模式，再让菜单选择它，不会出现 UI 做完但底层玩法还没定型的尴尬情况。

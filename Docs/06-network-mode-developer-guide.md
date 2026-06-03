@@ -1,6 +1,6 @@
 # BattleBlaster 联网模式开发者文档
 
-> 版本：2026-05-27
+> 版本：2026-06-03
 > 目标：说明 BattleBlaster 后续开发联网模式时的模块架构、数据归属、服务器权威规则、迁移步骤和当前代码风险点。
 > 范围：先以局域网 Listen Server 为第一阶段目标，后续再扩展 Dedicated Server、公网访问和内网穿透。
 
@@ -282,6 +282,12 @@ virtual void CheckNetworkGameOver();
 `PlayerScores`、`TargetScore`、`WinnerSlotId` 使用复制回调触发 `OnScoreStateChanged`，让本地 UI 在数据变化时刷新。Host / Listen Server 的本地 UI 不依赖 `OnRep`，服务器改分数时也会主动广播一次。
 
 `ANetworkPlayerControllerBase` 负责创建网络比分 UI。它暴露 `ScoresWidgetClass`，编辑器中应在 `BP_NetworkPlayerControllerBase` 或其模式子类里挂载 `WBP_ScoresDisplayWidget`。创建后它会读取 `ANetworkDeathmatchGameState` 并调用 `UScoresDisplayWidget::InitTargetScore()`、`SetVisiblePlayerCount()`、`UpdateScoresFour()`。
+
+网络死斗结算 UI 使用 `UNetworkDeathmatchGameOverWidget`。它不复用本地分屏的 `UMultiBattleGameOverWidget`，原因是本地分屏结算界面会读取 `GameInstance` 和 `ATankBattlePlayerState`，这些数据来源不适合网络模式。网络结算界面从 `ANetworkDeathmatchGameState` 和复制后的 `ATankPlayerState` 读取胜者、比分和 KDA。
+
+`ANetworkPlayerControllerBase` 暴露 `DeathmatchGameOverWidgetClass`。当 `WinnerSlotId` 复制到客户端后，本地 PlayerController 创建该 Widget，并切到 UI 输入模式。GameMode 不直接创建 UMG。
+
+如果 `DeathmatchGameOverWidgetClass` 未设置，`ANetworkPlayerControllerBase` 会直接创建 `UNetworkDeathmatchGameOverWidget`。该类在没有蓝图绑定控件时会生成一个 `_temp` C++ 调试界面，用于显示胜者、各玩家 KDA 和临时评分。正式 UI 完成后，只需要创建继承自 `UNetworkDeathmatchGameOverWidget` 的 UMG 蓝图并挂回 `DeathmatchGameOverWidgetClass`。
 
 编辑器中建议新建 `BP_NetworkDeathmatchGameMode`，父类选择 `ANetworkDeathmatchGameMode`，然后在网络死斗地图中把 GameMode Override 指向该蓝图。
 
@@ -690,13 +696,49 @@ NetworkGameModeBase / BP_NetworkGameModeBase
 - `KDAWidgetClass`
 - `DeathScreenClass`
 - `ScoresWidgetClass`：网络多人死斗当前复用 `UScoresDisplayWidget`，这里挂 `WBP_ScoresDisplayWidget`
+- `DeathmatchGameOverWidgetClass`：网络多人死斗结算界面，建议蓝图继承 `UNetworkDeathmatchGameOverWidget`
 - 网络模式未来专属的 Lobby、Scoreboard、Ready、Connection 状态 UI
 
 本次网络基类重命名采用“C++ 改为 `Network*Base`，编辑器中新建 BP 子类”的方式。旧的 `BP_NetworkBattleGameMode` / `BP_NetworkBattlePlayerController` 不需要原地迁移；确认地图和网络模式都改用新的 `BP_NetworkGameModeBase` / `BP_NetworkPlayerControllerBase` 后，可以在编辑器中删除旧 BP 资产。
 
 这样做的目的不是复制一套 UI 代码，而是把“通用战斗 UI 逻辑”和“网络模式资产配置/专属扩展”分开。通用创建逻辑仍然在 `ATankPlayerController`，网络模式只通过子类和蓝图决定默认资产与网络专属行为。
 
-### 9.1 联网 UI 的读取来源
+### 9.1 网络入口菜单类
+
+当前已经提供一套正式的 C++ 默认网络菜单类，路径在 `Source/BattleBlaster/Modes/Network/UI/Menu/`：
+
+- `UNetworkMenuWidgetBase`：菜单基类，负责默认布局、按钮、输入框、返回上级和打开子菜单。
+- `UNetworkModeSelectWidget`：网络入口选择，包含 LAN Game / Server Game。Server Game 当前只显示未实现状态，不发起连接。
+- `ULANMenuWidget`：LAN 分支，包含 Host / Join。
+- `ULANHostSettingsWidget`：LAN Host 设置，包含模式、玩家数、AI 数、目标分数、地图、端口。
+- `ULANJoinWidget`：LAN Join 输入，包含 IP 和 Port。
+
+这些类不是一次性调试类，而是“C++ 默认表现 + 正式逻辑入口”。后续可以创建继承它们的 UMG 蓝图，只替换视觉表现和绑定控件；Host / Join 的参数流和菜单层级不用推翻重写。
+
+主菜单通过 `UMainMenuWidget::OpenNetworkMenu()` 打开网络入口。编辑器中需要在 MainMenuWidget 蓝图上设置：
+
+```text
+NetworkMenuClass = UNetworkModeSelectWidget 或其蓝图子类
+网络游戏按钮 -> 调用 OpenNetworkMenu()
+```
+
+`ULANHostSettingsWidget` 会构造 URL Options：
+
+```text
+listen?Port=7777?NetworkMode=Deathmatch?MaxPlayers=2?AICount=0?TargetScore=7
+```
+
+当前已生效的参数：
+
+- `MaxPlayers`：由 `ANetworkGameModeBase::InitGame()` 解析并写入 `MaxNetworkPlayers`。
+- `TargetScore`：由 `ANetworkDeathmatchGameMode::InitGame()` 解析并写入 `TargetScore`。
+
+当前预留但未完整接入玩法的参数：
+
+- `NetworkMode`：菜单已传入，但目前只有 Deathmatch 网络玩法实际落地。
+- `AICount`：菜单已传入，AI 填充接口后续再接入。
+
+### 9.2 联网 UI 的读取来源
 
 | UI | 数据来源 |
 | --- | --- |
@@ -708,7 +750,7 @@ NetworkGameModeBase / BP_NetworkGameModeBase
 | 队伍颜色 | 自己 PlayerState 的 `TeamId` |
 | 结算界面 | GameState 的胜负状态 |
 
-### 9.2 联网 UI 禁忌
+### 9.3 联网 UI 禁忌
 
 联网模式 UI 不要这样写：
 
@@ -727,13 +769,13 @@ GetWorld()->GetGameState()
 GameState->PlayerArray
 ```
 
-### 9.3 现有 UI 迁移重点
+### 9.4 现有 UI 迁移重点
 
 当前 `ATankPlayerController::InitializeHUD()` 里有根据 `LocalPlayerIndex` 设置 KDA 颜色的逻辑。联网模式应该改成根据 `PlayerState->TeamId` 或 `SlotId` 设置颜色。
 
 结算界面、计分板、MOBA 顶部状态 UI，也应该从 `GameState` / `PlayerState` 读取复制数据，不要依赖本地数组。
 
-### 9.4 本地分屏 UI 与网络 UI 的区别
+### 9.5 本地分屏 UI 与网络 UI 的区别
 
 本地分屏模式里，同一进程拥有多个本地 `PlayerController`。玩家个人 UI 可以直接由自己的 Controller 创建，并用 `AddToPlayerScreen()` 放到对应分屏。
 

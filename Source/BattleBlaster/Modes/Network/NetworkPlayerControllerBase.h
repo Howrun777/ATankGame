@@ -5,6 +5,7 @@
 #include "NetworkPlayerControllerBase.generated.h"
 
 class ANetworkDeathmatchGameState;
+class UNetworkDeathmatchGameOverWidget;
 class UScoresDisplayWidget;
 
 UCLASS()
@@ -27,11 +28,20 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Network|UI")
 	void RefreshNetworkScoreUI();
 
+	UFUNCTION(BlueprintCallable, Category = "Network|UI")
+	void ShowNetworkDeathmatchGameOver(int32 WinnerSlotId);
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network|UI")
 	TSubclassOf<UScoresDisplayWidget> ScoresWidgetClass;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Network|UI")
 	UScoresDisplayWidget* ScoresWidget = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network|UI")
+	TSubclassOf<UNetworkDeathmatchGameOverWidget> DeathmatchGameOverWidgetClass;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Network|UI")
+	UNetworkDeathmatchGameOverWidget* DeathmatchGameOverWidget = nullptr;
 
 private:
 	UPROPERTY()

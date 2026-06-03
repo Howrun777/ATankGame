@@ -16,6 +16,7 @@
 #include "Shared/State/TankPlayerState.h"
 #include "Modes/MOBA/TankMOBAGameMode.h"
 #include "Modes/FreeForAll/BattleBlasterGameMode.h"
+#include "Modes/Network/NetworkGameStateBase.h"
 
 // ========== PlayerState 数据访问方法实现 ==========
 
@@ -437,6 +438,19 @@ void ATank::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 //移动函数（玩家输入，经 EnhancedInput 触发）
 void ATank::MoveInput(const FInputActionValue& Value)
 {
+	if (!GetIsAlive())
+	{
+		return;
+	}
+
+	if (const ANetworkGameStateBase* NetworkGS = GetWorld() ? GetWorld()->GetGameState<ANetworkGameStateBase>() : nullptr)
+	{
+		if (NetworkGS->IsMatchOver())
+		{
+			return;
+		}
+	}
+
 	float InputValue = Value.Get<float>();
 	const float DeltaSeconds = GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0f;
 
@@ -508,6 +522,19 @@ void ATank::ApplyMoveInput(float InputValue)
 
 void ATank::ServerMoveInput_Implementation(float InputValue, float ClientDeltaSeconds)
 {
+	if (!GetIsAlive())
+	{
+		return;
+	}
+
+	if (const ANetworkGameStateBase* NetworkGS = GetWorld() ? GetWorld()->GetGameState<ANetworkGameStateBase>() : nullptr)
+	{
+		if (NetworkGS->IsMatchOver())
+		{
+			return;
+		}
+	}
+
 	ApplyMoveInput(InputValue, ClientDeltaSeconds);
 }
 
@@ -560,6 +587,19 @@ void ATank::MoveAI(const FVector2D& MoveInput)
 //转弯函数
 void ATank::TurnInput(const FInputActionValue& Value)
 {
+	if (!GetIsAlive())
+	{
+		return;
+	}
+
+	if (const ANetworkGameStateBase* NetworkGS = GetWorld() ? GetWorld()->GetGameState<ANetworkGameStateBase>() : nullptr)
+	{
+		if (NetworkGS->IsMatchOver())
+		{
+			return;
+		}
+	}
+
 	float InputValue = Value.Get<float>();
 	const float DeltaSeconds = GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0f;
 
@@ -588,6 +628,19 @@ void ATank::ApplyTurnInput(float InputValue)
 
 void ATank::ServerTurnInput_Implementation(float InputValue, float ClientDeltaSeconds)
 {
+	if (!GetIsAlive())
+	{
+		return;
+	}
+
+	if (const ANetworkGameStateBase* NetworkGS = GetWorld() ? GetWorld()->GetGameState<ANetworkGameStateBase>() : nullptr)
+	{
+		if (NetworkGS->IsMatchOver())
+		{
+			return;
+		}
+	}
+
 	ApplyTurnInput(InputValue, ClientDeltaSeconds);
 }
 
@@ -606,6 +659,19 @@ void ATank::ApplyTurnInput(float InputValue, float DeltaSeconds)
 //炮塔转动函数
 void ATank::TurretTurnInput(const FInputActionValue& Value)
 {
+	if (!GetIsAlive())
+	{
+		return;
+	}
+
+	if (const ANetworkGameStateBase* NetworkGS = GetWorld() ? GetWorld()->GetGameState<ANetworkGameStateBase>() : nullptr)
+	{
+		if (NetworkGS->IsMatchOver())
+		{
+			return;
+		}
+	}
+
 	float InputValue = Value.Get<float>();
 	const float DeltaSeconds = GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0f;
 
@@ -653,6 +719,19 @@ void ATank::ApplyTurretTurnInput(float InputValue)
 
 void ATank::ServerTurretTurnInput_Implementation(float InputValue, float ClientDeltaSeconds)
 {
+	if (!GetIsAlive())
+	{
+		return;
+	}
+
+	if (const ANetworkGameStateBase* NetworkGS = GetWorld() ? GetWorld()->GetGameState<ANetworkGameStateBase>() : nullptr)
+	{
+		if (NetworkGS->IsMatchOver())
+		{
+			return;
+		}
+	}
+
 	ApplyTurretTurnInput(InputValue, ClientDeltaSeconds);
 }
 
@@ -765,6 +844,19 @@ void ATank::SetPlayerEnabled(bool Enabled)
 }
 void ATank::Fire()
 {
+	if (!GetIsAlive())
+	{
+		return;
+	}
+
+	if (const ANetworkGameStateBase* NetworkGS = GetWorld() ? GetWorld()->GetGameState<ANetworkGameStateBase>() : nullptr)
+	{
+		if (NetworkGS->IsMatchOver())
+		{
+			return;
+		}
+	}
+
 	const FTransform RequestedMuzzleTransform = ProjectileSpawnPoint
 		? ProjectileSpawnPoint->GetComponentTransform()
 		: GetActorTransform();
@@ -785,6 +877,19 @@ void ATank::Fire()
 
 void ATank::ApplyFire(const FTransform& RequestedMuzzleTransform)
 {
+	if (!GetIsAlive())
+	{
+		return;
+	}
+
+	if (const ANetworkGameStateBase* NetworkGS = GetWorld() ? GetWorld()->GetGameState<ANetworkGameStateBase>() : nullptr)
+	{
+		if (NetworkGS->IsMatchOver())
+		{
+			return;
+		}
+	}
+
 	// 通过 PlayerController 检查回城状态
 	if (ATankPlayerController* PC = Cast<ATankPlayerController>(GetController()))
 	{
@@ -934,6 +1039,19 @@ FTransform ATank::GetValidatedFireTransform(const FTransform& RequestedMuzzleTra
 
 void ATank::ServerFire_Implementation(FTransform RequestedMuzzleTransform)
 {
+	if (!GetIsAlive())
+	{
+		return;
+	}
+
+	if (const ANetworkGameStateBase* NetworkGS = GetWorld() ? GetWorld()->GetGameState<ANetworkGameStateBase>() : nullptr)
+	{
+		if (NetworkGS->IsMatchOver())
+		{
+			return;
+		}
+	}
+
 	ApplyFire(RequestedMuzzleTransform);
 }
 

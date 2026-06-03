@@ -22,6 +22,12 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Navigation")
 	TSubclassOf<class UGameSettingsMenuWidget> SettingsMenuClass;
 
+	UPROPERTY(EditAnywhere, Category = "Navigation")
+	TSubclassOf<class UNetworkModeSelectWidget> NetworkMenuClass;
+
+	UFUNCTION(BlueprintCallable, Category = "Navigation")
+	void OpenNetworkMenu();
+
 protected:
 	// meta = (BindWidget) 必须确保蓝图中按钮的名字与此处变量名完全一致
 	UPROPERTY(meta = (BindWidget))
@@ -32,6 +38,9 @@ protected:
 
 	UPROPERTY(meta = (BindWidget))
 	UButton* BtnSettings;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	UButton* BtnNetworkGame;
 
 	UPROPERTY(meta = (BindWidget))
 	UButton* BtnQuitGame;
@@ -48,6 +57,9 @@ protected:
 
 	UFUNCTION()
 	void OnSettingsClicked();
+
+	UFUNCTION()
+	void OnNetworkGameClicked();
 
 	UFUNCTION()
 	void OnQuitClicked();

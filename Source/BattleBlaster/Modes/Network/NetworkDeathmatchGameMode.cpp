@@ -1,5 +1,6 @@
 #include "Modes/Network/NetworkDeathmatchGameMode.h"
 
+#include "Kismet/GameplayStatics.h"
 #include "Modes/Network/NetworkDeathmatchGameState.h"
 #include "Modes/Network/NetworkPlayerStateBase.h"
 #include "Shared/Pawns/Tank.h"
@@ -8,6 +9,17 @@ ANetworkDeathmatchGameMode::ANetworkDeathmatchGameMode()
 {
 	GameStateClass = ANetworkDeathmatchGameState::StaticClass();
 	TargetScore = 7;
+}
+
+void ANetworkDeathmatchGameMode::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)
+{
+	Super::InitGame(MapName, Options, ErrorMessage);
+
+	const FString TargetScoreOption = UGameplayStatics::ParseOption(Options, TEXT("TargetScore"));
+	if (!TargetScoreOption.IsEmpty())
+	{
+		TargetScore = FMath::Max(1, FCString::Atoi(*TargetScoreOption));
+	}
 }
 
 void ANetworkDeathmatchGameMode::BeginPlay()
@@ -45,6 +57,7 @@ void ANetworkDeathmatchGameMode::CheckNetworkGameOver()
 		if (DeathmatchGS->GetPlayerScore(SlotId) >= DeathmatchGS->TargetScore)
 		{
 			DeathmatchGS->SetWinnerSlotId(SlotId);
+			HandleDeathmatchEnded(SlotId);
 			UE_LOG(LogTemp, Display, TEXT("NetworkDeathmatch: SlotId=%d wins with score %d / %d"),
 				SlotId,
 				DeathmatchGS->GetPlayerScore(SlotId),
@@ -76,6 +89,7 @@ void ANetworkDeathmatchGameMode::AddDeathmatchScore(ATank* DeadTank, ATank* Kill
 		if (DeathmatchGS->GetPlayerScore(KillerSlotId) >= DeathmatchGS->TargetScore)
 		{
 			DeathmatchGS->SetWinnerSlotId(KillerSlotId);
+			HandleDeathmatchEnded(KillerSlotId);
 		}
 
 		UE_LOG(LogTemp, Display, TEXT("NetworkDeathmatch: SlotId=%d scored. Score=%d"),
@@ -91,4 +105,17 @@ void ANetworkDeathmatchGameMode::AddDeathmatchScore(ATank* DeadTank, ATank* Kill
 			VictimSlotId,
 			DeathmatchGS->GetPlayerScore(VictimSlotId));
 	}
+}
+
+void ANetworkDeathmatchGameMode::HandleDeathmatchEnded(int32 WinnerSlotId)
+{
+	for (ATank* Tank : ActiveTanks)
+	{
+		if (Tank && Tank->GetIsAlive())
+		{
+			Tank->SetPlayerEnabled(false);
+		}
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("NetworkDeathmatch: Match ended. WinnerSlotId=%d"), WinnerSlotId);
 }

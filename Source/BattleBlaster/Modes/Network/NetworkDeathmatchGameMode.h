@@ -14,6 +14,7 @@ class BATTLEBLASTER_API ANetworkDeathmatchGameMode : public ANetworkGameModeBase
 public:
 	ANetworkDeathmatchGameMode();
 
+	virtual void InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage) override;
 	virtual void BeginPlay() override;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Network|Deathmatch", meta = (ClampMin = "1"))
@@ -28,4 +29,5 @@ protected:
 
 private:
 	void AddDeathmatchScore(ATank* DeadTank, ATank* KillerTank);
+	void HandleDeathmatchEnded(int32 WinnerSlotId);
 };

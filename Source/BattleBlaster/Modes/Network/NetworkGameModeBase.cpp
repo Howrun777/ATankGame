@@ -26,6 +26,17 @@ ANetworkGameModeBase::ANetworkGameModeBase()
 	TankClass = ATank::StaticClass();
 }
 
+void ANetworkGameModeBase::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)
+{
+	Super::InitGame(MapName, Options, ErrorMessage);
+
+	const FString MaxPlayersOption = UGameplayStatics::ParseOption(Options, TEXT("MaxPlayers"));
+	if (!MaxPlayersOption.IsEmpty())
+	{
+		MaxNetworkPlayers = FMath::Clamp(FCString::Atoi(*MaxPlayersOption), 1, 8);
+	}
+}
+
 void ANetworkGameModeBase::BeginPlay()
 {
 	Super::BeginPlay();

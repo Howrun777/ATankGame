@@ -2,6 +2,7 @@
 
 #include "Blueprint/UserWidget.h"
 #include "Modes/Network/NetworkDeathmatchGameState.h"
+#include "Modes/Network/UI/NetworkDeathmatchGameOverWidget.h"
 #include "Shared/UI/BulletsWidget.h"
 #include "Shared/UI/HUDWidget.h"
 #include "Shared/UI/KDAWidget.h"
@@ -53,6 +54,11 @@ void ANetworkPlayerControllerBase::EndPlay(const EEndPlayReason::Type EndPlayRea
 		ScoresWidget->RemoveFromParent();
 		ScoresWidget = nullptr;
 	}
+	if (IsValid(DeathmatchGameOverWidget))
+	{
+		DeathmatchGameOverWidget->RemoveFromParent();
+		DeathmatchGameOverWidget = nullptr;
+	}
 
 	Super::EndPlay(EndPlayReason);
 }
@@ -61,6 +67,17 @@ void ANetworkPlayerControllerBase::InitializeNetworkScoreUI()
 {
 	if (!IsLocalController())
 	{
+		return;
+	}
+
+	ANetworkDeathmatchGameState* DeathmatchGameState = GetWorld() ? GetWorld()->GetGameState<ANetworkDeathmatchGameState>() : nullptr;
+	if (!DeathmatchGameState)
+	{
+		if (NetworkScoreUIRetryCount < 20)
+		{
+			++NetworkScoreUIRetryCount;
+			GetWorldTimerManager().SetTimer(NetworkScoreUIRetryTimerHandle, this, &ANetworkPlayerControllerBase::InitializeNetworkScoreUI, 0.25f, false);
+		}
 		return;
 	}
 
@@ -73,15 +90,8 @@ void ANetworkPlayerControllerBase::InitializeNetworkScoreUI()
 		}
 	}
 
-	ANetworkDeathmatchGameState* DeathmatchGameState = GetWorld() ? GetWorld()->GetGameState<ANetworkDeathmatchGameState>() : nullptr;
 	BindDeathmatchScoreState(DeathmatchGameState);
 	RefreshNetworkScoreUI();
-
-	if (!DeathmatchGameState && NetworkScoreUIRetryCount < 20)
-	{
-		++NetworkScoreUIRetryCount;
-		GetWorldTimerManager().SetTimer(NetworkScoreUIRetryTimerHandle, this, &ANetworkPlayerControllerBase::InitializeNetworkScoreUI, 0.25f, false);
-	}
 }
 
 void ANetworkPlayerControllerBase::RefreshNetworkScoreUI()
@@ -105,6 +115,46 @@ void ANetworkPlayerControllerBase::RefreshNetworkScoreUI()
 		DeathmatchGameState->GetPlayerScore(1),
 		DeathmatchGameState->GetPlayerScore(2),
 		DeathmatchGameState->GetPlayerScore(3));
+
+	if (DeathmatchGameState->IsMatchOver())
+	{
+		ShowNetworkDeathmatchGameOver(DeathmatchGameState->WinnerSlotId);
+	}
+}
+
+void ANetworkPlayerControllerBase::ShowNetworkDeathmatchGameOver(int32 WinnerSlotId)
+{
+	if (!IsLocalController() || WinnerSlotId < 0)
+	{
+		return;
+	}
+
+	if (!DeathmatchGameOverWidget)
+	{
+		TSubclassOf<UNetworkDeathmatchGameOverWidget> WidgetClass = DeathmatchGameOverWidgetClass;
+		if (!WidgetClass)
+		{
+			WidgetClass = UNetworkDeathmatchGameOverWidget::StaticClass();
+		}
+
+		DeathmatchGameOverWidget = CreateWidget<UNetworkDeathmatchGameOverWidget>(this, WidgetClass);
+		if (DeathmatchGameOverWidget)
+		{
+			DeathmatchGameOverWidget->AddToViewport(1000);
+		}
+	}
+
+	if (DeathmatchGameOverWidget)
+	{
+		DeathmatchGameOverWidget->InitResultData(WinnerSlotId);
+		if (DeathmatchGameOverWidget->IsInViewport())
+		{
+			FInputModeUIOnly InputMode;
+			InputMode.SetWidgetToFocus(DeathmatchGameOverWidget->TakeWidget());
+			SetInputMode(InputMode);
+			bShowMouseCursor = true;
+		}
+	}
 }
 
 void ANetworkPlayerControllerBase::HandleDeathmatchScoreStateChanged()

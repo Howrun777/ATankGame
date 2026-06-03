@@ -31,9 +31,6 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Network|Deathmatch")
 	int32 GetPlayerScore(int32 SlotId) const;
 
-	UFUNCTION(BlueprintPure, Category = "Network|Deathmatch")
-	bool IsMatchOver() const { return WinnerSlotId >= 0; }
-
 	void InitializeDeathmatchScores(int32 MaxPlayers, int32 InTargetScore);
 	void AddPlayerScore(int32 SlotId, int32 Delta);
 	void SetWinnerSlotId(int32 SlotId);
