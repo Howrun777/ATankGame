@@ -5,8 +5,8 @@
 #include "NetworkPlayerControllerBase.generated.h"
 
 class ANetworkDeathmatchGameState;
+class UCppShowScoresWidget;
 class UNetworkDeathmatchGameOverWidget;
-class UScoresDisplayWidget;
 
 UCLASS()
 class BATTLEBLASTER_API ANetworkPlayerControllerBase : public ATankPlayerController
@@ -32,10 +32,10 @@ public:
 	void ShowNetworkDeathmatchGameOver(int32 WinnerSlotId);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network|UI")
-	TSubclassOf<UScoresDisplayWidget> ScoresWidgetClass;
+	TSubclassOf<UCppShowScoresWidget> ScoresWidgetClass;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Network|UI")
-	UScoresDisplayWidget* ScoresWidget = nullptr;
+	UCppShowScoresWidget* ScoresWidget = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network|UI")
 	TSubclassOf<UNetworkDeathmatchGameOverWidget> DeathmatchGameOverWidgetClass;

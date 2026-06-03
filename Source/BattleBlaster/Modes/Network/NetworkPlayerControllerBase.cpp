@@ -2,11 +2,12 @@
 
 #include "Blueprint/UserWidget.h"
 #include "Modes/Network/NetworkDeathmatchGameState.h"
+#include "Modes/Network/NetworkPlayerStateBase.h"
+#include "Modes/Network/UI/CppShowScoresWidget.h"
 #include "Modes/Network/UI/NetworkDeathmatchGameOverWidget.h"
 #include "Shared/UI/BulletsWidget.h"
 #include "Shared/UI/HUDWidget.h"
 #include "Shared/UI/KDAWidget.h"
-#include "Shared/UI/ScoresDisplayWidget.h"
 #include "UObject/ConstructorHelpers.h"
 
 ANetworkPlayerControllerBase::ANetworkPlayerControllerBase()
@@ -31,6 +32,7 @@ ANetworkPlayerControllerBase::ANetworkPlayerControllerBase()
 		KDAWidgetClass = DefaultKDAWidgetClass.Class;
 	}
 
+	ScoresWidgetClass = UCppShowScoresWidget::StaticClass();
 }
 
 void ANetworkPlayerControllerBase::BeginPlay()
@@ -81,9 +83,14 @@ void ANetworkPlayerControllerBase::InitializeNetworkScoreUI()
 		return;
 	}
 
-	if (ScoresWidgetClass && !ScoresWidget)
+	TSubclassOf<UCppShowScoresWidget> WidgetClass = ScoresWidgetClass;
+	if (!WidgetClass)
 	{
-		ScoresWidget = CreateWidget<UScoresDisplayWidget>(this, ScoresWidgetClass);
+		WidgetClass = UCppShowScoresWidget::StaticClass();
+	}
+	if (WidgetClass && !ScoresWidget)
+	{
+		ScoresWidget = CreateWidget<UCppShowScoresWidget>(this, WidgetClass);
 		if (ScoresWidget)
 		{
 			ScoresWidget->AddToPlayerScreen();
@@ -107,14 +114,26 @@ void ANetworkPlayerControllerBase::RefreshNetworkScoreUI()
 		return;
 	}
 
-	const int32 VisiblePlayerCount = FMath::Clamp(DeathmatchGameState->PlayerScores.Num(), 2, 4);
-	ScoresWidget->SetVisiblePlayerCount(VisiblePlayerCount);
-	ScoresWidget->InitTargetScore(DeathmatchGameState->TargetScore);
-	ScoresWidget->UpdateScoresFour(
-		DeathmatchGameState->GetPlayerScore(0),
-		DeathmatchGameState->GetPlayerScore(1),
-		DeathmatchGameState->GetPlayerScore(2),
-		DeathmatchGameState->GetPlayerScore(3));
+	const int32 LocalSlotId = GetPlayerState<ANetworkPlayerStateBase>()
+		? GetPlayerState<ANetworkPlayerStateBase>()->GetSlotId()
+		: INDEX_NONE;
+
+	const int32 VisibleScoreCount = FMath::Clamp(
+		DeathmatchGameState->ConnectedPlayerCount > 0 ? DeathmatchGameState->ConnectedPlayerCount : DeathmatchGameState->PlayerScores.Num(),
+		0,
+		DeathmatchGameState->PlayerScores.Num());
+	TArray<int32> VisibleScores;
+	VisibleScores.Reserve(VisibleScoreCount);
+	for (int32 SlotId = 0; SlotId < VisibleScoreCount; ++SlotId)
+	{
+		VisibleScores.Add(DeathmatchGameState->GetPlayerScore(SlotId));
+	}
+
+	ScoresWidget->UpdateScoreboard(
+		DeathmatchGameState->TargetScore,
+		DeathmatchGameState->MatchElapsedSeconds,
+		VisibleScores,
+		LocalSlotId);
 
 	if (DeathmatchGameState->IsMatchOver())
 	{

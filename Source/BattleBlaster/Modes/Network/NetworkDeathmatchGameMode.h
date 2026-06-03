@@ -28,6 +28,9 @@ protected:
 	ANetworkDeathmatchGameState* GetDeathmatchGameState() const;
 
 private:
+	FTimerHandle MatchElapsedTimerHandle;
+
 	void AddDeathmatchScore(ATank* DeadTank, ATank* KillerTank);
 	void HandleDeathmatchEnded(int32 WinnerSlotId);
+	void UpdateMatchElapsedTime();
 };

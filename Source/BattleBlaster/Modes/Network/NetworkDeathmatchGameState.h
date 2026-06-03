@@ -28,12 +28,16 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_ScoreState, Category = "Network|Deathmatch")
 	int32 WinnerSlotId = -1;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_ScoreState, Category = "Network|Deathmatch")
+	int32 MatchElapsedSeconds = 0;
+
 	UFUNCTION(BlueprintPure, Category = "Network|Deathmatch")
 	int32 GetPlayerScore(int32 SlotId) const;
 
 	void InitializeDeathmatchScores(int32 MaxPlayers, int32 InTargetScore);
 	void AddPlayerScore(int32 SlotId, int32 Delta);
 	void SetWinnerSlotId(int32 SlotId);
+	void IncrementMatchElapsedSeconds();
 
 private:
 	UFUNCTION()

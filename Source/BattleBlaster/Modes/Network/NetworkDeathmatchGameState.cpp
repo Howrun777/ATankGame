@@ -6,6 +6,7 @@ ANetworkDeathmatchGameState::ANetworkDeathmatchGameState()
 {
 	TargetScore = 7;
 	WinnerSlotId = -1;
+	MatchElapsedSeconds = 0;
 }
 
 void ANetworkDeathmatchGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -15,6 +16,7 @@ void ANetworkDeathmatchGameState::GetLifetimeReplicatedProps(TArray<FLifetimePro
 	DOREPLIFETIME(ANetworkDeathmatchGameState, PlayerScores);
 	DOREPLIFETIME(ANetworkDeathmatchGameState, TargetScore);
 	DOREPLIFETIME(ANetworkDeathmatchGameState, WinnerSlotId);
+	DOREPLIFETIME(ANetworkDeathmatchGameState, MatchElapsedSeconds);
 }
 
 int32 ANetworkDeathmatchGameState::GetPlayerScore(int32 SlotId) const
@@ -27,6 +29,7 @@ void ANetworkDeathmatchGameState::InitializeDeathmatchScores(int32 MaxPlayers, i
 	PlayerScores.Init(0, FMath::Max(0, MaxPlayers));
 	TargetScore = FMath::Max(1, InTargetScore);
 	WinnerSlotId = -1;
+	MatchElapsedSeconds = 0;
 	SetMatchOver(false);
 	BroadcastScoreStateChanged();
 }
@@ -46,6 +49,17 @@ void ANetworkDeathmatchGameState::SetWinnerSlotId(int32 SlotId)
 {
 	WinnerSlotId = SlotId;
 	SetMatchOver(SlotId >= 0);
+	BroadcastScoreStateChanged();
+}
+
+void ANetworkDeathmatchGameState::IncrementMatchElapsedSeconds()
+{
+	if (IsMatchOver())
+	{
+		return;
+	}
+
+	++MatchElapsedSeconds;
 	BroadcastScoreStateChanged();
 }
 

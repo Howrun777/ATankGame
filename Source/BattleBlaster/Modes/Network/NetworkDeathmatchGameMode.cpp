@@ -30,6 +30,13 @@ void ANetworkDeathmatchGameMode::BeginPlay()
 	{
 		DeathmatchGS->InitializeDeathmatchScores(MaxNetworkPlayers, TargetScore);
 	}
+
+	GetWorldTimerManager().SetTimer(
+		MatchElapsedTimerHandle,
+		this,
+		&ANetworkDeathmatchGameMode::UpdateMatchElapsedTime,
+		1.0f,
+		true);
 }
 
 bool ANetworkDeathmatchGameMode::ShouldRespawnPlayer(ANetworkPlayerStateBase* PlayerState) const
@@ -109,6 +116,8 @@ void ANetworkDeathmatchGameMode::AddDeathmatchScore(ATank* DeadTank, ATank* Kill
 
 void ANetworkDeathmatchGameMode::HandleDeathmatchEnded(int32 WinnerSlotId)
 {
+	GetWorldTimerManager().ClearTimer(MatchElapsedTimerHandle);
+
 	for (ATank* Tank : ActiveTanks)
 	{
 		if (Tank && Tank->GetIsAlive())
@@ -118,4 +127,12 @@ void ANetworkDeathmatchGameMode::HandleDeathmatchEnded(int32 WinnerSlotId)
 	}
 
 	UE_LOG(LogTemp, Display, TEXT("NetworkDeathmatch: Match ended. WinnerSlotId=%d"), WinnerSlotId);
+}
+
+void ANetworkDeathmatchGameMode::UpdateMatchElapsedTime()
+{
+	if (ANetworkDeathmatchGameState* DeathmatchGS = GetDeathmatchGameState())
+	{
+		DeathmatchGS->IncrementMatchElapsedSeconds();
+	}
 }
