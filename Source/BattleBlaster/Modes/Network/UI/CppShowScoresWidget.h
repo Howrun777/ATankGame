@@ -124,6 +124,8 @@ private:
 	void RebuildGeneratedScoreBars();
 	void BuildGeneratedScoreBar(int32 SlotId);
 	void ApplyScoreBarState(int32 SlotId);
+	FLinearColor GetFillColorForSlot(int32 SlotId, bool bIsLocalPlayer) const;
+	FLinearColor GetPanelColorForSlot(int32 SlotId, bool bIsLocalPlayer) const;
 	FString FormatElapsedTime() const;
 	FText FormatHeaderText() const;
 	FText FormatScoreText(int32 SlotId, int32 Score) const;

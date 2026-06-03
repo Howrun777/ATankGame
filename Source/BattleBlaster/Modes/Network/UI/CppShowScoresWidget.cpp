@@ -17,13 +17,13 @@
 UCppShowScoresWidget::UCppShowScoresWidget(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	PanelColor = FLinearColor(0.018f, 0.020f, 0.024f, 0.78f);
-	HeaderTextColor = FLinearColor(0.94f, 0.96f, 0.98f, 1.0f);
-	OtherPlayerTextColor = FLinearColor(0.66f, 0.68f, 0.72f, 1.0f);
-	OtherPlayerFillColor = FLinearColor(0.18f, 0.19f, 0.21f, 1.0f);
+	PanelColor = FLinearColor(0.012f, 0.014f, 0.018f, 0.70f);
+	HeaderTextColor = FLinearColor(0.96f, 0.98f, 1.0f, 1.0f);
+	OtherPlayerTextColor = FLinearColor(0.76f, 0.80f, 0.84f, 1.0f);
+	OtherPlayerFillColor = FLinearColor(0.30f, 0.36f, 0.42f, 1.0f);
 	LocalPlayerTextColor = FLinearColor(1.0f, 0.92f, 0.90f, 1.0f);
-	LocalPlayerFillColor = FLinearColor(0.92f, 0.12f, 0.10f, 1.0f);
-	ScoreTrackColor = FLinearColor(0.055f, 0.060f, 0.068f, 1.0f);
+	LocalPlayerFillColor = FLinearColor(0.95f, 0.10f, 0.08f, 1.0f);
+	ScoreTrackColor = FLinearColor(0.035f, 0.040f, 0.048f, 1.0f);
 }
 
 TSharedRef<SWidget> UCppShowScoresWidget::RebuildWidget()
@@ -100,13 +100,13 @@ void UCppShowScoresWidget::BuildDefaultWidgetTree()
 
 	GeneratedPanelBorder = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("CppScoresPanel"));
 	GeneratedPanelBorder->SetBrushColor(PanelColor);
-	GeneratedPanelBorder->SetPadding(FMargin(18.0f, 12.0f, 18.0f, 12.0f));
+	GeneratedPanelBorder->SetPadding(FMargin(20.0f, 12.0f, 20.0f, 12.0f));
 
 	if (UCanvasPanelSlot* PanelSlot = GeneratedRootCanvas->AddChildToCanvas(GeneratedPanelBorder))
 	{
 		PanelSlot->SetAnchors(FAnchors(0.5f, 0.0f));
 		PanelSlot->SetAlignment(FVector2D(0.5f, 0.0f));
-		PanelSlot->SetPosition(FVector2D(0.0f, 18.0f));
+		PanelSlot->SetPosition(FVector2D(0.0f, 16.0f));
 		PanelSlot->SetAutoSize(true);
 	}
 
@@ -119,7 +119,7 @@ void UCppShowScoresWidget::BuildDefaultWidgetTree()
 	if (UVerticalBoxSlot* HeaderSlot = GeneratedPanelBox->AddChildToVerticalBox(TargetAndTimeText))
 	{
 		HeaderSlot->SetHorizontalAlignment(HAlign_Fill);
-		HeaderSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 9.0f));
+		HeaderSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 10.0f));
 	}
 
 	PlayerScoresBox = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("PlayerScoresBox"));
@@ -161,8 +161,8 @@ void UCppShowScoresWidget::BuildGeneratedScoreBar(int32 SlotId)
 	FNetworkScoreBarWidgets RowWidgets;
 
 	UBorder* BarBorder = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
-	BarBorder->SetBrushColor(FLinearColor(0.030f, 0.034f, 0.040f, 0.96f));
-	BarBorder->SetPadding(FMargin(5.0f));
+	BarBorder->SetBrushColor(GetPanelColorForSlot(SlotId, false));
+	BarBorder->SetPadding(FMargin(6.0f));
 	RowWidgets.RootBorder = BarBorder;
 
 	UVerticalBox* OuterBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
@@ -170,12 +170,12 @@ void UCppShowScoresWidget::BuildGeneratedScoreBar(int32 SlotId)
 
 	UTextBlock* NameText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
 	NameText->SetText(FText::FromString(FString::Printf(TEXT("P%d"), SlotId + 1)));
-	ApplyTextStyle(NameText, 13, OtherPlayerTextColor, ETextJustify::Center);
+	ApplyTextStyle(NameText, 12, OtherPlayerTextColor, ETextJustify::Center);
 	RowWidgets.NameText = NameText;
 	if (UVerticalBoxSlot* NameSlot = OuterBox->AddChildToVerticalBox(NameText))
 	{
 		NameSlot->SetHorizontalAlignment(HAlign_Fill);
-		NameSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 3.0f));
+		NameSlot->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 4.0f));
 	}
 
 	USizeBox* BarSizeBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
@@ -194,7 +194,7 @@ void UCppShowScoresWidget::BuildGeneratedScoreBar(int32 SlotId)
 	ProgressBar->SetPercent(0.0f);
 	FProgressBarStyle ProgressStyle = ProgressBar->GetWidgetStyle();
 	ProgressStyle.BackgroundImage.TintColor = FSlateColor(ScoreTrackColor);
-	ProgressStyle.FillImage.TintColor = FSlateColor(OtherPlayerFillColor);
+	ProgressStyle.FillImage.TintColor = FSlateColor(GetFillColorForSlot(SlotId, false));
 	ProgressBar->SetWidgetStyle(ProgressStyle);
 	RowWidgets.ProgressBar = ProgressBar;
 	if (UOverlaySlot* ProgressSlot = BarOverlay->AddChildToOverlay(ProgressBar))
@@ -217,7 +217,7 @@ void UCppShowScoresWidget::BuildGeneratedScoreBar(int32 SlotId)
 
 	if (UHorizontalBoxSlot* RootSlot = PlayerScoresBox->AddChildToHorizontalBox(BarBorder))
 	{
-		RootSlot->SetPadding(FMargin(SlotId == 0 ? 0.0f : 10.0f, 0.0f, 0.0f, 0.0f));
+		RootSlot->SetPadding(FMargin(SlotId == 0 ? 0.0f : 12.0f, 0.0f, 0.0f, 0.0f));
 		RootSlot->SetVerticalAlignment(VAlign_Center);
 	}
 }
@@ -232,7 +232,7 @@ void UCppShowScoresWidget::ApplyScoreBarState(int32 SlotId)
 	FNetworkScoreBarWidgets& Widgets = GeneratedScoreBars[SlotId];
 	const int32 Score = CurrentScores.IsValidIndex(SlotId) ? CurrentScores[SlotId] : 0;
 	const bool bIsLocalPlayer = SlotId == LocalPlayerSlotId;
-	const FLinearColor FillColor = bIsLocalPlayer ? LocalPlayerFillColor : OtherPlayerFillColor;
+	const FLinearColor FillColor = GetFillColorForSlot(SlotId, bIsLocalPlayer);
 	const FLinearColor TextColor = bIsLocalPlayer ? LocalPlayerTextColor : OtherPlayerTextColor;
 	const float Percent = TargetScore > 0
 		? FMath::Clamp(static_cast<float>(Score) / static_cast<float>(TargetScore), 0.0f, 1.0f)
@@ -240,14 +240,12 @@ void UCppShowScoresWidget::ApplyScoreBarState(int32 SlotId)
 
 	if (Widgets.RootBorder)
 	{
-		Widgets.RootBorder->SetBrushColor(bIsLocalPlayer
-			? FLinearColor(0.16f, 0.035f, 0.035f, 0.94f)
-			: FLinearColor(0.030f, 0.034f, 0.040f, 0.94f));
+		Widgets.RootBorder->SetBrushColor(GetPanelColorForSlot(SlotId, bIsLocalPlayer));
 	}
 	if (Widgets.NameText)
 	{
 		Widgets.NameText->SetText(FText::FromString(FString::Printf(TEXT("P%d"), SlotId + 1)));
-		ApplyTextStyle(Widgets.NameText, 13, TextColor, ETextJustify::Center);
+		ApplyTextStyle(Widgets.NameText, 12, TextColor, ETextJustify::Center);
 	}
 	if (Widgets.ProgressBar)
 	{
@@ -263,6 +261,26 @@ void UCppShowScoresWidget::ApplyScoreBarState(int32 SlotId)
 		Widgets.ScoreText->SetText(FormatScoreText(SlotId, Score));
 		ApplyTextStyle(Widgets.ScoreText, ScoreFontSize, TextColor, ETextJustify::Center);
 	}
+}
+
+FLinearColor UCppShowScoresWidget::GetFillColorForSlot(int32 SlotId, bool bIsLocalPlayer) const
+{
+	if (bIsLocalPlayer)
+	{
+		return LocalPlayerFillColor;
+	}
+
+	return OtherPlayerFillColor;
+}
+
+FLinearColor UCppShowScoresWidget::GetPanelColorForSlot(int32 SlotId, bool bIsLocalPlayer) const
+{
+	if (bIsLocalPlayer)
+	{
+		return FLinearColor(0.18f, 0.030f, 0.028f, 0.92f);
+	}
+
+	return FLinearColor(0.034f, 0.040f, 0.048f, 0.82f);
 }
 
 FString UCppShowScoresWidget::FormatElapsedTime() const

@@ -118,21 +118,10 @@ void ANetworkPlayerControllerBase::RefreshNetworkScoreUI()
 		? GetPlayerState<ANetworkPlayerStateBase>()->GetSlotId()
 		: INDEX_NONE;
 
-	const int32 VisibleScoreCount = FMath::Clamp(
-		DeathmatchGameState->ConnectedPlayerCount > 0 ? DeathmatchGameState->ConnectedPlayerCount : DeathmatchGameState->PlayerScores.Num(),
-		0,
-		DeathmatchGameState->PlayerScores.Num());
-	TArray<int32> VisibleScores;
-	VisibleScores.Reserve(VisibleScoreCount);
-	for (int32 SlotId = 0; SlotId < VisibleScoreCount; ++SlotId)
-	{
-		VisibleScores.Add(DeathmatchGameState->GetPlayerScore(SlotId));
-	}
-
 	ScoresWidget->UpdateScoreboard(
 		DeathmatchGameState->TargetScore,
 		DeathmatchGameState->MatchElapsedSeconds,
-		VisibleScores,
+		DeathmatchGameState->PlayerScores,
 		LocalSlotId);
 
 	if (DeathmatchGameState->IsMatchOver())

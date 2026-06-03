@@ -31,6 +31,9 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_ScoreState, Category = "Network|Deathmatch")
 	int32 MatchElapsedSeconds = 0;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_ScoreState, Category = "Network|Deathmatch")
+	int32 ScoreStateRevision = 0;
+
 	UFUNCTION(BlueprintPure, Category = "Network|Deathmatch")
 	int32 GetPlayerScore(int32 SlotId) const;
 
@@ -43,5 +46,6 @@ private:
 	UFUNCTION()
 	void OnRep_ScoreState();
 
+	void MarkScoreStateDirty();
 	void BroadcastScoreStateChanged();
 };
