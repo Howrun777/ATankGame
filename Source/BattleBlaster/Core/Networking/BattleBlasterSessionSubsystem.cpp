@@ -1,5 +1,6 @@
 #include "Core/Networking/BattleBlasterSessionSubsystem.h"
 
+#include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
@@ -18,6 +19,8 @@ void UBattleBlasterSessionSubsystem::HostListenServerWithOptions(FName MapName, 
 		return;
 	}
 
+	RemoveExtraLocalPlayers();
+
 	const FString TravelOptions = Options.IsEmpty() ? TEXT("listen") : Options;
 	UGameplayStatics::OpenLevel(World, MapName, true, TravelOptions);
 }
@@ -30,6 +33,8 @@ void UBattleBlasterSessionSubsystem::JoinByIp(const FString& Address)
 		UE_LOG(LogTemp, Warning, TEXT("JoinByIp failed: invalid World or Address."));
 		return;
 	}
+
+	RemoveExtraLocalPlayers();
 
 	APlayerController* PC = UGameplayStatics::GetPlayerController(World, 0);
 	if (!PC)
@@ -56,4 +61,23 @@ void UBattleBlasterSessionSubsystem::JoinByIpAndPort(const FString& IP, const FS
 		: FString::Printf(TEXT("%s:%s"), *TrimmedIP, *TrimmedPort);
 
 	JoinByIp(Address);
+}
+
+void UBattleBlasterSessionSubsystem::RemoveExtraLocalPlayers()
+{
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	for (int32 Index = UGameplayStatics::GetNumLocalPlayerControllers(World) - 1; Index > 0; --Index)
+	{
+		if (APlayerController* ExtraPC = UGameplayStatics::GetPlayerController(World, Index))
+		{
+			UGameplayStatics::RemovePlayer(ExtraPC, true);
+		}
+	}
+
+	if (UGameViewportClient* Viewport = World->GetGameViewport())
+	{
+		Viewport->SetForceDisableSplitscreen(true);
+	}
 }

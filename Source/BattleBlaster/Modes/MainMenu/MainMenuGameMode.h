@@ -10,9 +10,7 @@ class BATTLEBLASTER_API AMainMenuGameMode : public AGameMode
 	GENERATED_BODY()
 
 public:
-	AMainMenuGameMode()
-	{
-	}
+	AMainMenuGameMode();
 
 protected:
 	// 重写 BeginPlay

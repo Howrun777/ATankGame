@@ -11,23 +11,12 @@
 #include "Modes/Stage/UI/TankStageStartWidget.h"
 #include "Core/BattleBlasterGameInstance.h"
 #include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
+#include "Engine/GameInstance.h"
 #include "Engine/LocalPlayer.h"
 
 void AUIPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
-
-	UWorld* World = GetWorld();
-	if (World)
-	{
-		const int32 MaxSupportedPlayers = 4;
-		const int32 CurrentPlayers = UGameplayStatics::GetNumLocalPlayerControllers(World);
-
-		for (int32 i = CurrentPlayers; i < MaxSupportedPlayers; ++i)
-		{
-			UGameplayStatics::CreatePlayer(World, -1, true);
-		}
-	}
 
 	if (ULocalPlayer* LP = GetLocalPlayer())
 	{
@@ -69,12 +58,34 @@ void AUIPlayerController::SetupInputComponent()
 	}
 }
 
+int32 AUIPlayerController::GetLocalPlayerSlot() const
+{
+	APlayerController* MutableThis = const_cast<AUIPlayerController*>(this);
+	const ULocalPlayer* LocalPlayer = GetLocalPlayer();
+	const UGameInstance* GameInstance = GetGameInstance();
+	if (!LocalPlayer || !GameInstance)
+	{
+		return UGameplayStatics::GetPlayerControllerID(MutableThis);
+	}
+
+	const TArray<ULocalPlayer*>& LocalPlayers = GameInstance->GetLocalPlayers();
+	for (int32 Index = 0; Index < LocalPlayers.Num(); ++Index)
+	{
+		if (LocalPlayers[Index] == LocalPlayer)
+		{
+			return Index;
+		}
+	}
+
+	return UGameplayStatics::GetPlayerControllerID(MutableThis);
+}
+
 void AUIPlayerController::HandleTankSelectAxis(const FInputActionValue& Value)
 {
 	const float Axis = Value.Get<float>();
 	if (FMath::IsNearlyZero(Axis)) return;
 
-	const int32 LocalPlayerIndex = UGameplayStatics::GetPlayerControllerID(this);
+	const int32 LocalPlayerIndex = GetLocalPlayerSlot();
 
 	// 注册 DeviceId 映射（解决缺陷 3）
 	RegisterDeviceMappingToGameInstance();
@@ -103,7 +114,7 @@ void AUIPlayerController::RegisterDeviceMappingToGameInstance()
 	UBattleBlasterGameInstance* GI = Cast<UBattleBlasterGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
 	if (!GI) return;
 
-	const int32 LocalPlayerIndex = UGameplayStatics::GetPlayerControllerID(this);
+	const int32 LocalPlayerIndex = GetLocalPlayerSlot();
 	ULocalPlayer* LP = GetLocalPlayer();
 	if (!LP) return;
 

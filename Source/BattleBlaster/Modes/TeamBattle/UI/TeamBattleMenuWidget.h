@@ -130,6 +130,7 @@ protected:
 
 	void RefreshConnectedDeviceCount();
 	int32 GetConnectedDeviceCount();
+	int32 GetDesiredLocalPlayerCount() const;
 	void UpdateDeviceIcons(int32 DeviceCount);
 	void UpdateScoreDisplay();
 	void InitPlayerTankState();

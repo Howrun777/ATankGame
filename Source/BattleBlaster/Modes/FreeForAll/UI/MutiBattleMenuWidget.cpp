@@ -39,6 +39,7 @@ void UMutiBattleMenuWidget::NativeTick(const FGeometry& MyGeometry, float InDelt
 	if (DeviceCountRefreshTimer >= DeviceCountRefreshInterval)
 	{
 		RefreshConnectedDeviceCount();
+		EnsureLocalPlayers(GetDesiredLocalPlayerCount());
 	}
 
 	// 2. Tank 槽数量 = 当前 UI 设置的人数（CurrentPlayerCount）
@@ -48,10 +49,7 @@ void UMutiBattleMenuWidget::NativeTick(const FGeometry& MyGeometry, float InDelt
 	if (ConfiguredCount != ActivePlayerCount)
 	{
 		ActivePlayerCount = ConfiguredCount;
-
-		// 只在"菜单 GameMode"那边统一调用 CreatePlayer/RemovePlayer，
-		// 这里就不再负责创建 LocalPlayer，避免耦合太多。
-		// 如果你仍想在这里保险，可以保留一行 EnsureLocalPlayers(ActivePlayerCount);
+		EnsureLocalPlayers(GetDesiredLocalPlayerCount());
 
 		InitPlayerTankState(ActivePlayerCount);
 		UpdateAllTankImages();
@@ -119,6 +117,11 @@ void UMutiBattleMenuWidget::RefreshConnectedDeviceCount()
 	CachedConnectedDeviceCount = GetConnectedDeviceCount();
 	DeviceCountRefreshTimer = 0.0f;
 	UpdateDeviceIcons(CachedConnectedDeviceCount);
+}
+
+int32 UMutiBattleMenuWidget::GetDesiredLocalPlayerCount() const
+{
+	return 4;
 }
 
 void UMutiBattleMenuWidget::HandleMouseWheelTargeting(float DeltaTime)
@@ -220,7 +223,8 @@ void UMutiBattleMenuWidget::NativeConstruct()
 
 	// 3. 根据当前设备数量初始化玩家 Tank 状态
 	RefreshConnectedDeviceCount();
-	ActivePlayerCount = FMath::Clamp(CachedConnectedDeviceCount, 1, 4);
+	ActivePlayerCount = FMath::Clamp(CurrentPlayerCount, 2, 4);
+	EnsureLocalPlayers(GetDesiredLocalPlayerCount());
 
 	InitPlayerTankState(ActivePlayerCount);
 	UpdateAllTankImages();
@@ -528,11 +532,33 @@ void UMutiBattleMenuWidget::EnsureLocalPlayers(int32 WantedPlayers)
 	UWorld* World = GetWorld();
 	if (!World) return;
 
-	const int32 CurrentControllers = UGameplayStatics::GetNumLocalPlayerControllers(World);
+	const int32 TargetPlayers = FMath::Clamp(WantedPlayers, 1, 4);
 
-	for (int32 i = CurrentControllers; i < WantedPlayers; ++i)
+	for (int32 Index = UGameplayStatics::GetNumLocalPlayerControllers(World) - 1; Index >= TargetPlayers; --Index)
 	{
-		UGameplayStatics::CreatePlayer(World, -1, true);
+		if (APlayerController* ExtraPC = UGameplayStatics::GetPlayerController(World, Index))
+		{
+			UGameplayStatics::RemovePlayer(ExtraPC, true);
+		}
+	}
+
+	const int32 BeforeCount = UGameplayStatics::GetNumLocalPlayerControllers(World);
+	for (int32 Index = BeforeCount; Index < TargetPlayers; ++Index)
+	{
+		UGameplayStatics::CreatePlayer(World, Index, true);
+	}
+
+	const int32 AfterCount = UGameplayStatics::GetNumLocalPlayerControllers(World);
+	if (BeforeCount != AfterCount)
+	{
+		UE_LOG(LogTemp, Display, TEXT("FreeForAll menu LocalPlayers: target=%d current=%d"), TargetPlayers, AfterCount);
+		for (int32 Index = 0; Index < AfterCount; ++Index)
+		{
+			if (APlayerController* PC = UGameplayStatics::GetPlayerController(World, Index))
+			{
+				UE_LOG(LogTemp, Display, TEXT("FreeForAll menu PC[%d]=%s"), Index, *PC->GetClass()->GetName());
+			}
+		}
 	}
 }
 

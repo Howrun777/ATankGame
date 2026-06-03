@@ -21,9 +21,10 @@ void UTeamBattleMenuWidget::NativeConstruct()
 	if (Btn_Back)      Btn_Back->OnClicked.AddDynamic(this, &UTeamBattleMenuWidget::OnBackClicked);
 
 	UpdateScoreDisplay();
+	RefreshConnectedDeviceCount();
+	EnsureLocalPlayers(GetDesiredLocalPlayerCount());
 	InitPlayerTankState();
 	UpdateAllTankImages();
-	RefreshConnectedDeviceCount();
 }
 
 void UTeamBattleMenuWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
@@ -34,6 +35,7 @@ void UTeamBattleMenuWidget::NativeTick(const FGeometry& MyGeometry, float InDelt
 	if (DeviceCountRefreshTimer >= DeviceCountRefreshInterval)
 	{
 		RefreshConnectedDeviceCount();
+		EnsureLocalPlayers(GetDesiredLocalPlayerCount());
 	}
 
 	if (HoverFrame_1 && TankImage_1) HoverFrame_1->SetVisibility(TankImage_1->IsHovered() ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
@@ -67,6 +69,12 @@ void UTeamBattleMenuWidget::RefreshConnectedDeviceCount()
 	CachedConnectedDeviceCount = GetConnectedDeviceCount();
 	DeviceCountRefreshTimer = 0.0f;
 	UpdateDeviceIcons(CachedConnectedDeviceCount);
+}
+
+int32 UTeamBattleMenuWidget::GetDesiredLocalPlayerCount() const
+{
+	const int32 PlayerSlots = FMath::Clamp(TeamBattlePlayerCount, 1, 4);
+	return PlayerSlots == 3 ? 4 : PlayerSlots;
 }
 
 void UTeamBattleMenuWidget::UpdateDeviceIcons(int32 DeviceCount)
@@ -226,10 +234,27 @@ void UTeamBattleMenuWidget::EnsureLocalPlayers(int32 WantedPlayers)
 {
 	UWorld* World = GetWorld();
 	if (!World) return;
-	const int32 CurrentControllers = UGameplayStatics::GetNumLocalPlayerControllers(World);
-	for (int32 i = CurrentControllers; i < WantedPlayers; ++i)
+
+	const int32 TargetPlayers = FMath::Clamp(WantedPlayers, 1, 4);
+
+	for (int32 Index = UGameplayStatics::GetNumLocalPlayerControllers(World) - 1; Index >= TargetPlayers; --Index)
 	{
-		UGameplayStatics::CreatePlayer(World, -1, true);
+		if (APlayerController* ExtraPC = UGameplayStatics::GetPlayerController(World, Index))
+		{
+			UGameplayStatics::RemovePlayer(ExtraPC, true);
+		}
+	}
+
+	const int32 BeforeCount = UGameplayStatics::GetNumLocalPlayerControllers(World);
+	for (int32 Index = BeforeCount; Index < TargetPlayers; ++Index)
+	{
+		UGameplayStatics::CreatePlayer(World, Index, true);
+	}
+
+	const int32 AfterCount = UGameplayStatics::GetNumLocalPlayerControllers(World);
+	if (BeforeCount != AfterCount)
+	{
+		UE_LOG(LogTemp, Display, TEXT("TeamBattle menu LocalPlayers: target=%d current=%d"), TargetPlayers, AfterCount);
 	}
 }
 
@@ -278,7 +303,7 @@ void UTeamBattleMenuWidget::OnConfirmClicked()
 			GameInst->ConnectedGamepadCount, GameInst->AIControlledPlayerIndices.Num());
 	}
 
-	EnsureLocalPlayers(TeamBattlePlayerCount);
+	EnsureLocalPlayers(GetDesiredLocalPlayerCount());
 
 	if (MapSelectWidgetClass)
 	{

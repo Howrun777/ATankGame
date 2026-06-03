@@ -27,6 +27,7 @@ public:
 	UInputAction* IA_TankSelectAxis = nullptr;
 
 private:
+	int32 GetLocalPlayerSlot() const;
 	void HandleTankSelectAxis(const FInputActionValue& Value);
 
 	UMutiBattleMenuWidget* GetMenuWidgetCached() const;

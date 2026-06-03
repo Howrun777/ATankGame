@@ -228,6 +228,7 @@ protected:
 
 	void RefreshConnectedDeviceCount();
 	int32 GetConnectedDeviceCount();
+	int32 GetDesiredLocalPlayerCount() const;
 
 	// 根据数量刷新图片的显示和隐藏
 	void UpdateDeviceIcons(int32 DeviceCount);

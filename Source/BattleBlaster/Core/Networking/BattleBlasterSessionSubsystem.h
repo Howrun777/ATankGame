@@ -21,4 +21,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Network|Session")
 	void JoinByIpAndPort(const FString& IP, const FString& Port);
+
+private:
+	void RemoveExtraLocalPlayers();
 };

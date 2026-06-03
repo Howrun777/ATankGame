@@ -9,7 +9,7 @@
 TSharedRef<SWidget> ULANHostSettingsWidget::RebuildWidget()
 {
 	UVerticalBox* ContentBox = nullptr;
-	BuildMenuRoot(TEXT("LAN Host Settings"), TEXT("Only Deathmatch is wired to current gameplay code."), ContentBox);
+	BuildMenuRoot(TEXT("Host LAN Game"), TEXT("Configure a listen server session for players on the same network."), ContentBox);
 
 	ModeValueText = AddStepperRow(ContentBox, TEXT("Mode"), ModeMinusButton, ModePlusButton);
 	PlayerCountValueText = AddStepperRow(ContentBox, TEXT("Max Players"), PlayerMinusButton, PlayerPlusButton);
@@ -18,9 +18,9 @@ TSharedRef<SWidget> ULANHostSettingsWidget::RebuildWidget()
 
 	MapNameTextBox = AddEditableTextBox(ContentBox, TEXT("Map"), TEXT("NetworkBattleTestMap"));
 	PortTextBox = AddEditableTextBox(ContentBox, TEXT("Port"), TEXT("7777"));
-	StatusText = AddMenuText(ContentBox, TEXT(""), 17, FLinearColor(0.9f, 0.72f, 0.35f, 1.0f), 14.0f);
+	StatusText = AddMenuText(ContentBox, TEXT(""), 17, FLinearColor(0.62f, 0.88f, 0.82f, 1.0f), 16.0f);
 
-	StartHostButton = AddMenuButton(ContentBox, TEXT("Start Host"));
+	StartHostButton = AddMenuButton(ContentBox, TEXT("Start Host"), 14.0f);
 	BackButton = AddMenuButton(ContentBox, TEXT("Back"));
 
 	return Super::RebuildWidget();
@@ -134,8 +134,8 @@ void ULANHostSettingsWidget::RefreshValues()
 	if (StatusText)
 	{
 		StatusText->SetText(ModeIndex == 0
-			? FText::FromString(TEXT("Ready to host LAN Deathmatch."))
-			: FText::FromString(TEXT("Selected mode is UI-only for now.")));
+			? FText::FromString(TEXT("Ready: LAN Deathmatch will open as a listen server."))
+			: FText::FromString(TEXT("This mode is selectable for UI flow only right now.")));
 	}
 }
 

@@ -41,6 +41,7 @@ void UMOBASetupWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime
 	if (DeviceCountRefreshTimer >= DeviceCountRefreshInterval)
 	{
 		RefreshConnectedDeviceCount();
+		EnsureLocalPlayers(GetDesiredLocalPlayerCount());
 	}
 
 	// 2. Tank 槽数量 = 当前 UI 设置的人数
@@ -49,6 +50,7 @@ void UMOBASetupWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime
 	if (ConfiguredCount != ActivePlayerCount)
 	{
 		ActivePlayerCount = ConfiguredCount;
+		EnsureLocalPlayers(GetDesiredLocalPlayerCount());
 		InitPlayerTankState(ActivePlayerCount);
 		UpdateAllTankImages();
 		LastSwitchTimestamp.SetNumZeroed(ActivePlayerCount);
@@ -112,6 +114,11 @@ void UMOBASetupWidget::RefreshConnectedDeviceCount()
 	CachedConnectedDeviceCount = GetConnectedDeviceCount();
 	DeviceCountRefreshTimer = 0.0f;
 	UpdateDeviceIcons(CachedConnectedDeviceCount);
+}
+
+int32 UMOBASetupWidget::GetDesiredLocalPlayerCount() const
+{
+	return 4;
 }
 
 void UMOBASetupWidget::HandleMouseWheelTargeting(float DeltaTime)
@@ -198,7 +205,8 @@ void UMOBASetupWidget::NativeConstruct()
 
 	// 3. 初始化玩家 Tank 状态
 	RefreshConnectedDeviceCount();
-	ActivePlayerCount = FMath::Clamp(CachedConnectedDeviceCount, 1, 4);
+	ActivePlayerCount = FMath::Clamp(CurrentPlayerCount, 2, 4);
+	EnsureLocalPlayers(GetDesiredLocalPlayerCount());
 
 	InitPlayerTankState(ActivePlayerCount);
 	UpdateAllTankImages();
@@ -499,11 +507,26 @@ void UMOBASetupWidget::EnsureLocalPlayers(int32 WantedPlayers)
 	UWorld* World = GetWorld();
 	if (!World) return;
 
-	const int32 CurrentControllers = UGameplayStatics::GetNumLocalPlayerControllers(World);
+	const int32 TargetPlayers = FMath::Clamp(WantedPlayers, 1, 4);
 
-	for (int32 i = CurrentControllers; i < WantedPlayers; ++i)
+	for (int32 Index = UGameplayStatics::GetNumLocalPlayerControllers(World) - 1; Index >= TargetPlayers; --Index)
 	{
-		UGameplayStatics::CreatePlayer(World, -1, true);
+		if (APlayerController* ExtraPC = UGameplayStatics::GetPlayerController(World, Index))
+		{
+			UGameplayStatics::RemovePlayer(ExtraPC, true);
+		}
+	}
+
+	const int32 BeforeCount = UGameplayStatics::GetNumLocalPlayerControllers(World);
+	for (int32 Index = BeforeCount; Index < TargetPlayers; ++Index)
+	{
+		UGameplayStatics::CreatePlayer(World, Index, true);
+	}
+
+	const int32 AfterCount = UGameplayStatics::GetNumLocalPlayerControllers(World);
+	if (BeforeCount != AfterCount)
+	{
+		UE_LOG(LogTemp, Display, TEXT("MOBA setup LocalPlayers: target=%d current=%d"), TargetPlayers, AfterCount);
 	}
 }
 
