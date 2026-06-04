@@ -8,10 +8,11 @@
 TSharedRef<SWidget> ULANMenuWidget::RebuildWidget()
 {
 	UVerticalBox* ContentBox = nullptr;
-	BuildMenuRoot(TEXT("LAN Game"), TEXT("Create a room on this machine or connect directly to another host."), ContentBox);
+	BuildMenuRoot(TEXT("LAN Game"), TEXT("Create or join a local network match."), ContentBox);
 
-	HostButton = AddMenuButton(ContentBox, TEXT("Host Game"), 14.0f);
-	JoinButton = AddMenuButton(ContentBox, TEXT("Join by IP"));
+	AddSectionHeader(ContentBox, TEXT("LAN SESSION"));
+	HostButton = AddMenuCardButton(ContentBox, TEXT("Host Game"), TEXT("Create a room and choose match rules."), TEXT("CREATE"), true);
+	JoinButton = AddMenuCardButton(ContentBox, TEXT("Join by IP"), TEXT("Connect to an existing host address."), TEXT("CONNECT"), false);
 	BackButton = AddMenuButton(ContentBox, TEXT("Back"));
 
 	return Super::RebuildWidget();

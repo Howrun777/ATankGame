@@ -9,11 +9,12 @@
 TSharedRef<SWidget> ULANJoinWidget::RebuildWidget()
 {
 	UVerticalBox* ContentBox = nullptr;
-	BuildMenuRoot(TEXT("Join LAN Game"), TEXT("Connect directly to a host by entering its local address and port."), ContentBox);
+	BuildMenuRoot(TEXT("Join LAN Game"), TEXT("Enter the host address and port."), ContentBox);
 
-	IPTextBox = AddEditableTextBox(ContentBox, TEXT("IP"), TEXT("127.0.0.1"));
+	AddSectionHeader(ContentBox, TEXT("DIRECT CONNECT"));
+	IPTextBox = AddEditableTextBox(ContentBox, TEXT("IP Address"), TEXT("127.0.0.1"));
 	PortTextBox = AddEditableTextBox(ContentBox, TEXT("Port"), TEXT("7777"));
-	StatusText = AddMenuText(ContentBox, TEXT("Use 127.0.0.1 for same-machine testing."), 17, FLinearColor(0.62f, 0.88f, 0.82f, 1.0f), 16.0f);
+	StatusText = AddNoticeText(ContentBox, TEXT("Same machine: 127.0.0.1. LAN: use the host IP."), FLinearColor(0.08f, 0.74f, 0.64f, 1.0f), 18.0f);
 	JoinButton = AddMenuButton(ContentBox, TEXT("Join Game"), 14.0f);
 	BackButton = AddMenuButton(ContentBox, TEXT("Back"));
 

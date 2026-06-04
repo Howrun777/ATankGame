@@ -8,11 +8,12 @@
 TSharedRef<SWidget> UNetworkModeSelectWidget::RebuildWidget()
 {
 	UVerticalBox* ContentBox = nullptr;
-	BuildMenuRoot(TEXT("Network Game"), TEXT("Choose how this machine should connect to a multiplayer session."), ContentBox);
+	BuildMenuRoot(TEXT("Network Game"), TEXT("Choose a multiplayer connection path."), ContentBox);
 
-	LANButton = AddMenuButton(ContentBox, TEXT("LAN Game"), 14.0f);
-	ServerButton = AddMenuButton(ContentBox, TEXT("Server Game (Not Available)"));
-	StatusText = AddMenuText(ContentBox, TEXT("LAN mode uses local IP hosting and direct IP joining."), 17, FLinearColor(0.78f, 0.82f, 0.84f, 1.0f), 22.0f);
+	AddSectionHeader(ContentBox, TEXT("CONNECTION TYPE"));
+	LANButton = AddMenuCardButton(ContentBox, TEXT("LAN Game"), TEXT("Host locally or join by direct IP."), TEXT("READY"), true);
+	ServerButton = AddMenuCardButton(ContentBox, TEXT("Server Game"), TEXT("Dedicated server flow, planned for later."), TEXT("PLANNED"), false);
+	StatusText = AddNoticeText(ContentBox, TEXT("LAN mode is available now."), FLinearColor(0.08f, 0.74f, 0.64f, 1.0f), 18.0f);
 	BackButton = AddMenuButton(ContentBox, TEXT("Back"));
 
 	return Super::RebuildWidget();

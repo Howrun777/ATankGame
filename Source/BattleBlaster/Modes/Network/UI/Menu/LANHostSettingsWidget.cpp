@@ -9,16 +9,18 @@
 TSharedRef<SWidget> ULANHostSettingsWidget::RebuildWidget()
 {
 	UVerticalBox* ContentBox = nullptr;
-	BuildMenuRoot(TEXT("Host LAN Game"), TEXT("Configure a listen server session for players on the same network."), ContentBox);
+	BuildMenuRoot(TEXT("Host LAN Game"), TEXT("Configure rules and open a listen server."), ContentBox);
 
+	AddSectionHeader(ContentBox, TEXT("MATCH RULES"));
 	ModeValueText = AddStepperRow(ContentBox, TEXT("Mode"), ModeMinusButton, ModePlusButton);
 	PlayerCountValueText = AddStepperRow(ContentBox, TEXT("Max Players"), PlayerMinusButton, PlayerPlusButton);
 	AICountValueText = AddStepperRow(ContentBox, TEXT("AI Players"), AIMinusButton, AIPlusButton);
 	TargetScoreValueText = AddStepperRow(ContentBox, TEXT("Target Score"), ScoreMinusButton, ScorePlusButton);
 
+	AddSectionHeader(ContentBox, TEXT("CONNECTION"));
 	MapNameTextBox = AddEditableTextBox(ContentBox, TEXT("Map"), TEXT("NetworkBattleTestMap"));
 	PortTextBox = AddEditableTextBox(ContentBox, TEXT("Port"), TEXT("7777"));
-	StatusText = AddMenuText(ContentBox, TEXT(""), 17, FLinearColor(0.62f, 0.88f, 0.82f, 1.0f), 16.0f);
+	StatusText = AddNoticeText(ContentBox, TEXT(""), FLinearColor(0.08f, 0.74f, 0.64f, 1.0f), 18.0f);
 
 	StartHostButton = AddMenuButton(ContentBox, TEXT("Start Host"), 14.0f);
 	BackButton = AddMenuButton(ContentBox, TEXT("Back"));

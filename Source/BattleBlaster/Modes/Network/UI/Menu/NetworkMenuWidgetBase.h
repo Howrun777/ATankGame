@@ -33,8 +33,11 @@ protected:
 	UCanvasPanel* BuildMenuRoot(const FString& Title, const FString& Subtitle, UVerticalBox*& OutContentBox);
 	UTextBlock* AddMenuText(UVerticalBox* ContentBox, const FString& Text, int32 FontSize, const FLinearColor& Color, float BottomPadding = 12.0f);
 	UButton* AddMenuButton(UVerticalBox* ContentBox, const FString& Label, float BottomPadding = 12.0f);
+	UButton* AddMenuCardButton(UVerticalBox* ContentBox, const FString& Title, const FString& Subtitle, const FString& Tag, bool bPrimary, float BottomPadding = 14.0f);
 	UEditableTextBox* AddEditableTextBox(UVerticalBox* ContentBox, const FString& Label, const FString& InitialText, float BottomPadding = 12.0f);
 	UTextBlock* AddStepperRow(UVerticalBox* ContentBox, const FString& Label, UButton*& OutMinusButton, UButton*& OutPlusButton, float BottomPadding = 12.0f);
+	UTextBlock* AddNoticeText(UVerticalBox* ContentBox, const FString& Text, const FLinearColor& AccentColor, float BottomPadding = 16.0f);
+	void AddSectionHeader(UVerticalBox* ContentBox, const FString& Label, float BottomPadding = 8.0f);
 
 	void OpenChildMenu(UNetworkMenuWidgetBase* ChildMenu);
 
