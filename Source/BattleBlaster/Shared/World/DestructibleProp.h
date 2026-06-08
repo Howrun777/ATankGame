@@ -4,6 +4,7 @@
 #include "DestructibleProp.generated.h"
 
 class UHealthComponent;
+class UBoxComponent;
 class UStaticMeshComponent;
 class UWidgetComponent;
 class UUserWidget;
@@ -37,7 +38,10 @@ public:
 protected:
 	virtual void BeginPlay() override;
 
-	// --- 修改点1：增加场景根组件声明 ---
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	UBoxComponent* NetworkPhysicsRoot;
+
+	// Visual container kept for Blueprint-friendly offsets under the physics root.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	USceneComponent* DefaultSceneRoot;
 
@@ -99,6 +103,13 @@ protected:
 	virtual void ConfigurePropMeshForNetwork();
 	virtual bool ShouldReplicatePropMeshTransform() const;
 
+	bool IsNetworkWorld() const;
+	bool ShouldUseNetworkPhysicsRoot() const;
+	void ConfigurePropMeshForStandalonePhysics();
+	void ConfigurePropMeshForPhysicsProxy();
+	void ConfigureNetworkPhysicsRoot(bool bEnablePhysicsRoot);
+	void AlignNetworkPhysicsRootToPropMesh();
+	void UpdateNetworkPhysicsRootBounds();
 	void UpdateReplicatedPropMeshTransform();
 	void SmoothReplicatedPropMeshTransform(float DeltaTime);
 
@@ -110,6 +121,29 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network")
 	bool bReplicatePropMeshTransform = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network")
+	bool bUseNetworkPhysicsRoot = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network")
+	bool bAutoFitNetworkPhysicsRootToMesh = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network", meta = (ClampMin = "1.0", UIMin = "1.0"))
+	float MinNetworkPhysicsRootExtent = 10.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network|Physics")
+	bool bOverrideNetworkPhysicsMass = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network|Physics", meta = (ClampMin = "0.1", UIMin = "0.1"))
+	float NetworkPhysicsMassKg = 40.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network|Physics", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	float NetworkPhysicsLinearDamping = 0.25f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network|Physics", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	float NetworkPhysicsAngularDamping = 1.0f;
+
+	bool bRuntimeUsesNetworkPhysicsRoot = false;
 
 	UPROPERTY(ReplicatedUsing = OnRep_ReplicatedPropMeshTransform)
 	FTransform ReplicatedPropMeshTransform;

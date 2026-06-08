@@ -8,7 +8,7 @@
 AExplosiveBarrel::AExplosiveBarrel()
 {
 	ExplosionRadiusVisualizer = CreateDefaultSubobject<USphereComponent>(TEXT("ExplosionRadiusVisualizer"));
-	ExplosionRadiusVisualizer->SetupAttachment(RootComponent);
+	ExplosionRadiusVisualizer->SetupAttachment(DefaultSceneRoot);
 	ExplosionRadiusVisualizer->SetSphereRadius(ExplosionRadius);
 	ExplosionRadiusVisualizer->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	ExplosionRadiusVisualizer->SetVisibility(true);

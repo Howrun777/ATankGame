@@ -133,6 +133,15 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Movement|Feel", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float WallSlideSpeedScale = 0.65f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Physics Push")
+	bool bPushPhysicsBodies = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Physics Push", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	float PhysicsPushImpulseStrength = 220000.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Physics Push", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	float MaxPhysicsPushImpulsePerHit = 8000.0f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network|Correction")
 	float ClientCorrectionInterval = 1.0f;
 
@@ -273,6 +282,7 @@ public:
 
 	void ApplyMoveInput(float InputValue);
 	void ApplyMoveInput(float InputValue, float DeltaSeconds);
+	void PushPhysicsBodyFromMoveHit(const FHitResult& Hit, const FVector& MoveDirection, float InputValue, float DeltaSeconds);
 	void ApplyTurnInput(float InputValue);
 	void ApplyTurnInput(float InputValue, float DeltaSeconds);
 	void ApplyTurretTurnInput(float InputValue);

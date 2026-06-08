@@ -5,6 +5,7 @@
 
 #include "Shared/Combat/HealthComponent.h"
 #include "Camera/CameraComponent.h"
+#include "Components/PrimitiveComponent.h"
 #include "Shared/Combat/Projectile.h"
 #include "Shared/AI/AIBotPlayerController.h"
 #include "InputMappingContext.h"
@@ -500,6 +501,7 @@ void ATank::ApplyMoveInput(float InputValue)
 
 	FHitResult Hit;
 	AddActorWorldOffset(DesiredWorldDelta, bSweep, &Hit);
+	PushPhysicsBodyFromMoveHit(Hit, MoveDir, InputValue, DeltaSeconds);
 
 	// 贴墙滑动：如果被阻挡，把剩余位移投影到墙面切线方向，避免“一擦就卡死”
 	if (bSweep && bEnableWallSlide && Hit.IsValidBlockingHit())
@@ -563,6 +565,7 @@ void ATank::ApplyMoveInput(float InputValue, float DeltaSeconds)
 
 	FHitResult Hit;
 	AddActorWorldOffset(DesiredWorldDelta, bSweep, &Hit);
+	PushPhysicsBodyFromMoveHit(Hit, MoveDir, InputValue, DeltaSeconds);
 
 	if (bSweep && bEnableWallSlide && Hit.IsValidBlockingHit())
 	{
@@ -1271,3 +1274,37 @@ void ATank::UpdateAimView()
 	}
 }
 
+
+void ATank::PushPhysicsBodyFromMoveHit(const FHitResult& Hit, const FVector& MoveDirection, float InputValue, float DeltaSeconds)
+{
+	if (!bPushPhysicsBodies || !HasAuthority() || !Hit.IsValidBlockingHit())
+	{
+		return;
+	}
+
+	UPrimitiveComponent* HitComponent = Hit.GetComponent();
+	if (!HitComponent || !HitComponent->IsSimulatingPhysics())
+	{
+		return;
+	}
+
+	FVector PushDirection = MoveDirection;
+	PushDirection.Z = 0.0f;
+	if (!PushDirection.Normalize())
+	{
+		return;
+	}
+
+	const float ImpulseSize = FMath::Clamp(
+		PhysicsPushImpulseStrength * FMath::Abs(InputValue) * FMath::Max(DeltaSeconds, KINDA_SMALL_NUMBER),
+		0.0f,
+		MaxPhysicsPushImpulsePerHit);
+
+	if (ImpulseSize <= 0.0f)
+	{
+		return;
+	}
+
+	HitComponent->AddImpulseAtLocation(PushDirection * ImpulseSize, Hit.ImpactPoint);
+	HitComponent->WakeAllRigidBodies();
+}

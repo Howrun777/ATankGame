@@ -1,9 +1,11 @@
 #include "Shared/World/DestructibleProp.h"
 #include "Blueprint/UserWidget.h"
+#include "Components/BoxComponent.h"
 #include "Components/ProgressBar.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/WidgetComponent.h"
+#include "Core/BattleBlasterCollisionChannels.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
@@ -21,11 +23,21 @@ ADestructibleProp::ADestructibleProp()
 	SetNetUpdateFrequency(30.0f);
 	SetMinNetUpdateFrequency(5.0f);
 
+	NetworkPhysicsRoot = CreateDefaultSubobject<UBoxComponent>(TEXT("NetworkPhysicsRoot"));
+	RootComponent = NetworkPhysicsRoot;
+	NetworkPhysicsRoot->SetCollisionObjectType(ECC_WorldDynamic);
+	NetworkPhysicsRoot->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	NetworkPhysicsRoot->SetCollisionResponseToAllChannels(ECR_Block);
+	NetworkPhysicsRoot->SetCollisionResponseToChannel(BB_COLLISION_PROJECTILE, ECR_Block);
+	NetworkPhysicsRoot->SetBoxExtent(FVector(50.0f, 50.0f, 50.0f));
+	NetworkPhysicsRoot->SetSimulatePhysics(false);
+	NetworkPhysicsRoot->SetIsReplicated(false);
+
 	DefaultSceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("DefaultSceneRoot"));
-	RootComponent = DefaultSceneRoot;
+	DefaultSceneRoot->SetupAttachment(NetworkPhysicsRoot);
 
 	PropMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PropMesh"));
-	PropMesh->SetupAttachment(RootComponent);
+	PropMesh->SetupAttachment(DefaultSceneRoot);
 	PropMesh->SetCollisionProfileName(TEXT("BlockAll"));
 	PropMesh->SetIsReplicated(true);
 
@@ -175,7 +187,7 @@ void ADestructibleProp::OnRep_DestroyedState()
 
 void ADestructibleProp::OnRep_ReplicatedPropMeshTransform()
 {
-	if (!HasAuthority() && PropMesh && !bIsDestroyed)
+	if (!HasAuthority() && PropMesh && !bIsDestroyed && !ShouldUseNetworkPhysicsRoot())
 	{
 		PropMeshSmoothStartTransform = PropMesh->GetComponentTransform();
 		PropMeshSmoothTargetTransform = ReplicatedPropMeshTransform;
@@ -212,6 +224,12 @@ void ADestructibleProp::ApplyDestructionState()
 {
 	GetWorldTimerManager().ClearTimer(PropMeshTransformReplicationTimerHandle);
 
+	if (NetworkPhysicsRoot)
+	{
+		NetworkPhysicsRoot->SetSimulatePhysics(false);
+		NetworkPhysicsRoot->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+
 	if (PropMesh)
 	{
 		PropMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -242,6 +260,15 @@ void ADestructibleProp::ConfigurePropMeshForNetwork()
 		return;
 	}
 
+	const bool bUsePhysicsRoot = ShouldUseNetworkPhysicsRoot();
+	ConfigureNetworkPhysicsRoot(bUsePhysicsRoot);
+
+	if (bUsePhysicsRoot)
+	{
+		ConfigurePropMeshForPhysicsProxy();
+		return;
+	}
+
 	PropMesh->SetIsReplicated(true);
 
 	if (!HasAuthority() && PropMesh->IsSimulatingPhysics())
@@ -252,7 +279,164 @@ void ADestructibleProp::ConfigurePropMeshForNetwork()
 
 bool ADestructibleProp::ShouldReplicatePropMeshTransform() const
 {
-	return bReplicatePropMeshTransform && PropMesh && PropMesh->IsSimulatingPhysics();
+	return IsNetworkWorld() && bReplicatePropMeshTransform && PropMesh && PropMesh->IsSimulatingPhysics() && !ShouldUseNetworkPhysicsRoot();
+}
+
+bool ADestructibleProp::IsNetworkWorld() const
+{
+	const UWorld* World = GetWorld();
+	return World && World->GetNetMode() != NM_Standalone;
+}
+
+bool ADestructibleProp::ShouldUseNetworkPhysicsRoot() const
+{
+	return bRuntimeUsesNetworkPhysicsRoot || (bUseNetworkPhysicsRoot && PropMesh && PropMesh->IsSimulatingPhysics());
+}
+
+void ADestructibleProp::ConfigurePropMeshForStandalonePhysics()
+{
+	if (!PropMesh)
+	{
+		return;
+	}
+
+	PropMesh->SetIsReplicated(false);
+	PropMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+}
+
+void ADestructibleProp::ConfigurePropMeshForPhysicsProxy()
+{
+	if (!PropMesh)
+	{
+		return;
+	}
+
+	const FTransform MeshWorldTransform = PropMesh->GetComponentTransform();
+
+	PropMesh->SetSimulatePhysics(false);
+
+	if (DefaultSceneRoot && PropMesh->GetAttachParent() != DefaultSceneRoot)
+	{
+		PropMesh->AttachToComponent(DefaultSceneRoot, FAttachmentTransformRules::KeepWorldTransform);
+	}
+
+	PropMesh->SetWorldTransform(MeshWorldTransform, false, nullptr, ETeleportType::TeleportPhysics);
+	PropMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	PropMesh->SetIsReplicated(false);
+}
+
+void ADestructibleProp::ConfigureNetworkPhysicsRoot(bool bEnablePhysicsRoot)
+{
+	if (!NetworkPhysicsRoot)
+	{
+		return;
+	}
+
+	bRuntimeUsesNetworkPhysicsRoot = bEnablePhysicsRoot;
+
+	if (bEnablePhysicsRoot)
+	{
+		AlignNetworkPhysicsRootToPropMesh();
+		UpdateNetworkPhysicsRootBounds();
+		NetworkPhysicsRoot->SetCollisionObjectType(ECC_WorldDynamic);
+		NetworkPhysicsRoot->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		NetworkPhysicsRoot->SetCollisionResponseToAllChannels(ECR_Block);
+		NetworkPhysicsRoot->SetCollisionResponseToChannel(BB_COLLISION_PROJECTILE, ECR_Block);
+		NetworkPhysicsRoot->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+		NetworkPhysicsRoot->SetIsReplicated(IsNetworkWorld());
+		NetworkPhysicsRoot->SetNotifyRigidBodyCollision(false);
+		NetworkPhysicsRoot->SetSimulatePhysics(HasAuthority() || !IsNetworkWorld());
+
+		if (bOverrideNetworkPhysicsMass)
+		{
+			NetworkPhysicsRoot->SetMassOverrideInKg(NAME_None, NetworkPhysicsMassKg, true);
+		}
+		else if (PropMesh)
+		{
+			NetworkPhysicsRoot->SetMassOverrideInKg(NAME_None, FMath::Max(PropMesh->GetMass(), 0.1f), true);
+		}
+
+		NetworkPhysicsRoot->SetLinearDamping(NetworkPhysicsLinearDamping);
+		NetworkPhysicsRoot->SetAngularDamping(NetworkPhysicsAngularDamping);
+
+		if (HasAuthority())
+		{
+			NetworkPhysicsRoot->WakeAllRigidBodies();
+		}
+	}
+	else
+	{
+		NetworkPhysicsRoot->SetSimulatePhysics(false);
+		NetworkPhysicsRoot->SetNotifyRigidBodyCollision(false);
+		NetworkPhysicsRoot->SetIsReplicated(false);
+		NetworkPhysicsRoot->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+}
+
+void ADestructibleProp::AlignNetworkPhysicsRootToPropMesh()
+{
+	if (!NetworkPhysicsRoot || !DefaultSceneRoot || !PropMesh || !bAutoFitNetworkPhysicsRootToMesh)
+	{
+		return;
+	}
+
+	const FVector MeshCenter = PropMesh->Bounds.Origin;
+	const FVector OldRootLocation = NetworkPhysicsRoot->GetComponentLocation();
+	if (MeshCenter.Equals(OldRootLocation, KINDA_SMALL_NUMBER))
+	{
+		return;
+	}
+
+	const FVector VisualWorldLocation = DefaultSceneRoot->GetComponentLocation();
+	const FQuat VisualWorldRotation = DefaultSceneRoot->GetComponentQuat();
+	const FVector VisualWorldScale = DefaultSceneRoot->GetComponentScale();
+
+	NetworkPhysicsRoot->SetWorldLocation(MeshCenter, false, nullptr, ETeleportType::TeleportPhysics);
+	DefaultSceneRoot->SetWorldLocationAndRotation(VisualWorldLocation, VisualWorldRotation, false, nullptr, ETeleportType::TeleportPhysics);
+	DefaultSceneRoot->SetWorldScale3D(VisualWorldScale);
+}
+
+void ADestructibleProp::UpdateNetworkPhysicsRootBounds()
+{
+	if (!NetworkPhysicsRoot || !PropMesh || !bAutoFitNetworkPhysicsRootToMesh)
+	{
+		return;
+	}
+
+	const FBox WorldBox = PropMesh->Bounds.GetBox();
+	if (!WorldBox.IsValid)
+	{
+		return;
+	}
+
+	const FTransform RootTransform = NetworkPhysicsRoot->GetComponentTransform();
+	FBox LocalBox(ForceInit);
+
+	const FVector WorldMin = WorldBox.Min;
+	const FVector WorldMax = WorldBox.Max;
+	for (int32 X = 0; X < 2; ++X)
+	{
+		for (int32 Y = 0; Y < 2; ++Y)
+		{
+			for (int32 Z = 0; Z < 2; ++Z)
+			{
+				const FVector WorldCorner(
+					X == 0 ? WorldMin.X : WorldMax.X,
+					Y == 0 ? WorldMin.Y : WorldMax.Y,
+					Z == 0 ? WorldMin.Z : WorldMax.Z);
+				LocalBox += RootTransform.InverseTransformPosition(WorldCorner);
+			}
+		}
+	}
+
+	const FVector LocalMin = LocalBox.Min;
+	const FVector LocalMax = LocalBox.Max;
+	const FVector BoxExtent(
+		FMath::Max3(static_cast<float>(FMath::Abs(LocalMin.X)), static_cast<float>(FMath::Abs(LocalMax.X)), MinNetworkPhysicsRootExtent),
+		FMath::Max3(static_cast<float>(FMath::Abs(LocalMin.Y)), static_cast<float>(FMath::Abs(LocalMax.Y)), MinNetworkPhysicsRootExtent),
+		FMath::Max3(static_cast<float>(FMath::Abs(LocalMin.Z)), static_cast<float>(FMath::Abs(LocalMax.Z)), MinNetworkPhysicsRootExtent));
+
+	NetworkPhysicsRoot->SetBoxExtent(BoxExtent, true);
 }
 
 void ADestructibleProp::UpdateReplicatedPropMeshTransform()
