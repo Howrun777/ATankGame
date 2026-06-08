@@ -70,3 +70,4 @@ Source/BattleBlaster/Core/Networking/
 - 每个网络 GameMode 建议有自己的 BP 子类，方便挂 UI、地图、规则参数。
 - `BP_NetworkPlayerControllerBase` 应挂网络模式所需的输入映射和暂停菜单。
 - 网络 Host 测试时，不要用本地分屏 PIE 去模拟独立进程；需要多进程或独立客户端时使用对应 Play 模式。
+- 同机多窗口只适合烟测连接流程；移动、开火、物理同步和卡顿判断应以两台真实设备 LAN 测试为准。
