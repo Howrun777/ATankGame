@@ -5,8 +5,12 @@
 #include "NetworkPlayerControllerBase.generated.h"
 
 class ANetworkDeathmatchGameState;
+class ANetworkMOBAGameState;
+class ANetworkTeamDeathmatchGameState;
 class UCppShowScoresWidget;
 class UNetworkDeathmatchGameOverWidget;
+class UNetworkMOBAStateWidget;
+class UNetworkTeamScoresWidget;
 
 UCLASS()
 class BATTLEBLASTER_API ANetworkPlayerControllerBase : public ATankPlayerController
@@ -38,6 +42,18 @@ public:
 	UCppShowScoresWidget* ScoresWidget = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network|UI")
+	TSubclassOf<UNetworkTeamScoresWidget> TeamScoresWidgetClass;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Network|UI")
+	UNetworkTeamScoresWidget* TeamScoresWidget = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network|UI")
+	TSubclassOf<UNetworkMOBAStateWidget> MOBAStateWidgetClass;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Network|UI")
+	UNetworkMOBAStateWidget* MOBAStateWidget = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network|UI")
 	TSubclassOf<UNetworkDeathmatchGameOverWidget> DeathmatchGameOverWidgetClass;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Network|UI")
@@ -47,12 +63,21 @@ private:
 	UPROPERTY()
 	ANetworkDeathmatchGameState* BoundDeathmatchGameState = nullptr;
 
+	UPROPERTY()
+	ANetworkMOBAGameState* BoundMOBAGameState = nullptr;
+
 	FTimerHandle NetworkScoreUIRetryTimerHandle;
 	int32 NetworkScoreUIRetryCount = 0;
 
 	UFUNCTION()
 	void HandleDeathmatchScoreStateChanged();
 
+	UFUNCTION()
+	void HandleMOBAStateChanged();
+
 	void BindDeathmatchScoreState(ANetworkDeathmatchGameState* DeathmatchGameState);
 	void UnbindDeathmatchScoreState();
+	void BindMOBAState(ANetworkMOBAGameState* MOBAGameState);
+	void UnbindMOBAState();
+	void RemoveScoreWidgets();
 };

@@ -1,22 +1,64 @@
 # BattleBlaster 开发者指南
 
-> 基于当前代码库整理：2026-05-19
-> 目标：给继续开发本项目的人一张真实的代码地图，同时给后续按功能模块整理 `Source/BattleBlaster` 提供迁移建议。
+> 基于当前代码库整理：2026-06-07
+> 目标：给继续开发本项目的人一张真实的代码地图，同时说明各功能模块的边界、数据归属和后续优化方向。
 
 ---
 
 ## 0. 先说结论
 
-当前项目的 `Source/BattleBlaster` 目录确实已经变成了一个扁平的大目录，但它不是“改不了了”。真正需要谨慎的是两件事：
+当前项目的 `Source/BattleBlaster` 已经从早期扁平目录整理成了比较清晰的三层结构：
+
+```text
+Core/      全局配置、存档、会话、跨关卡数据
+Shared/    坦克、控制器、AI、战斗、Buff、地图交互物、共享 UI
+Modes/     主菜单、本地玩法、网络玩法、测试模式
+```
+
+所以现在的主要问题已经不是“文件能不能分类”，而是“各模块内部还有多少重复流程、哪些公共能力应该抽出来”。真正需要谨慎的是两件事：
 
 1. **不要第一步就重命名 UCLASS / USTRUCT / UENUM 名字。** 只移动 `.h/.cpp` 文件并更新 `#include`，风险比重命名类小得多。
-2. **不要把代码文件分类成 Header/Source/UI 这种文件类型结构。** 这个项目更适合按玩法功能模块分类：开发 MOBA 时，MOBA 的 GameMode、GameState、PlayerState、UI、Turret 应该靠在一起。
+2. **不要为了“看起来更干净”强行抽象所有重复代码。** 这个项目已经接近末期，优先抽稳定、低风险、复用价值高的公共能力，例如生成玩家、复活、结算、地图配置、伤害规则。
 
 特别纠正一个容易误判的点：
 
 - `ATower` 是游戏里的 NPC / 敌方塔楼，继承自 `ABasePawn`，当前主要被 `TankStageGameMode` 和 AI 目标系统使用。它不是 Defense 模式代码。
 - `ATurret` 才是 MOBA 防御塔，继承自 `ADestructibleProp`，由 `TankMOBAGameState` 注册和管理。
 - `ADefenseGameMode` 当前还没有实际玩法代码，只有空类。
+
+---
+
+### 0.1 模块文档索引
+
+本文是总览文档。每个模块的独立开发说明放在 `Docs/Modules/` 下：
+
+| 模块 | 文档 |
+| --- | --- |
+| 模块总索引 | `Docs/Modules/00-module-index.md` |
+| Core / 存档 / 会话 | `Docs/Modules/core.md` |
+| 共享 Pawn 与 Controller | `Docs/Modules/shared-pawns-and-controllers.md` |
+| 共享战斗层 | `Docs/Modules/shared-combat.md` |
+| 共享 AI | `Docs/Modules/shared-ai.md` |
+| Buff 系统 | `Docs/Modules/shared-buffs.md` |
+| 共享状态层 | `Docs/Modules/shared-state.md` |
+| 地图交互物 | `Docs/Modules/shared-world.md` |
+| 共享 UI | `Docs/Modules/shared-ui.md` |
+| 主菜单 | `Docs/Modules/main-menu.md` |
+| 本地自由死斗 | `Docs/Modules/free-for-all.md` |
+| 本地团队死斗 | `Docs/Modules/team-battle.md` |
+| 本地 MOBA | `Docs/Modules/moba.md` |
+| 单人闯关 / PVE | `Docs/Modules/stage.md` |
+| 网络模式 | `Docs/Modules/network.md` |
+| Defense 与 Test | `Docs/Modules/defense-and-test.md` |
+
+### 0.2 当前优化总判断
+
+当前最值得优化的是“流程重复”，不是继续挪文件。优先级建议如下：
+
+1. **低风险：** 统一 PlayerStart 查找、地图配置、全局 UI 主控 Controller 获取方式、模式参数读取方式。
+2. **中风险：** 抽本地模式 Spawn / Respawn / GameOver 公共服务，先让 FreeForAll 接入，再迁 TeamBattle 和 MOBA。
+3. **中高风险：** 拆 `AAIBotPlayerController`、`ATank`、`UBattleBlasterGameInstance` 这类大脑型类。
+4. **暂缓：** 大规模重命名 UCLASS、重做选人菜单继承体系、一次性统一所有本地和网络玩法模式。
 
 ---
 
@@ -148,6 +190,9 @@ APlayerState
 | --- | --- |
 | 玩家身份、槽位、队伍、KDA、跨 Pawn 弹药显示 | `ATankPlayerState` / `ANetworkPlayerStateBase` |
 | 对局人数、比赛阶段、全局比分、胜负状态 | `ANetworkGameStateBase` 或具体模式 GameState |
+| 网络死斗个人分数、目标分、胜者、时间 | `ANetworkDeathmatchGameState` |
+| 网络团队死斗团队分数、胜利队伍 | `ANetworkTeamDeathmatchGameState` |
+| 网络 MOBA 核心塔数量、队伍淘汰、胜利队伍、时间 | `ANetworkMOBAGameState` |
 | Tank 移动、转向、炮塔输入、开火请求、死亡表现 | `ATank` |
 | 血量和护盾 | `UHealthComponent` |
 | Tank 身上的 Buff UI 状态 | `UTankBuffComponent` |
@@ -164,6 +209,13 @@ APlayerState
 - 描述“这个角色当前怎样”的数据放 Pawn 或组件。
 - 描述“世界里这个物体怎样”的数据放该 Actor 自己。
 - 表现类事件优先用 Multicast 或本地表现，不要长期存进中心状态。
+
+网络玩法规则集中在 `ANetworkGameModeBase` 及其子类中，而不是塞进 `PlayerState`。当前网络玩法子类包括：
+
+- `ANetworkDeathmatchGameMode`：个人死斗，个人分数和胜者写入 `ANetworkDeathmatchGameState`。
+- `ANetworkTeamDeathmatchGameMode`：团队死斗，覆盖队伍分配和友伤规则，团队分数写入 `ANetworkTeamDeathmatchGameState`。
+- `ANetworkMOBAGameMode`：网络 MOBA，核心塔状态和淘汰状态写入 `ANetworkMOBAGameState`。
+- `ANetworkTeamMOBAGameMode`：团队 MOBA，复用网络 MOBA 规则，只改变 `SlotId -> TeamId` 的分配方式。
 
 ---
 
@@ -901,9 +953,9 @@ MOBA：
 
 ---
 
-## 9. 推荐目录分类
+## 9. 当前目录结构和维护建议
 
-第一阶段建议只移动文件，不重命名类。推荐结构：
+当前源码已经基本按下面的功能模块结构落地。后续新增文件时，优先放到对应功能目录，不建议再回到按文件类型或随手堆在根目录的方式：
 
 ```text
 Source/BattleBlaster/
@@ -992,6 +1044,30 @@ Source/BattleBlaster/
     │       ├── MOBATopStateUI.h/.cpp
     │       ├── DeathScreenWidget.h/.cpp
     │       └── EliminatedScreenWidget.h/.cpp
+    ├── Network/
+    │   ├── NetworkGameModeBase.h/.cpp
+    │   ├── NetworkGameStateBase.h/.cpp
+    │   ├── NetworkPlayerStateBase.h/.cpp
+    │   ├── NetworkPlayerControllerBase.h/.cpp
+    │   ├── NetworkDeathmatchGameMode.h/.cpp
+    │   ├── NetworkDeathmatchGameState.h/.cpp
+    │   ├── NetworkTeamDeathmatchGameMode.h/.cpp
+    │   ├── NetworkTeamDeathmatchGameState.h/.cpp
+    │   ├── NetworkMOBAGameMode.h/.cpp
+    │   ├── NetworkMOBAGameState.h/.cpp
+    │   ├── NetworkTeamMOBAGameMode.h/.cpp
+    │   └── UI/
+    │       ├── CppShowScoresWidget.h/.cpp
+    │       ├── NetworkTeamScoresWidget.h/.cpp
+    │       ├── NetworkMOBAStateWidget.h/.cpp
+    │       ├── NetworkDeathmatchGameOverWidget.h/.cpp
+    │       └── Menu/
+    │           ├── NetworkMenuWidgetBase.h/.cpp
+    │           ├── NetworkModeSelectWidget.h/.cpp
+    │           ├── LANMenuWidget.h/.cpp
+    │           ├── LANHostSettingsWidget.h/.cpp
+    │           ├── NetworkMapSelectWidget.h/.cpp
+    │           └── LANJoinWidget.h/.cpp
     ├── Stage/
     │   ├── TankStageGameMode.h/.cpp
     │   ├── TankStageGameState.h/.cpp
@@ -1018,17 +1094,15 @@ Source/BattleBlaster/
 
 ---
 
-## 10. 迁移顺序建议
+## 10. 后续优化顺序建议
 
-### 第一阶段：只整理目录，不重命名类
+### 第一阶段：保持目录稳定，只做小范围迁移
 
-目标：改善查找体验，降低风险。
-
-步骤：
+当前目录已经基本整理完。后续如果发现少量文件仍然放错位置，可以按小步迁移处理：
 
 1. 先提交一次当前可工作的版本。
 2. 关闭 Unreal Editor。
-3. 按上面的目录移动 `.h/.cpp` 文件。
+3. 只移动本轮确认要迁移的 `.h/.cpp` 文件。
 4. 全项目更新 `#include`，例如：
 
 ```cpp
@@ -1044,13 +1118,13 @@ Source/BattleBlaster/
 5. 重新生成 Visual Studio / Rider 工程文件。
 6. 编译项目。
 7. 打开 Unreal Editor，让蓝图重新加载 C++ 类。
-8. 跑一遍主菜单、自由死斗、团队死斗、MOBA、单人闯关。
+8. 跑一遍受影响模式。
 
 只移动 C++ 文件且不改类名时，蓝图父类一般不会丢，因为反射类名仍然是同一个。
 
-### 第二阶段：抽重复逻辑
+### 第二阶段：抽重复流程，而不是抽大而全继承
 
-自由死斗和团队死斗有很多相似逻辑：
+自由死斗、团队死斗、MOBA、单人闯关都有一些相似流程：
 
 - 创建 LocalPlayer。
 - 查找 P0-P3 PlayerStart。
@@ -1060,13 +1134,15 @@ Source/BattleBlaster/
 - 复活。
 - 黑屏第四视口。
 
-可以考虑抽一个内部基类，例如：
+建议优先抽工具函数或服务类，例如：
 
 ```text
-ALocalMultiplayerTankGameModeBase
+ULocalMatchFlowService
+UPlayerStartResolver
+UTankSpawnHelper
 ```
 
-但建议在目录整理稳定后再做，不要和移动文件混在同一次修改里。
+确认 FreeForAll 接入稳定后，再迁 TeamBattle。MOBA 和 Stage 规则更特殊，最后处理。
 
 ### 第三阶段：命名规范化
 
@@ -1100,7 +1176,9 @@ ALocalMultiplayerTankGameModeBase
 
 这次只是改文档，不需要进编辑器操作。
 
-如果以后真的按目录移动 C++ 文件：
+本轮只是补文档，不需要打开 Unreal Editor，也不需要重新编译。
+
+如果以后继续移动 C++ 文件：
 
 - 移动 C++ 文件前建议关闭 Unreal Editor。
 - 移动后需要重新生成项目文件并编译。
@@ -1136,17 +1214,20 @@ ALocalMultiplayerTankGameModeBase
 
 ## 13. 当前最值得优先清理的问题
 
-1. **文件目录扁平化**
-   先按模块移动文件，立刻改善开发体验。
+1. **本地玩法 Spawn / Respawn / GameOver 流程重复**
+   FreeForAll、TeamBattle、MOBA、Stage 都有自己的生成玩家、复活、无敌、结算和返回菜单流程。建议先抽小服务或工具函数，不急着做一个巨大基类。
 
-2. **多人死斗和团队死斗重复代码**
-   目录稳定后，再抽共同基类。
+2. **`AAIBotPlayerController` 职责过重**
+   AI 感知、目标列表、威胁评估、移动、闪避、瞄准、射击都在一个类里。后续可以拆成 Target Selector、Tactical Movement、Aim/Fire 三块。
 
-3. **命名不一致**
-   `Muti`、`But` 这类命名可以最后处理，因为它们影响蓝图和反射，风险比移动文件更高。
+3. **`UBattleBlasterGameInstance` 职责过多**
+   当前同时承担本地人数、坦克选择、关卡进度、存档、历史记录、设备映射、网络菜单设置等工作。建议后续分成 Settings、Campaign、History、InputDevice、Network Session 这些更小的 Subsystem 或辅助类。
 
-4. **注释编码混乱**
-   部分源码注释在当前终端输出中显示乱码。功能不受影响，但后续清理时建议统一文件编码为 UTF-8。
+4. **UI 数据源需要收口**
+   部分 GameOver / Score UI 仍会自己扫描 Actor 或 PlayerState。长期更好的方式是由 GameState / PlayerState 提供已整理好的展示数据，Widget 只负责读数据和渲染。
 
-5. **文档与代码同步**
-   以后每次新增模式或移动模块，都应该顺手更新本文件的“快速索引”和“推荐目录分类”。
+5. **地图和模式参数数据化**
+   本地地图选择、网络地图选择、PlayerStart Tag、目标分数、复活时间等仍有硬编码痕迹。建议逐步用 DataAsset 或统一配置结构管理。
+
+6. **文档与代码同步**
+   新增或迁移模块时，同时更新本文、`Docs/05-code-optimization-todo.md` 和对应的 `Docs/Modules/*.md`。

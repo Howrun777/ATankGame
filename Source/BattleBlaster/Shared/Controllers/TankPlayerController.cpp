@@ -252,19 +252,22 @@ void ATankPlayerController::UpdateKDA()
 
 void ATankPlayerController::EnsureInputMappingContext()
 {
-	if (!InputMappingContext)
-	{
-		return;
-	}
-
 	UEnhancedInputLocalPlayerSubsystem* Subsystem =
 		ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer());
-	if (!Subsystem || Subsystem->HasMappingContext(InputMappingContext))
+	if (!Subsystem)
 	{
 		return;
 	}
 
-	Subsystem->AddMappingContext(InputMappingContext, 1);
+	if (InputMappingContext && !Subsystem->HasMappingContext(InputMappingContext))
+	{
+		Subsystem->AddMappingContext(InputMappingContext, InputMappingPriority);
+	}
+
+	if (SystemInputMappingContext && !Subsystem->HasMappingContext(SystemInputMappingContext))
+	{
+		Subsystem->AddMappingContext(SystemInputMappingContext, SystemInputMappingPriority);
+	}
 }
 
 void ATankPlayerController::SetupInputComponent()

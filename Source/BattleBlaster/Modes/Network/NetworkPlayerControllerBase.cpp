@@ -2,12 +2,18 @@
 
 #include "Blueprint/UserWidget.h"
 #include "Modes/Network/NetworkDeathmatchGameState.h"
+#include "Modes/Network/NetworkMOBAGameState.h"
 #include "Modes/Network/NetworkPlayerStateBase.h"
+#include "Modes/Network/NetworkTeamDeathmatchGameState.h"
 #include "Modes/Network/UI/CppShowScoresWidget.h"
 #include "Modes/Network/UI/NetworkDeathmatchGameOverWidget.h"
+#include "Modes/Network/UI/NetworkMOBAStateWidget.h"
+#include "Modes/Network/UI/NetworkTeamScoresWidget.h"
 #include "Shared/UI/BulletsWidget.h"
 #include "Shared/UI/HUDWidget.h"
 #include "Shared/UI/KDAWidget.h"
+#include "InputAction.h"
+#include "InputMappingContext.h"
 #include "UObject/ConstructorHelpers.h"
 
 ANetworkPlayerControllerBase::ANetworkPlayerControllerBase()
@@ -32,7 +38,39 @@ ANetworkPlayerControllerBase::ANetworkPlayerControllerBase()
 		KDAWidgetClass = DefaultKDAWidgetClass.Class;
 	}
 
+	static ConstructorHelpers::FObjectFinder<UInputMappingContext> DefaultInputMappingContext(TEXT("/Game/Input/IMC_Default"));
+	if (DefaultInputMappingContext.Succeeded())
+	{
+		InputMappingContext = DefaultInputMappingContext.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<UInputMappingContext> DefaultSystemInputMappingContext(TEXT("/Game/Input/IMC_System"));
+	if (DefaultSystemInputMappingContext.Succeeded())
+	{
+		SystemInputMappingContext = DefaultSystemInputMappingContext.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<UInputAction> DefaultPauseAction(TEXT("/Game/Input/IA_Pause"));
+	if (DefaultPauseAction.Succeeded())
+	{
+		PauseAction = DefaultPauseAction.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<UInputAction> DefaultSpectatorAction(TEXT("/Game/Input/IA_Spectator"));
+	if (DefaultSpectatorAction.Succeeded())
+	{
+		SpectatorAction = DefaultSpectatorAction.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<UInputAction> DefaultReturnToSpawnAction(TEXT("/Game/Input/IA_ReturnToSpawn"));
+	if (DefaultReturnToSpawnAction.Succeeded())
+	{
+		ReturnToSpawnAction = DefaultReturnToSpawnAction.Object;
+	}
+
 	ScoresWidgetClass = UCppShowScoresWidget::StaticClass();
+	TeamScoresWidgetClass = UNetworkTeamScoresWidget::StaticClass();
+	MOBAStateWidgetClass = UNetworkMOBAStateWidget::StaticClass();
 }
 
 void ANetworkPlayerControllerBase::BeginPlay()
@@ -50,12 +88,9 @@ void ANetworkPlayerControllerBase::EndPlay(const EEndPlayReason::Type EndPlayRea
 {
 	GetWorldTimerManager().ClearTimer(NetworkScoreUIRetryTimerHandle);
 	UnbindDeathmatchScoreState();
+	UnbindMOBAState();
+	RemoveScoreWidgets();
 
-	if (IsValid(ScoresWidget))
-	{
-		ScoresWidget->RemoveFromParent();
-		ScoresWidget = nullptr;
-	}
 	if (IsValid(DeathmatchGameOverWidget))
 	{
 		DeathmatchGameOverWidget->RemoveFromParent();
@@ -72,8 +107,11 @@ void ANetworkPlayerControllerBase::InitializeNetworkScoreUI()
 		return;
 	}
 
+	ANetworkTeamDeathmatchGameState* TeamDeathmatchGameState = GetWorld() ? GetWorld()->GetGameState<ANetworkTeamDeathmatchGameState>() : nullptr;
+	ANetworkMOBAGameState* MOBAGameState = GetWorld() ? GetWorld()->GetGameState<ANetworkMOBAGameState>() : nullptr;
 	ANetworkDeathmatchGameState* DeathmatchGameState = GetWorld() ? GetWorld()->GetGameState<ANetworkDeathmatchGameState>() : nullptr;
-	if (!DeathmatchGameState)
+
+	if (!TeamDeathmatchGameState && !MOBAGameState && !DeathmatchGameState)
 	{
 		if (NetworkScoreUIRetryCount < 20)
 		{
@@ -83,50 +121,131 @@ void ANetworkPlayerControllerBase::InitializeNetworkScoreUI()
 		return;
 	}
 
-	TSubclassOf<UCppShowScoresWidget> WidgetClass = ScoresWidgetClass;
-	if (!WidgetClass)
+	if (TeamDeathmatchGameState)
 	{
-		WidgetClass = UCppShowScoresWidget::StaticClass();
-	}
-	if (WidgetClass && !ScoresWidget)
-	{
-		ScoresWidget = CreateWidget<UCppShowScoresWidget>(this, WidgetClass);
-		if (ScoresWidget)
+		if (!TeamScoresWidget)
 		{
-			ScoresWidget->AddToPlayerScreen();
+			TSubclassOf<UNetworkTeamScoresWidget> WidgetClass = TeamScoresWidgetClass;
+			if (!WidgetClass)
+			{
+				WidgetClass = UNetworkTeamScoresWidget::StaticClass();
+			}
+
+			TeamScoresWidget = CreateWidget<UNetworkTeamScoresWidget>(this, WidgetClass);
+			if (TeamScoresWidget)
+			{
+				TeamScoresWidget->AddToPlayerScreen();
+			}
 		}
+
+		BindDeathmatchScoreState(TeamDeathmatchGameState);
+		RefreshNetworkScoreUI();
+		return;
 	}
 
-	BindDeathmatchScoreState(DeathmatchGameState);
+	if (MOBAGameState)
+	{
+		if (!MOBAStateWidget)
+		{
+			TSubclassOf<UNetworkMOBAStateWidget> WidgetClass = MOBAStateWidgetClass;
+			if (!WidgetClass)
+			{
+				WidgetClass = UNetworkMOBAStateWidget::StaticClass();
+			}
+
+			MOBAStateWidget = CreateWidget<UNetworkMOBAStateWidget>(this, WidgetClass);
+			if (MOBAStateWidget)
+			{
+				MOBAStateWidget->AddToPlayerScreen();
+			}
+		}
+
+		BindMOBAState(MOBAGameState);
+		RefreshNetworkScoreUI();
+		return;
+	}
+
+	if (DeathmatchGameState)
+	{
+		TSubclassOf<UCppShowScoresWidget> WidgetClass = ScoresWidgetClass;
+		if (!WidgetClass)
+		{
+			WidgetClass = UCppShowScoresWidget::StaticClass();
+		}
+		if (WidgetClass && !ScoresWidget)
+		{
+			ScoresWidget = CreateWidget<UCppShowScoresWidget>(this, WidgetClass);
+			if (ScoresWidget)
+			{
+				ScoresWidget->AddToPlayerScreen();
+			}
+		}
+
+		BindDeathmatchScoreState(DeathmatchGameState);
+	}
+
 	RefreshNetworkScoreUI();
 }
 
 void ANetworkPlayerControllerBase::RefreshNetworkScoreUI()
 {
-	if (!IsLocalController() || !ScoresWidget)
+	if (!IsLocalController())
 	{
 		return;
 	}
 
-	const ANetworkDeathmatchGameState* DeathmatchGameState = GetWorld() ? GetWorld()->GetGameState<ANetworkDeathmatchGameState>() : nullptr;
-	if (!DeathmatchGameState)
+	const ANetworkPlayerStateBase* NetworkPS = GetPlayerState<ANetworkPlayerStateBase>();
+	const int32 LocalSlotId = NetworkPS ? NetworkPS->GetSlotId() : INDEX_NONE;
+	const int32 LocalTeamId = NetworkPS ? NetworkPS->GetTeamId() : INDEX_NONE;
+
+	if (const ANetworkTeamDeathmatchGameState* TeamDeathmatchGameState = GetWorld() ? GetWorld()->GetGameState<ANetworkTeamDeathmatchGameState>() : nullptr)
 	{
+		if (TeamScoresWidget)
+		{
+			TeamScoresWidget->UpdateTeamScoreboard(
+				TeamDeathmatchGameState->TargetScore,
+				TeamDeathmatchGameState->MatchElapsedSeconds,
+				TeamDeathmatchGameState->TeamScores,
+				LocalTeamId,
+				TeamDeathmatchGameState->WinningTeamId);
+		}
+
+		if (TeamDeathmatchGameState->IsMatchOver())
+		{
+			ShowNetworkDeathmatchGameOver(TeamDeathmatchGameState->WinningTeamId);
+		}
 		return;
 	}
 
-	const int32 LocalSlotId = GetPlayerState<ANetworkPlayerStateBase>()
-		? GetPlayerState<ANetworkPlayerStateBase>()->GetSlotId()
-		: INDEX_NONE;
-
-	ScoresWidget->UpdateScoreboard(
-		DeathmatchGameState->TargetScore,
-		DeathmatchGameState->MatchElapsedSeconds,
-		DeathmatchGameState->PlayerScores,
-		LocalSlotId);
-
-	if (DeathmatchGameState->IsMatchOver())
+	if (const ANetworkMOBAGameState* MOBAGameState = GetWorld() ? GetWorld()->GetGameState<ANetworkMOBAGameState>() : nullptr)
 	{
-		ShowNetworkDeathmatchGameOver(DeathmatchGameState->WinnerSlotId);
+		if (MOBAStateWidget)
+		{
+			MOBAStateWidget->UpdateMOBAState(
+				MOBAGameState->MatchElapsedSeconds,
+				MOBAGameState->AliveCoreCountsByTeam,
+				MOBAGameState->bTeamEliminated,
+				LocalTeamId,
+				MOBAGameState->WinningTeamId);
+		}
+		return;
+	}
+
+	if (const ANetworkDeathmatchGameState* DeathmatchGameState = GetWorld() ? GetWorld()->GetGameState<ANetworkDeathmatchGameState>() : nullptr)
+	{
+		if (ScoresWidget)
+		{
+			ScoresWidget->UpdateScoreboard(
+				DeathmatchGameState->TargetScore,
+				DeathmatchGameState->MatchElapsedSeconds,
+				DeathmatchGameState->PlayerScores,
+				LocalSlotId);
+		}
+
+		if (DeathmatchGameState->IsMatchOver())
+		{
+			ShowNetworkDeathmatchGameOver(DeathmatchGameState->WinnerSlotId);
+		}
 	}
 }
 
@@ -170,6 +289,11 @@ void ANetworkPlayerControllerBase::HandleDeathmatchScoreStateChanged()
 	RefreshNetworkScoreUI();
 }
 
+void ANetworkPlayerControllerBase::HandleMOBAStateChanged()
+{
+	RefreshNetworkScoreUI();
+}
+
 void ANetworkPlayerControllerBase::BindDeathmatchScoreState(ANetworkDeathmatchGameState* DeathmatchGameState)
 {
 	if (BoundDeathmatchGameState == DeathmatchGameState)
@@ -192,5 +316,49 @@ void ANetworkPlayerControllerBase::UnbindDeathmatchScoreState()
 	{
 		BoundDeathmatchGameState->OnScoreStateChanged.RemoveDynamic(this, &ANetworkPlayerControllerBase::HandleDeathmatchScoreStateChanged);
 		BoundDeathmatchGameState = nullptr;
+	}
+}
+
+void ANetworkPlayerControllerBase::BindMOBAState(ANetworkMOBAGameState* MOBAGameState)
+{
+	if (BoundMOBAGameState == MOBAGameState)
+	{
+		return;
+	}
+
+	UnbindMOBAState();
+
+	BoundMOBAGameState = MOBAGameState;
+	if (BoundMOBAGameState)
+	{
+		BoundMOBAGameState->OnMOBAStateChanged.AddDynamic(this, &ANetworkPlayerControllerBase::HandleMOBAStateChanged);
+	}
+}
+
+void ANetworkPlayerControllerBase::UnbindMOBAState()
+{
+	if (BoundMOBAGameState)
+	{
+		BoundMOBAGameState->OnMOBAStateChanged.RemoveDynamic(this, &ANetworkPlayerControllerBase::HandleMOBAStateChanged);
+		BoundMOBAGameState = nullptr;
+	}
+}
+
+void ANetworkPlayerControllerBase::RemoveScoreWidgets()
+{
+	if (IsValid(ScoresWidget))
+	{
+		ScoresWidget->RemoveFromParent();
+		ScoresWidget = nullptr;
+	}
+	if (IsValid(TeamScoresWidget))
+	{
+		TeamScoresWidget->RemoveFromParent();
+		TeamScoresWidget = nullptr;
+	}
+	if (IsValid(MOBAStateWidget))
+	{
+		MOBAStateWidget->RemoveFromParent();
+		MOBAStateWidget = nullptr;
 	}
 }

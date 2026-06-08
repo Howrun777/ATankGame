@@ -39,7 +39,13 @@ void UNetworkModeSelectWidget::NativeConstruct()
 
 void UNetworkModeSelectWidget::HandleLANClicked()
 {
-	ULANMenuWidget* LANMenu = CreateWidget<ULANMenuWidget>(GetOwningPlayer(), ULANMenuWidget::StaticClass());
+	TSubclassOf<ULANMenuWidget> ClassToSpawn = LANMenuWidgetClass;
+	if (!ClassToSpawn)
+	{
+		ClassToSpawn = ULANMenuWidget::StaticClass();
+	}
+
+	ULANMenuWidget* LANMenu = CreateWidget<ULANMenuWidget>(GetOwningPlayer(), ClassToSpawn);
 	OpenChildMenu(LANMenu);
 }
 

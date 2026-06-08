@@ -13,6 +13,7 @@
 #include "Navigation/PathFollowingComponent.h"
 #include "AI/Navigation/NavigationTypes.h"
 #include "Modes/TeamBattle/TeamBattleGameMode.h"
+#include "Modes/Network/NetworkGameModeBase.h"
 
 bool AAIBotPlayerController::IsEnemy(AActor* Target) const
 {
@@ -26,6 +27,12 @@ bool AAIBotPlayerController::IsEnemy(AActor* Target) const
     if (!TargetTank)
     {
         return true;
+    }
+
+    const ANetworkGameModeBase* NetworkGM = GetWorld() ? Cast<ANetworkGameModeBase>(GetWorld()->GetAuthGameMode()) : nullptr;
+    if (NetworkGM)
+    {
+        return NetworkGM->AreTeamIdsHostile(MyTank->GetTeamId(), TargetTank->GetTeamId());
     }
 
     const ATeamBattleGameMode* TeamGM = GetWorld() ? Cast<ATeamBattleGameMode>(GetWorld()->GetAuthGameMode()) : nullptr;

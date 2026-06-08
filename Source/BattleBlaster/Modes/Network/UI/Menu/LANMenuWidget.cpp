@@ -38,12 +38,24 @@ void ULANMenuWidget::NativeConstruct()
 
 void ULANMenuWidget::HandleHostClicked()
 {
-	ULANHostSettingsWidget* HostSettings = CreateWidget<ULANHostSettingsWidget>(GetOwningPlayer(), ULANHostSettingsWidget::StaticClass());
+	TSubclassOf<ULANHostSettingsWidget> ClassToSpawn = HostSettingsWidgetClass;
+	if (!ClassToSpawn)
+	{
+		ClassToSpawn = ULANHostSettingsWidget::StaticClass();
+	}
+
+	ULANHostSettingsWidget* HostSettings = CreateWidget<ULANHostSettingsWidget>(GetOwningPlayer(), ClassToSpawn);
 	OpenChildMenu(HostSettings);
 }
 
 void ULANMenuWidget::HandleJoinClicked()
 {
-	ULANJoinWidget* JoinWidget = CreateWidget<ULANJoinWidget>(GetOwningPlayer(), ULANJoinWidget::StaticClass());
+	TSubclassOf<ULANJoinWidget> ClassToSpawn = JoinWidgetClass;
+	if (!ClassToSpawn)
+	{
+		ClassToSpawn = ULANJoinWidget::StaticClass();
+	}
+
+	ULANJoinWidget* JoinWidget = CreateWidget<ULANJoinWidget>(GetOwningPlayer(), ClassToSpawn);
 	OpenChildMenu(JoinWidget);
 }

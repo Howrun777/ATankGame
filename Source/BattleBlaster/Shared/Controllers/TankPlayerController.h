@@ -124,6 +124,16 @@ public:
 	// 【新增】需要在编辑器里把 IMC_Default 拖进去
 	UPROPERTY(EditAnywhere, Category = "Input")
 	UInputMappingContext* InputMappingContext;
+
+	// System mapping context, usually IMC_System. Keep pause/spectator/global actions here.
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputMappingContext* SystemInputMappingContext;
+
+	UPROPERTY(EditAnywhere, Category = "Input")
+	int32 InputMappingPriority = 1;
+
+	UPROPERTY(EditAnywhere, Category = "Input")
+	int32 SystemInputMappingPriority = 10;
 	// 【新增】需要在编辑器里把 IA_Pause 拖进去
 	UPROPERTY(EditAnywhere, Category = "Input")
 	UInputAction* PauseAction;

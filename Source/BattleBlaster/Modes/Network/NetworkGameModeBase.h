@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameMode.h"
+#include "Shared/AI/AIBotPlayerController.h"
 #include "NetworkGameModeBase.generated.h"
 
 class APlayerStart;
@@ -23,11 +24,24 @@ public:
 	virtual void Logout(AController* Exiting) override;
 	virtual void HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer) override;
 
+	virtual bool UsesTeamDamageRules() const;
+	virtual bool AreTeamIdsHostile(int32 AttackerTeamId, int32 VictimTeamId) const;
+	virtual bool CanTankDamageTank(const ATank* AttackerTank, const ATank* VictimTank) const;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Network|Spawn")
 	TSubclassOf<ATank> TankClass;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Network|Players", meta = (ClampMin = "1", ClampMax = "8"))
 	int32 MaxNetworkPlayers = 4;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Network|AI", meta = (ClampMin = "0", ClampMax = "7"))
+	int32 AICount = 0;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Network|AI")
+	TSubclassOf<AAIBotPlayerController> AIControllerClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network|AI")
+	EAIDifficulty NetworkAIDifficulty = EAIDifficulty::Normal;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Network|Spawn")
 	bool bUseTaggedPlayerStarts = true;
@@ -54,14 +68,18 @@ protected:
 	virtual void CheckNetworkGameOver();
 
 	int32 AllocateSlotId() const;
-	void InitializePlayerIdentity(APlayerController* PlayerController, int32 SlotId) const;
+	void InitializePlayerIdentity(AController* Controller, int32 SlotId, bool bAIPlayer) const;
 	AActor* FindSpawnPointForSlot(int32 SlotId) const;
-	void SpawnTankForPlayer(APlayerController* PlayerController);
-	void InitializeSpawnedTank(ATank* NewTank, APlayerController* PlayerController, ANetworkPlayerStateBase* NetworkPS, bool bResetResources);
+	void SpawnTankForController(AController* Controller);
+	void InitializeSpawnedTank(ATank* NewTank, AController* Controller, ANetworkPlayerStateBase* NetworkPS, bool bResetResources);
 	int32 CalculateInitialAmmoForTank(const ATank* Tank) const;
-	void ScheduleRespawn(APlayerController* PlayerController);
-	void RespawnPlayer(APlayerController* PlayerController);
+	void ScheduleRespawn(AController* Controller);
+	virtual void RespawnPlayer(AController* Controller);
 	void RefreshConnectedPlayerCount() const;
+	void SpawnConfiguredAIPlayers();
+	void SpawnAIForSlot(int32 SlotId);
+	int32 GetMaxHumanPlayerSlots() const;
+	bool IsSlotOccupied(int32 SlotId) const;
 
 	ANetworkGameStateBase* GetNetworkGameState() const;
 };

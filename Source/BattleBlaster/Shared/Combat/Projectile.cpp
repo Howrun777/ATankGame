@@ -10,6 +10,7 @@
 #include "Shared/Pawns/Tank.h"
 #include "Shared/Controllers/TankPlayerController.h"
 #include "Modes/MOBA/TankMOBAPlayerState.h"
+#include "Modes/Network/NetworkGameModeBase.h"
 #include "Modes/TeamBattle/TeamBattleGameMode.h"
 #include "Modes/MOBA/TankMOBAGameMode.h"
 #include "Modes/FreeForAll/BattleBlasterGameMode.h"
@@ -134,6 +135,14 @@ void AProjectile::OnHit(
     {
         // 获取当前游戏模式
         AGameModeBase* CurrentGM = GetWorld()->GetAuthGameMode();
+        if (ANetworkGameModeBase* NetworkGM = Cast<ANetworkGameModeBase>(CurrentGM))
+        {
+            if (!NetworkGM->CanTankDamageTank(AttackerTank, VictimTank))
+            {
+                Destroy();
+                return;
+            }
+        }
 
         // MOBA 模式：每个玩家独立阵营，同 SlotId = 同阵营，不能互相伤害
         if (Cast<ATankMOBAGameMode>(CurrentGM))

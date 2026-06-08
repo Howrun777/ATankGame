@@ -1,6 +1,6 @@
 # BattleBlaster 代码待优化清单
 
-更新日期：2026-05-16
+更新日期：2026-06-07
 
 本文只关注 C++ 代码层面的可维护性、性能、多人本地分屏稳定性和后续扩展成本。当前项目已经可以通过 `Development Editor|Win64` 编译，本清单不是必须马上修复的编译错误，而是后续迭代时建议逐步处理的技术债。
 
@@ -28,12 +28,19 @@
 
 - 以上已完成项均通过 `Development Editor|Win64` 的 Visual Studio/MSBuild 编译验证，结果为 `0 warning / 0 error`。
 
+2026-06-07 模块审查补充：
+
+- 当前源码已经按 `Core / Shared / Modes` 初步模块化，下一阶段不建议继续大规模移动文件，建议优先简化重复流程。
+- 已新增 `Docs/Modules/` 模块级开发文档，用来记录每个模块的职责、扩展点、Editor 配置点和后续优化方向。
+- 本轮只更新文档，没有修改 C++ 或蓝图资产，因此不需要重新编译。
+
 ## 1. 总体判断
 
 项目现在的功能已经比较丰富，但代码的主要压力集中在几个“大脑型”类上：
 
 - `Shared/AI/AIBotPlayerController.cpp`：约 1300 行，AI 感知、目标选择、状态机、移动、闪避、瞄准、射击都在一个类里。
-- `Modes/FreeForAll/BattleBlasterGameMode.cpp`、`Modes/TeamBattle/TeamBattleGameMode.cpp`、`Modes/MOBA/TankMOBAGameMode.cpp`：玩家创建、AI 创建、PlayerStart 匹配、复活、UI、结算等逻辑高度重复。
+- `Shared/Pawns/Tank.cpp`：约 1200 行，移动输入、网络移动、开火、死亡、HUD 触发、开镜、控制器协作都在一个类里。
+- `Modes/FreeForAll/BattleBlasterGameMode.cpp`、`Modes/TeamBattle/TeamBattleGameMode.cpp`、`Modes/MOBA/TankMOBAGameMode.cpp`、`Modes/Stage/TankStageGameMode.cpp`：玩家创建、AI 创建、PlayerStart 匹配、复活、UI、结算等逻辑高度重复。
 - `Modes/FreeForAll/UI/MutiBattleMenuWidget.cpp`、`Modes/TeamBattle/UI/TeamBattleMenuWidget.cpp`、`Modes/MOBA/UI/MOBASetupWidget.cpp`：选人、设备检测、坦克图片切换、地图跳转逻辑重复。
 - `Core/BattleBlasterGameInstance.h/.cpp`：同时承担菜单设置、关卡进度、存档、历史战绩、设备映射、跨关卡玩家状态等职责。
 - 多处 `NativeTick` / `Tick` 承担轮询逻辑，短期没问题，但后面玩家数、AI 数、UI 数增加后会让问题变得难排查。
@@ -129,6 +136,38 @@
 - 已通过：`Development Editor|Win64` MSBuild 编译通过，`0 warning / 0 error`。
 
 ## 4. P1 待优化项
+
+### P1-0：本地模式公共流程服务化
+
+相关文件：
+
+- `Modes/FreeForAll/BattleBlasterGameMode.cpp`
+- `Modes/TeamBattle/TeamBattleGameMode.cpp`
+- `Modes/MOBA/TankMOBAGameMode.cpp`
+- `Modes/Stage/TankStageGameMode.cpp`
+- `Shared/Controllers/TankPlayerController.cpp`
+
+现状：
+
+- 多个本地模式都自己处理 PlayerStart 查找、Tank 生成、Possess、PlayerState 初始化、死亡复活、无敌、黑屏倒计时、结算 UI。
+- 这些逻辑“看起来相似但规则略有差异”，不适合一次性硬抽一个巨大基类。
+
+建议：
+
+- 先抽无玩法规则的工具层，例如：
+  - `FindPlayerStartBySlot(World, SlotId)`
+  - `ResolveTankClassForSlot(GameInstance, SlotId)`
+  - `SpawnAndPossessTank(Controller, TankClass, Transform, SlotId, TeamId)`
+  - `ApplyRespawnInvincibility(Tank, Duration)`
+  - `GetPrimaryUIController(World)`
+- 再考虑把 FreeForAll 和 TeamBattle 的公共 Spawn/Respawn 流程放进 `ULocalMatchFlowService` 或 `ALocalTankGameModeBase`。
+- MOBA 和 Stage 规则更特殊，建议最后接入，避免破坏核心塔淘汰和闯关携带状态。
+
+验收：
+
+- FreeForAll / TeamBattle 的重复代码减少，但模式规则仍然容易读懂。
+- MOBA 的“核心塔被摧毁后玩家不能再复活，但不会立刻输”的规则不受影响。
+- Stage 的关卡携带状态、复活次数和胜负流程不受影响。
 
 ### P1-1：抽出多人模式公共 GameMode 基类或辅助服务
 
@@ -309,6 +348,61 @@
 - 菜单模块不需要知道单人闯关存档细节。
 - 战斗模块不直接读写 UI 返回菜单状态。
 
+### P1-7：GameOver / Score UI 数据源收口
+
+相关文件：
+
+- `Modes/FreeForAll/UI/MultiBattleGameOverWidget.cpp`
+- `Modes/TeamBattle/UI/TeamBattleGameOverWidget.cpp`
+- `Modes/MOBA/UI/MOBAGameOverWidget.cpp`
+- `Modes/Network/UI/NetworkDeathmatchGameOverWidget.cpp`
+- 各模式 `GameState` / `PlayerState`
+
+现状：
+
+- 部分结算 UI 会直接 `GetAllActorsOfClass` 扫描 Tank 或 PlayerState。
+- 本地模式短期可以接受，但 UI 自己找数据会让结算规则分散，网络模式下尤其容易出错。
+
+建议：
+
+- GameMode 结束比赛时生成一份轻量结果快照，存到 GameState 或传给 Widget。
+- Widget 只负责显示，不负责重新推导胜者、分数、队伍状态。
+- 网络模式继续坚持 UI 从 replicated GameState / PlayerState 读取数据。
+
+验收：
+
+- 改结算规则时主要改 GameMode / GameState，不需要到多个 Widget 里找判断。
+- GameOver Widget 不再依赖场景中 Tank Actor 是否还存在。
+
+### P1-8：Tank 类按能力边界拆薄
+
+相关文件：
+
+- `Shared/Pawns/Tank.h/.cpp`
+- `Shared/Buffs/TankBuffComponent.h/.cpp`
+- `Shared/Combat/Projectile.h/.cpp`
+- `Shared/Controllers/TankPlayerController.h/.cpp`
+
+现状：
+
+- `ATank` 同时处理移动输入、网络 RPC、炮塔旋转、开火、弹药、死亡、击杀奖励、HUD 触发、开镜视觉。
+
+建议：
+
+- 不建议立刻拆成很多 ActorComponent，末期风险较大。
+- 先用函数分区和小工具结构降低阅读成本：
+  - Movement / NetworkMovement
+  - Fire / Ammo
+  - Death / Reward
+  - Aim / Camera
+  - Identity / Slot / Team
+- 后续若继续开发网络模式，再考虑把开火和弹药抽成 `UTankWeaponComponent`。
+
+验收：
+
+- 新增一种 Tank 武器或开火规则时，不需要阅读完整 `Tank.cpp`。
+- 本地模式和网络模式都能复用同一套武器状态。
+
 ## 5. P2 待优化项
 
 ### P2-1：修复源码注释乱码并删掉过期大段注释
@@ -428,9 +522,10 @@
 
 1. 已完成 P0-2、P0-3、P2-2 和 P1-4 轻量版本：输入设备刷新、Timer 生命周期保护、空 Tick/低价值 Tick 清理、Buff UI 低频刷新。
 2. P1-3 选人菜单公共逻辑抽取暂缓：项目末期不建议为了减少重复而触碰模式选择流程和 UMG 结构。
-3. 下一步更适合做 P1-5 的轻量版本：统一 Combat Policy 的小范围封装，降低 Projectile、AI、Turret 之间伤害规则不一致的概率。
-4. 然后再考虑 P1-1：抽多人 GameMode 公共服务。这个收益最大，但要分小步做，每步都编译和进游戏验证。
-5. 最后做 P1-2、P1-4 完整事件驱动版和 P1-6：AI、Buff 系统和 GameInstance 的大拆分。它们影响面较大，适合在功能相对稳定时做。
+3. 下一步更适合做 P1-0 的轻量版本：先抽 `GetPrimaryUIController`、PlayerStart 查找、Tank Spawn helper 这类小工具。
+4. 然后做 P1-5 的轻量版本：统一 Combat Policy 的小范围封装，降低 Projectile、AI、Turret 之间伤害规则不一致的概率。
+5. 再考虑 P1-1：抽多人 GameMode 公共服务。这个收益最大，但要分小步做，每步都编译和进游戏验证。
+6. 最后做 P1-2、P1-4 完整事件驱动版、P1-6、P1-8：AI、Buff 系统、GameInstance 和 Tank 的大拆分。它们影响面较大，适合在功能相对稳定时做。
 
 ## 7. 不建议现在做的事
 

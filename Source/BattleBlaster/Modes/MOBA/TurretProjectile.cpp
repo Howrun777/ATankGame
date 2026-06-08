@@ -5,6 +5,7 @@
 #include "Shared/Combat/HealthComponent.h"
 #include "Modes/MOBA/TankMOBAPlayerState.h"
 #include "Shared/Pawns/Tank.h"
+#include "Modes/Network/NetworkGameModeBase.h"
 #include "Modes/TeamBattle/TeamBattleGameMode.h"
 #include "Modes/MOBA/TankMOBAGameMode.h"
 #include "Modes/FreeForAll/BattleBlasterGameMode.h"
@@ -188,11 +189,12 @@ void ATurretProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, 
 
 		// 获取目标坦克
 		ATank* VictimTank = Cast<ATank>(TankPawn);
-
 		bool bCanDamage = false;
-
-		// MOBA 模式：每个玩家独立阵营，同 SlotId = 同阵营
-		if (Cast<ATankMOBAGameMode>(CurrentGM))
+		if (ANetworkGameModeBase* NetworkGM = Cast<ANetworkGameModeBase>(CurrentGM))
+		{
+			bCanDamage = !VictimTank || NetworkGM->AreTeamIdsHostile(CampIndex, VictimTank->GetTeamId());
+		}
+		else if (Cast<ATankMOBAGameMode>(CurrentGM))
 		{
 			const int32 VictimCamp = ResolveMOBATankCampIndex(VictimTank);
 			if (CampIndex >= 0 && VictimCamp >= 0)
@@ -200,17 +202,15 @@ void ATurretProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, 
 				bCanDamage = (CampIndex != VictimCamp);
 			}
 		}
-		// TeamBattle 模式：同阵营（0/2=红色，1/3=蓝色）不能互相伤害
 		else if (Cast<ATeamBattleGameMode>(CurrentGM))
 		{
 			if (VictimTank && VictimTank->GetTeamId() >= 0)
 			{
-				bool bVictimIsRed = (VictimTank->GetTeamId() == 0);
-				bool bAttackerIsRed = (CampIndex == 0 || CampIndex == 2);
+				const bool bVictimIsRed = (VictimTank->GetTeamId() == 0);
+				const bool bAttackerIsRed = (CampIndex == 0 || CampIndex == 2);
 				bCanDamage = (bAttackerIsRed != bVictimIsRed);
 			}
 		}
-		// 其他模式：都可以互相伤害
 		else
 		{
 			bCanDamage = true;

@@ -2,6 +2,8 @@
 #include "Shared/Pawns/NPC/Tower.h"
 #include "Modes/MOBA/TankMOBAGameState.h"
 #include "Modes/MOBA/TankMOBAPlayerState.h"
+#include "Modes/Network/NetworkGameModeBase.h"
+#include "Modes/Network/NetworkMOBAGameMode.h"
 #include "Modes/MOBA/TurretProjectile.h"
 #include "Shared/Pawns/Tank.h"
 #include "Components/SphereComponent.h"
@@ -96,6 +98,13 @@ void ATurret::BeginPlay()
 		{
 			int32 CurrentCount = MOBAGameState->OuterTurretCountByCamp.FindRef(CampIndex);
 			MOBAGameState->OuterTurretCountByCamp.Add(CampIndex, CurrentCount + 1);
+		}
+	}
+	else if (bIsCoreTurret)
+	{
+		if (ANetworkMOBAGameMode* NetworkMOBAGM = GetWorld() ? GetWorld()->GetAuthGameMode<ANetworkMOBAGameMode>() : nullptr)
+		{
+			NetworkMOBAGM->RegisterCoreForTeam(CampIndex);
 		}
 	}
 
@@ -271,6 +280,11 @@ bool ATurret::ShouldAttackTarget(AActor* Target) const
 	if (TargetCampIndex < 0 || CampIndex < 0)
 	{
 		return false;
+	}
+
+	if (const ANetworkGameModeBase* NetworkGM = GetWorld() ? Cast<ANetworkGameModeBase>(GetWorld()->GetAuthGameMode()) : nullptr)
+	{
+		return NetworkGM->AreTeamIdsHostile(CampIndex, TargetCampIndex);
 	}
 
 	return TargetCampIndex != CampIndex;
@@ -475,6 +489,13 @@ void ATurret::HandleDestruction()
 	if (MOBAGameState)
 	{
 		MOBAGameState->OnTurretDestroyed(this);
+	}
+	else if (bIsCoreTurret)
+	{
+		if (ANetworkMOBAGameMode* NetworkMOBAGM = GetWorld() ? GetWorld()->GetAuthGameMode<ANetworkMOBAGameMode>() : nullptr)
+		{
+			NetworkMOBAGM->NotifyCoreDestroyedForTeam(CampIndex);
+		}
 	}
 
 	// 【第五步】调用父类的破坏处理（关闭碰撞、隐藏血量条）

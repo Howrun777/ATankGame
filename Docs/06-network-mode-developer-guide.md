@@ -1,6 +1,6 @@
 # BattleBlaster 联网模式开发者文档
 
-> 版本：2026-06-03
+> 版本：2026-06-05
 > 目标：说明 BattleBlaster 后续开发联网模式时的模块架构、数据归属、服务器权威规则、迁移步骤和当前代码风险点。
 > 范围：先以局域网 Listen Server 为第一阶段目标，后续再扩展 Dedicated Server、公网访问和内网穿透。
 
@@ -18,9 +18,25 @@ Source/BattleBlaster/Modes/Network/
 ├── NetworkGameStateBase.h/.cpp
 ├── NetworkPlayerStateBase.h/.cpp
 ├── NetworkPlayerControllerBase.h/.cpp
+├── NetworkDeathmatchGameMode.h/.cpp
+├── NetworkDeathmatchGameState.h/.cpp
+├── NetworkTeamDeathmatchGameMode.h/.cpp
+├── NetworkTeamDeathmatchGameState.h/.cpp
+├── NetworkMOBAGameMode.h/.cpp
+├── NetworkMOBAGameState.h/.cpp
+├── NetworkTeamMOBAGameMode.h/.cpp
 └── UI/
-    ├── NetworkLobbyWidget.h/.cpp
-    └── NetworkScoreboardWidget.h/.cpp
+    ├── CppShowScoresWidget.h/.cpp
+    ├── NetworkTeamScoresWidget.h/.cpp
+    ├── NetworkMOBAStateWidget.h/.cpp
+    ├── NetworkDeathmatchGameOverWidget.h/.cpp
+    └── Menu/
+        ├── NetworkMenuWidgetBase.h/.cpp
+        ├── NetworkModeSelectWidget.h/.cpp
+        ├── LANMenuWidget.h/.cpp
+        ├── LANHostSettingsWidget.h/.cpp
+        ├── NetworkMapSelectWidget.h/.cpp
+        └── LANJoinWidget.h/.cpp
 
 Source/BattleBlaster/Core/Networking/
 ├── BattleBlasterSessionSubsystem.h/.cpp
@@ -62,12 +78,14 @@ Source/BattleBlaster/Core/Networking/
 
 房间设置层
 └── FNetworkMatchSettings
-    ├── ConnectionType: LAN / Server
+    ├── ConnectionType: LAN / DedicatedServer
     ├── ModeType: Deathmatch / TeamDeathmatch / MOBA / TeamMOBA
-    ├── Map
+    ├── MapName
+    ├── Port
     ├── MaxPlayers
-    ├── AIBotCount
-    └── TargetScore / 其他模式参数
+    ├── AICount
+    ├── TargetScore
+    └── TeamCount
 
 玩法模式层
 └── ANetworkGameModeBase
@@ -87,7 +105,9 @@ Source/BattleBlaster/Core/Networking/
 - 进入地图后，服务器应从 URL Options、Subsystem 或未来 Lobby 数据读取 `FNetworkMatchSettings`，再写入 `GameMode` / `GameState` / `PlayerState`。
 - 不要在 `ANetworkGameModeBase` 里写菜单 UI、IP 输入、服务器列表、LAN 搜索 UI 或主菜单跳转细节。
 
-这部分目前是架构约定，不要求立刻实现完整 UI。后续新增 C++ 时，应优先补齐 `BattleBlasterNetworkTypes`、`BattleBlasterSessionSubsystem` 的设置结构和蓝图调用接口，让 UMG 蓝图只负责界面，不承载网络规则。
+当前代码已经落地了第一版结构化入口：`FNetworkMatchSettings` 定义在 `BattleBlasterNetworkTypes.h`，`UBattleBlasterSessionSubsystem::HostNetworkGame()` 负责根据设置选择具体网络 GameMode 并构造 URL Options，`JoinNetworkGame()` 负责 IP:Port 直连。UMG 蓝图或 C++ 菜单只需要收集输入并传入设置，不应该自己拼接裸 URL 字符串。
+
+`MaxPlayers` 表示本局总槽位数，`AICount` 表示其中由服务器 AI 填充的槽位数，不是额外追加人数。例如 `MaxPlayers=4, AICount=2` 表示总共 4 个槽位，其中最多 2 个真人槽位和 2 个 AI 槽位。当前实现中真人优先占用靠前 Slot，AI 占用末尾 Slot。
 
 ### 1.2 Dedicated Server 兼容约束
 
@@ -117,13 +137,16 @@ Dedicated Server
 
 如果代码满足 Dedicated Server 要求，它通常也能在 Listen Server 上运行；反过来，只在 Listen Server 上能工作的代码不一定能在 Dedicated Server 上工作。
 
-第一版建议只做一个最小联网 FFA 或 2v2 模式，目标是先跑通：
+当前第一版联网链路已经从“只跑通连接”推进到“可选择多种网络玩法原型”。后续仍要继续按同一套服务器权威原则完善，而不是回头复制本地分屏 GameMode。
+
+已经具备的联网基础能力：
 
 - Host 开启局域网 Listen Server。
-- Client 输入 IP 加入。
+- Client 输入 IP:Port 加入。
+- Host 设置页可选择 Deathmatch / TeamDeathmatch / MOBA / TeamMOBA，并通过 URL Options 切换 GameMode。
 - 服务器分配 `SlotId` 和 `TeamId`。
 - 服务器生成 Tank、Projectile、Buff、可破坏物。
-- 客户端只发送输入和请求，不直接决定伤害、死亡、得分。
+- 客户端发送输入和请求，服务器决定移动、开火、伤害、死亡、得分和淘汰。
 - `GameState` 和 `PlayerState` 复制给客户端，UI 从复制数据刷新。
 
 ---
@@ -145,7 +168,7 @@ Dedicated Server
 
 ### 2.2 当前已经落地的联网基础
 
-截至 2026-05-19，项目已经不再是“完全没有网络层”的状态。当前最小网络战斗链路已经具备：
+截至 2026-06-05，项目已经不再是“完全没有网络层”的状态。当前最小网络战斗链路已经具备：
 
 - `Modes/Network` 已有 `NetworkGameModeBase`、`NetworkGameStateBase`、`NetworkPlayerStateBase`、`NetworkPlayerControllerBase`。
 - `Core/Networking` 已有 `BattleBlasterSessionSubsystem`，用于 Host / Join 入口。
@@ -160,6 +183,11 @@ Dedicated Server
 - `ADestructibleProp` 已复制破坏状态和可推动物体的 Mesh Transform。
 - `ASpikeTrap` 已复制状态机和服务端状态开始时间，客户端自行播放插值动画。
 - `ATower` 已复制死亡状态和炮塔朝向。
+- `ANetworkDeathmatchGameMode` / `ANetworkDeathmatchGameState` 已实现个人死斗分数、目标分、胜者和结算入口。
+- `ANetworkTeamDeathmatchGameMode` / `ANetworkTeamDeathmatchGameState` 已实现团队分配、友伤过滤、团队分数和团队胜负。
+- `ANetworkMOBAGameMode` / `ANetworkMOBAGameState` 已实现核心塔存活计数、队伍淘汰、胜利队伍和 MOBA 状态同步。
+- `ANetworkTeamMOBAGameMode` 已复用网络 MOBA 规则，并按队伍分配玩家。
+- `ANetworkPlayerControllerBase` 已能根据当前 GameState 自动创建个人死斗、团队死斗或 MOBA 顶部状态 UI。
 
 仍然要注意：旧的 FreeForAll、TeamBattle、MOBA 依然是本地分屏模式，不能直接当作网络模式使用。联网模式应该继续放在独立 `Modes/Network` 下，逐步复用共享类。
 
@@ -230,8 +258,9 @@ flowchart TD
 ```text
 ANetworkGameModeBase
 ├── ANetworkDeathmatchGameMode
-├── ANetworkTeamBattleGameMode
-└── ANetworkMOBAGameMode
+├── ANetworkTeamDeathmatchGameMode
+├── ANetworkMOBAGameMode
+└── ANetworkTeamMOBAGameMode
 ```
 
 `ANetworkGameModeBase` 应保持“流程基类”定位，主要负责：
@@ -245,13 +274,16 @@ ANetworkGameModeBase
 具体网络玩法子类负责：
 
 - 死斗：击杀加分、自杀或环境死亡扣分、目标分胜利、个人排行榜。
-- 团队战：队伍分配、友伤过滤、团队分数、团队胜负。
+- 团队死斗：队伍分配、友伤过滤、团队分数、团队胜负。
 - MOBA：阵营分配、Tower / Turret 规则、核心塔被摧毁后的淘汰规则、复活条件、最终胜负。
 
 为了让子类更干净，基类已经提供了这些可覆盖钩子：
 
 ```cpp
 virtual int32 ChooseTeamIdForSlot(int32 SlotId) const;
+virtual bool UsesTeamDamageRules() const;
+virtual bool AreTeamIdsHostile(int32 AttackerTeamId, int32 VictimTeamId) const;
+virtual bool CanTankDamageTank(const ATank* AttackerTank, const ATank* VictimTank) const;
 virtual bool ShouldRespawnPlayer(ANetworkPlayerStateBase* PlayerState) const;
 virtual void HandleNetworkTankKilled(ATank* DeadTank, ATank* KillerTank);
 virtual void CheckNetworkGameOver();
@@ -281,15 +313,59 @@ virtual void CheckNetworkGameOver();
 
 `PlayerScores`、`TargetScore`、`WinnerSlotId` 使用复制回调触发 `OnScoreStateChanged`，让本地 UI 在数据变化时刷新。Host / Listen Server 的本地 UI 不依赖 `OnRep`，服务器改分数时也会主动广播一次。
 
-`ANetworkPlayerControllerBase` 负责创建网络比分 UI。它暴露 `ScoresWidgetClass`，编辑器中应在 `BP_NetworkPlayerControllerBase` 或其模式子类里挂载 `WBP_ScoresDisplayWidget`。创建后它会读取 `ANetworkDeathmatchGameState` 并调用 `UScoresDisplayWidget::InitTargetScore()`、`SetVisiblePlayerCount()`、`UpdateScoresFour()`。
+`ANetworkPlayerControllerBase` 负责创建网络比分 UI。它暴露 `ScoresWidgetClass`，默认使用 `UCppShowScoresWidget`。创建后它会读取 `ANetworkDeathmatchGameState`，显示目标分、比赛时间、各玩家分数进度条，并高亮本地玩家。
 
 网络死斗结算 UI 使用 `UNetworkDeathmatchGameOverWidget`。它不复用本地分屏的 `UMultiBattleGameOverWidget`，原因是本地分屏结算界面会读取 `GameInstance` 和 `ATankBattlePlayerState`，这些数据来源不适合网络模式。网络结算界面从 `ANetworkDeathmatchGameState` 和复制后的 `ATankPlayerState` 读取胜者、比分和 KDA。
 
 `ANetworkPlayerControllerBase` 暴露 `DeathmatchGameOverWidgetClass`。当 `WinnerSlotId` 复制到客户端后，本地 PlayerController 创建该 Widget，并切到 UI 输入模式。GameMode 不直接创建 UMG。
 
-如果 `DeathmatchGameOverWidgetClass` 未设置，`ANetworkPlayerControllerBase` 会直接创建 `UNetworkDeathmatchGameOverWidget`。该类在没有蓝图绑定控件时会生成一个 `_temp` C++ 调试界面，用于显示胜者、各玩家 KDA 和临时评分。正式 UI 完成后，只需要创建继承自 `UNetworkDeathmatchGameOverWidget` 的 UMG 蓝图并挂回 `DeathmatchGameOverWidgetClass`。
+如果 `DeathmatchGameOverWidgetClass` 未设置，`ANetworkPlayerControllerBase` 会直接创建 `UNetworkDeathmatchGameOverWidget`。该类在没有蓝图绑定控件时会生成一个 C++ 默认调试界面，用于显示胜者、各玩家 KDA 和临时评分。正式 UI 完成后，只需要创建继承自 `UNetworkDeathmatchGameOverWidget` 的 UMG 蓝图并挂回 `DeathmatchGameOverWidgetClass`。
 
 编辑器中建议新建 `BP_NetworkDeathmatchGameMode`，父类选择 `ANetworkDeathmatchGameMode`，然后在网络死斗地图中把 GameMode Override 指向该蓝图。
+
+### 3.5 网络团队死斗
+
+`ANetworkTeamDeathmatchGameMode` 继承 `ANetworkGameModeBase`，用于网络团队死斗。
+
+职责：
+
+- 覆盖 `ChooseTeamIdForSlot()`，当前按 `SlotId % TeamCount` 分配队伍。
+- 覆盖 `UsesTeamDamageRules()`，让 `AProjectile` 通过 `CanTankDamageTank()` 过滤友伤。
+- 处理团队击杀加分、无有效击杀者时扣本队分数。
+- 达到 `TargetScore` 后把胜利队伍写入 `ANetworkTeamDeathmatchGameState::WinningTeamId`。
+- 比赛结束后禁用仍存活 Tank 的输入。
+
+`ANetworkTeamDeathmatchGameState` 负责复制：
+
+- `TeamScores`
+- `WinningTeamId`
+- 继承自 `ANetworkDeathmatchGameState` 的 `TargetScore`、`MatchElapsedSeconds`、`bIsMatchOver`
+
+`ANetworkPlayerControllerBase` 会优先识别 `ANetworkTeamDeathmatchGameState`，创建 `TeamScoresWidgetClass`。默认 C++ UI 为 `UNetworkTeamScoresWidget`，显示目标分、时间、每个队伍的分数进度条，并高亮本地玩家所在队伍。
+
+### 3.6 网络 MOBA 与团队 MOBA
+
+`ANetworkMOBAGameMode` 继承 `ANetworkGameModeBase`，用于网络 MOBA。`ANetworkTeamMOBAGameMode` 继承 `ANetworkMOBAGameMode`，只改变 TeamId 分配方式，用于团队 MOBA。
+
+职责：
+
+- 覆盖 `ChooseTeamIdForSlot()`：个人 MOBA 默认 `TeamId = SlotId`，团队 MOBA 默认 `TeamId = SlotId % TeamCount`。
+- 覆盖 `UsesTeamDamageRules()`，让炮弹、Turret、TurretProjectile 使用同一套 TeamId 敌我规则。
+- 提供 `RegisterCoreForTeam(int32)` 和 `NotifyCoreDestroyedForTeam(int32)`，由核心 `ATurret` 在 BeginPlay / HandleDestruction 中通知网络 MOBA GameMode。
+- 核心塔被摧毁不会立刻结束游戏；该队玩家后续再次死亡时才无法复活并进入淘汰。
+- 只剩一个未淘汰队伍时写入胜利队伍并结束比赛。
+
+`ANetworkMOBAGameState` 负责复制：
+
+- `AliveCoreCountsByTeam`
+- `bTeamEliminated`
+- `WinningTeamId`
+- `MatchElapsedSeconds`
+- `MOBAStateRevision`
+
+`ANetworkPlayerControllerBase` 识别到 `ANetworkMOBAGameState` 后，会创建 `MOBAStateWidgetClass`。默认 C++ UI 为 `UNetworkMOBAStateWidget`，显示每个队伍的核心塔数量，以及 `ALIVE`、`CORE DOWN`、`ELIMINATED` 状态，并高亮本地玩家所在队伍。
+
+网络 MOBA 地图需要保证核心 `ATurret` 的 `CampIndex` 与网络 `TeamId` 对齐。否则核心塔注册到了错误队伍，就会导致复活/淘汰判断错误。
 
 ---
 
@@ -695,7 +771,9 @@ NetworkGameModeBase / BP_NetworkGameModeBase
 - `AmmoWidgetClass`
 - `KDAWidgetClass`
 - `DeathScreenClass`
-- `ScoresWidgetClass`：网络多人死斗当前复用 `UScoresDisplayWidget`，这里挂 `WBP_ScoresDisplayWidget`
+- `ScoresWidgetClass`：网络个人死斗顶部比分 UI，默认 `UCppShowScoresWidget`，可替换为蓝图子类
+- `TeamScoresWidgetClass`：网络团队死斗顶部团队分数 UI，默认 `UNetworkTeamScoresWidget`，可替换为蓝图子类
+- `MOBAStateWidgetClass`：网络 MOBA / 团队 MOBA 顶部核心塔状态 UI，默认 `UNetworkMOBAStateWidget`，可替换为蓝图子类
 - `DeathmatchGameOverWidgetClass`：网络多人死斗结算界面，建议蓝图继承 `UNetworkDeathmatchGameOverWidget`
 - 网络模式未来专属的 Lobby、Scoreboard、Ready、Connection 状态 UI
 
@@ -710,7 +788,8 @@ NetworkGameModeBase / BP_NetworkGameModeBase
 - `UNetworkMenuWidgetBase`：菜单基类，负责默认布局、按钮、输入框、返回上级和打开子菜单。
 - `UNetworkModeSelectWidget`：网络入口选择，包含 LAN Game / Server Game。Server Game 当前只显示未实现状态，不发起连接。
 - `ULANMenuWidget`：LAN 分支，包含 Host / Join。
-- `ULANHostSettingsWidget`：LAN Host 设置，包含模式、玩家数、AI 数、目标分数、地图、端口。
+- `ULANHostSettingsWidget`：LAN Host 设置，包含模式、玩家数、AI 数、目标分数、当前地图卡片、端口。
+- `UNetworkMapSelectWidget`：网络地图选择页，按当前模式从专属地图容器中读取可用地图。
 - `ULANJoinWidget`：LAN Join 输入，包含 IP 和 Port。
 
 这些类不是一次性调试类，而是“C++ 默认表现 + 正式逻辑入口”。后续可以创建继承它们的 UMG 蓝图，只替换视觉表现和绑定控件；Host / Join 的参数流和菜单层级不用推翻重写。
@@ -722,23 +801,93 @@ NetworkMenuClass = UNetworkModeSelectWidget 或其蓝图子类
 网络游戏按钮 -> 调用 OpenNetworkMenu()
 ```
 
-`ULANHostSettingsWidget` 会构造 URL Options：
+Blueprint replacement chain:
 
 ```text
-listen?Port=7777?NetworkMode=Deathmatch?MaxPlayers=2?AICount=0?TargetScore=7
+MainMenuWidget.NetworkMenuClass
+-> BP_NetworkModeSelectWidget.LANMenuWidgetClass
+-> BP_LANMenuWidget.HostSettingsWidgetClass
+-> BP_LANHostSettingsWidget.MapSelectWidgetClass
+-> BP_NetworkMapSelectWidget
+```
+
+`UNetworkMapSelectWidget` owns four mode-specific map containers:
+
+```text
+DeathmatchMaps
+TeamDeathmatchMaps
+MOBAMaps
+TeamMOBAMaps
+```
+
+Each item is `FNetworkMapInfo`:
+
+```text
+MapDisplayName
+LevelAsset
+LevelName
+MapThumbnail
+MinPlayers
+MaxPlayers
+```
+
+Preferred editor workflow: set `LevelAsset` to the map asset and `MapThumbnail` to the preview texture. `LevelName` is a fallback / manual override. When `LevelName` is empty, C++ resolves the long package name from `LevelAsset` and writes it to `FNetworkMatchSettings.MapName`.
+
+The network Host settings page no longer uses a hand-typed map text box. It shows a current map card and opens `UNetworkMapSelectWidget` through the Change Map button. The map select page only selects a map and broadcasts `OnNetworkMapSelected`; it never calls `OpenLevel` directly. Final travel still happens through `UBattleBlasterSessionSubsystem::HostNetworkGame(Settings)`.
+
+For UMG reuse, `UNetworkMapSelectWidget` intentionally keeps the old local map selector's bind names:
+
+```text
+Btn_Map0..Btn_Map3
+Border_Map0..Border_Map3
+Text_MapName0..Text_MapName3
+Btn_Confirm
+Btn_Back
+Btn_PrevPage
+Btn_NextPage
+Text_PageNumber
+```
+
+This allows copying the layout from the old local `WBP_SelectMapWidget` into a new network map selector blueprint, then rebinding the same names to the new parent class.
+
+`ULANHostSettingsWidget` 不直接手写裸 URL，而是构造 `FNetworkMatchSettings` 并调用：
+
+```cpp
+SessionSubsystem->HostNetworkGame(Settings);
+```
+
+`UBattleBlasterSessionSubsystem::BuildTravelOptions()` 会根据 `ModeType` 选择具体网络 GameMode，并生成类似下面的 URL Options：
+
+```text
+listen?game=/Script/BattleBlaster.NetworkDeathmatchGameMode?Port=7777?NetworkMode=Deathmatch?MaxPlayers=2?AICount=0?TargetScore=7?TeamCount=1
 ```
 
 当前已生效的参数：
 
+- `game`：由 Host 设置页根据模式选择具体网络 GameMode。
 - `MaxPlayers`：由 `ANetworkGameModeBase::InitGame()` 解析并写入 `MaxNetworkPlayers`。
-- `TargetScore`：由 `ANetworkDeathmatchGameMode::InitGame()` 解析并写入 `TargetScore`。
+- `AICount`：由 `ANetworkGameModeBase::InitGame()` 解析，服务器在 BeginPlay 后用 `AAIBotPlayerController` 填充末尾槽位。
+- `TargetScore`：由网络死斗 / 团队死斗 GameMode 解析并写入目标分。
+- `TeamCount`：由团队死斗、MOBA、团队 MOBA 解析并决定队伍数量。
 
 当前预留但未完整接入玩法的参数：
 
-- `NetworkMode`：菜单已传入，但目前只有 Deathmatch 网络玩法实际落地。
-- `AICount`：菜单已传入，AI 填充接口后续再接入。
+- `NetworkMode`：当前作为可读标记保留，真正选择 GameMode 依赖 `game` 参数。
 
-### 9.2 联网 UI 的读取来源
+### 9.2 网络 AI 填充
+
+网络 AI 填充已经有基础版：
+
+- `ANetworkGameModeBase` 解析 URL Option `AICount`。
+- Host 菜单限制 `AICount <= MaxPlayers - 1`，保证至少保留 1 个真人槽位。
+- 服务器在 `BeginPlay()` 后生成 `AAIBotPlayerController`，AI 拥有 `ANetworkPlayerStateBase`。
+- AI 的 `SlotId`、`TeamId`、`PlayerName`、`bIsAIPlayer` 由服务器初始化，并复制给客户端。
+- AI 使用与真人相同的 `SpawnTankForController()`、死亡、复活、KDA 和计分路径。
+- AI 敌我判断在网络模式下走 `ANetworkGameModeBase::AreTeamIdsHostile()`，因此团队死斗、MOBA、团队 MOBA 都不会按本地旧规则误判友军。
+
+第一版规则：AI 占用末尾槽位。例如 `MaxPlayers=4, AICount=1` 时，AI 默认占用 Slot 3；`MaxPlayers=4, AICount=2` 时，AI 默认占用 Slot 2 和 Slot 3。这样不会破坏现有分数 UI、出生点 Tag、TeamId 和 MOBA 核心塔索引。
+
+### 9.3 联网 UI 的读取来源
 
 | UI | 数据来源 |
 | --- | --- |
@@ -750,7 +899,7 @@ listen?Port=7777?NetworkMode=Deathmatch?MaxPlayers=2?AICount=0?TargetScore=7
 | 队伍颜色 | 自己 PlayerState 的 `TeamId` |
 | 结算界面 | GameState 的胜负状态 |
 
-### 9.3 联网 UI 禁忌
+### 9.4 联网 UI 禁忌
 
 联网模式 UI 不要这样写：
 
@@ -769,13 +918,13 @@ GetWorld()->GetGameState()
 GameState->PlayerArray
 ```
 
-### 9.4 现有 UI 迁移重点
+### 9.5 现有 UI 迁移重点
 
 当前 `ATankPlayerController::InitializeHUD()` 里有根据 `LocalPlayerIndex` 设置 KDA 颜色的逻辑。联网模式应该改成根据 `PlayerState->TeamId` 或 `SlotId` 设置颜色。
 
 结算界面、计分板、MOBA 顶部状态 UI，也应该从 `GameState` / `PlayerState` 读取复制数据，不要依赖本地数组。
 
-### 9.5 本地分屏 UI 与网络 UI 的区别
+### 9.6 本地分屏 UI 与网络 UI 的区别
 
 本地分屏模式里，同一进程拥有多个本地 `PlayerController`。玩家个人 UI 可以直接由自己的 Controller 创建，并用 `AddToPlayerScreen()` 放到对应分屏。
 
@@ -800,7 +949,7 @@ GameState->PlayerArray
 - AI 的 Tank 和状态复制给所有客户端。
 - 如果 AI 需要 KDA，应确保 AIController 有 PlayerState，或者用独立的 BotState 数据结构。
 
-当前 `AAIBotPlayerController` 已经用 `TeamId` 判断敌我，这对联网是好基础。
+当前 `AAIBotPlayerController` 已经接入网络 GameMode 的敌我判断；在网络模式下优先使用 `ANetworkGameModeBase::AreTeamIdsHostile()`，本地团队模式仍保留旧的 TeamBattle 判断。
 
 ---
 
@@ -811,14 +960,20 @@ GameState->PlayerArray
 ### 11.1 Host
 
 ```cpp
-UGameplayStatics::OpenLevel(World, FName("NetworkBattleMap"), true, "listen");
+FNetworkMatchSettings Settings;
+Settings.ConnectionType = EBattleBlasterNetworkConnectionType::LAN;
+Settings.ModeType = ENetworkGameModeType::Deathmatch;
+Settings.MapName = FName("NetworkBattleTestMap");
+Settings.Port = 7777;
+Settings.MaxPlayers = 2;
+Settings.AICount = 0;
+Settings.TargetScore = 7;
+Settings.TeamCount = 1;
+
+SessionSubsystem->HostNetworkGame(Settings);
 ```
 
-或者构造：
-
-```text
-NetworkBattleMap?listen
-```
+`HostNetworkGame()` 会先清理多余本地 LocalPlayer，再调用 `OpenLevel(MapName, true, BuildTravelOptions(Settings))`。这样网络入口层和具体玩法类保持解耦。
 
 ### 11.2 Join
 
@@ -1105,9 +1260,9 @@ Net PktLagVariance=0
 
 ---
 
-## 16. 推荐的第一版验收标准
+## 16. 当前基础验收标准
 
-第一版联网模式只要做到下面这些，就算架构打通：
+截至 2026-06-05，第一版网络战斗主链路已经基本打通。下面这些项目应作为每次大改后的回归检查：
 
 - Host 能开启局域网房间。
 - Client 能输入 IP 加入。
@@ -1119,6 +1274,9 @@ Net PktLagVariance=0
 - 命中、扣血、死亡、复活由服务器处理。
 - KDA 和分数通过 PlayerState/GameState 同步。
 - UI 不依赖本地玩家 0。
+- Host 设置页能选择 Deathmatch / TeamDeathmatch / MOBA / TeamMOBA，并进入对应网络 GameMode。
+- TeamDeathmatch 团队分数 UI 能显示团队分数增长。
+- MOBA 顶部状态 UI 能显示各队核心塔数量和淘汰状态。
 
 暂时不要求：
 
@@ -1126,10 +1284,10 @@ Net PktLagVariance=0
 - 复杂大厅。
 - 好看的房间列表。
 - 公网穿透。
-- MOBA 全量迁移。
 - Dedicated Server 部署。
+- AI 填充。
 
-先把最小闭环跑通，后续再逐个把现有玩法搬进去。
+当前重点已经从“先把最小闭环跑通”转为“稳定当前网络玩法原型，并补齐结构化设置、AI、服务器部署和正式 UI 表现”。
 
 ---
 
@@ -1137,16 +1295,9 @@ Net PktLagVariance=0
 
 最稳的开发顺序如下：
 
-1. 新建 `Modes/Network` 目录和四个核心类：GameMode、GameState、PlayerState、PlayerController。
-2. 新建 `Core/Networking/BattleBlasterSessionSubsystem`，只实现 Host/Join IP。
-3. 做 `PostLogin` 分配 `SlotId`、`TeamId`，先只打日志。
-4. 让 `NetworkPlayerStateBase` 复制身份字段。
-5. 服务器 Spawn 一个默认 Tank，并 Possess。
-6. 开启 Tank 复制和移动复制。
-7. 改造网络模式下的输入和移动 RPC。
-8. 改造网络模式下的开火 RPC。
-9. 让 Projectile、Health、KDA、Score 复制。
-10. 做最简 Lobby 和 Ready。
-11. 再考虑 LAN 搜索和公网联机。
+1. 补 Dedicated Server Target、构建命令和本地独立服务器测试流程。
+2. 给 Server Game 分支接入公网/内网穿透地址 Join。
+3. 制作 C++ 网络菜单和网络顶部 UI 的正式 UMG 蓝图子类。
+4. 做局域网真机、双客户端、AI 填充、延迟/丢包模拟和外网连接回归。
 
-这条路线的核心思想是：不要先追求完整玩法，而是先让“连接、生成、移动、开火、死亡、同步”这条主链路稳定。
+这条路线的核心思想是：当前玩法原型已经成立，接下来要把入口、服务器部署、AI 和表现层打磨成可维护系统。

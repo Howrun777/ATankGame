@@ -6,10 +6,12 @@
 #include "Modes/Network/NetworkGameStateBase.h"
 #include "Modes/Network/NetworkPlayerControllerBase.h"
 #include "Modes/Network/NetworkPlayerStateBase.h"
+#include "Shared/AI/AIBotPlayerController.h"
 #include "Shared/Combat/HealthComponent.h"
 #include "Shared/Controllers/TankPlayerController.h"
 #include "Shared/Pawns/Tank.h"
 #include "TimerManager.h"
+#include "UObject/ConstructorHelpers.h"
 
 ANetworkGameModeBase::ANetworkGameModeBase()
 {
@@ -19,11 +21,24 @@ ANetworkGameModeBase::ANetworkGameModeBase()
 	DefaultPawnClass = nullptr;
 
 	MaxNetworkPlayers = 4;
+	AICount = 0;
 	bUseTaggedPlayerStarts = true;
 	InitialAmmoRatio = 0.5f;
 	RespawnDelay = 3.0f;
 	RespawnHealthPercent = 1.0f;
-	TankClass = ATank::StaticClass();
+
+	static ConstructorHelpers::FClassFinder<ATank> DefaultTankBlueprint(TEXT("/Game/Blueprints/Tanks/BP_TankGreen"));
+	if (DefaultTankBlueprint.Succeeded())
+	{
+		TankClass = DefaultTankBlueprint.Class;
+	}
+	else
+	{
+		TankClass = ATank::StaticClass();
+	}
+
+	AIControllerClass = AAIBotPlayerController::StaticClass();
+	NetworkAIDifficulty = EAIDifficulty::Normal;
 }
 
 void ANetworkGameModeBase::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)
@@ -34,6 +49,12 @@ void ANetworkGameModeBase::InitGame(const FString& MapName, const FString& Optio
 	if (!MaxPlayersOption.IsEmpty())
 	{
 		MaxNetworkPlayers = FMath::Clamp(FCString::Atoi(*MaxPlayersOption), 1, 8);
+	}
+
+	const FString AICountOption = UGameplayStatics::ParseOption(Options, TEXT("AICount"));
+	if (!AICountOption.IsEmpty())
+	{
+		AICount = FMath::Clamp(FCString::Atoi(*AICountOption), 0, FMath::Max(0, MaxNetworkPlayers - 1));
 	}
 }
 
@@ -49,7 +70,12 @@ void ANetworkGameModeBase::BeginPlay()
 		NetworkGS->SetConnectedPlayerCount(0);
 	}
 
-	UE_LOG(LogTemp, Display, TEXT("NetworkGameModeBase BeginPlay. MaxNetworkPlayers=%d"), MaxNetworkPlayers);
+	if (HasAuthority() && AICount > 0)
+	{
+		GetWorldTimerManager().SetTimerForNextTick(this, &ANetworkGameModeBase::SpawnConfiguredAIPlayers);
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("NetworkGameModeBase BeginPlay. MaxNetworkPlayers=%d AICount=%d"), MaxNetworkPlayers, AICount);
 }
 
 void ANetworkGameModeBase::PostLogin(APlayerController* NewPlayer)
@@ -97,12 +123,47 @@ void ANetworkGameModeBase::HandleStartingNewPlayer_Implementation(APlayerControl
 				return;
 			}
 
-			InitializePlayerIdentity(NewPlayer, SlotId);
+			InitializePlayerIdentity(NewPlayer, SlotId, false);
 		}
 	}
 
-	SpawnTankForPlayer(NewPlayer);
+	SpawnTankForController(NewPlayer);
 	RefreshConnectedPlayerCount();
+}
+
+bool ANetworkGameModeBase::UsesTeamDamageRules() const
+{
+	return false;
+}
+
+bool ANetworkGameModeBase::AreTeamIdsHostile(int32 AttackerTeamId, int32 VictimTeamId) const
+{
+	if (AttackerTeamId < 0 || VictimTeamId < 0)
+	{
+		return true;
+	}
+
+	return AttackerTeamId != VictimTeamId;
+}
+
+bool ANetworkGameModeBase::CanTankDamageTank(const ATank* AttackerTank, const ATank* VictimTank) const
+{
+	if (!AttackerTank || !VictimTank)
+	{
+		return true;
+	}
+
+	if (AttackerTank == VictimTank)
+	{
+		return false;
+	}
+
+	if (!UsesTeamDamageRules())
+	{
+		return true;
+	}
+
+	return AreTeamIdsHostile(AttackerTank->GetTeamId(), VictimTank->GetTeamId());
 }
 
 int32 ANetworkGameModeBase::AllocateSlotId() const
@@ -113,20 +174,9 @@ int32 ANetworkGameModeBase::AllocateSlotId() const
 		return -1;
 	}
 
-	for (int32 Candidate = 0; Candidate < MaxNetworkPlayers; ++Candidate)
+	for (int32 Candidate = 0; Candidate < GetMaxHumanPlayerSlots(); ++Candidate)
 	{
-		bool bUsed = false;
-		for (APlayerState* PlayerState : GS->PlayerArray)
-		{
-			const ANetworkPlayerStateBase* NetworkPS = Cast<ANetworkPlayerStateBase>(PlayerState);
-			if (NetworkPS && NetworkPS->GetSlotId() == Candidate)
-			{
-				bUsed = true;
-				break;
-			}
-		}
-
-		if (!bUsed)
+		if (!IsSlotOccupied(Candidate))
 		{
 			return Candidate;
 		}
@@ -135,9 +185,9 @@ int32 ANetworkGameModeBase::AllocateSlotId() const
 	return -1;
 }
 
-void ANetworkGameModeBase::InitializePlayerIdentity(APlayerController* PlayerController, int32 SlotId) const
+void ANetworkGameModeBase::InitializePlayerIdentity(AController* Controller, int32 SlotId, bool bAIPlayer) const
 {
-	ANetworkPlayerStateBase* NetworkPS = PlayerController ? PlayerController->GetPlayerState<ANetworkPlayerStateBase>() : nullptr;
+	ANetworkPlayerStateBase* NetworkPS = Controller ? Controller->GetPlayerState<ANetworkPlayerStateBase>() : nullptr;
 	if (!NetworkPS)
 	{
 		return;
@@ -145,12 +195,14 @@ void ANetworkGameModeBase::InitializePlayerIdentity(APlayerController* PlayerCon
 
 	NetworkPS->SetSlotId(SlotId);
 	NetworkPS->SetTeamId(ChooseTeamIdForSlot(SlotId));
-	NetworkPS->SetReady(false);
+	NetworkPS->SetReady(bAIPlayer);
+	NetworkPS->SetAIPlayer(bAIPlayer);
 
-	UE_LOG(LogTemp, Display, TEXT("NetworkGameModeBase: assigned SlotId=%d TeamId=%d to %s"),
+	UE_LOG(LogTemp, Display, TEXT("NetworkGameModeBase: assigned SlotId=%d TeamId=%d AI=%s to %s"),
 		NetworkPS->GetSlotId(),
 		NetworkPS->GetTeamId(),
-		*GetNameSafe(PlayerController));
+		bAIPlayer ? TEXT("true") : TEXT("false"),
+		*GetNameSafe(Controller));
 }
 
 AActor* ANetworkGameModeBase::FindSpawnPointForSlot(int32 SlotId) const
@@ -186,10 +238,10 @@ AActor* ANetworkGameModeBase::FindSpawnPointForSlot(int32 SlotId) const
 	return PlayerStarts.Num() > 0 ? PlayerStarts[0] : nullptr;
 }
 
-void ANetworkGameModeBase::SpawnTankForPlayer(APlayerController* PlayerController)
+void ANetworkGameModeBase::SpawnTankForController(AController* Controller)
 {
-	ANetworkPlayerStateBase* NetworkPS = PlayerController ? PlayerController->GetPlayerState<ANetworkPlayerStateBase>() : nullptr;
-	if (!PlayerController || !NetworkPS)
+	ANetworkPlayerStateBase* NetworkPS = Controller ? Controller->GetPlayerState<ANetworkPlayerStateBase>() : nullptr;
+	if (!Controller || !NetworkPS)
 	{
 		return;
 	}
@@ -209,8 +261,8 @@ void ANetworkGameModeBase::SpawnTankForPlayer(APlayerController* PlayerControlle
 	{
 		if (ActiveTanks[SlotId]->GetIsAlive())
 		{
-			PlayerController->Possess(ActiveTanks[SlotId]);
-			InitializeSpawnedTank(ActiveTanks[SlotId], PlayerController, NetworkPS, false);
+			Controller->Possess(ActiveTanks[SlotId]);
+			InitializeSpawnedTank(ActiveTanks[SlotId], Controller, NetworkPS, false);
 			return;
 		}
 
@@ -230,8 +282,8 @@ void ANetworkGameModeBase::SpawnTankForPlayer(APlayerController* PlayerControlle
 	}
 
 	FActorSpawnParameters SpawnParams;
-	SpawnParams.Owner = PlayerController;
-	SpawnParams.Instigator = PlayerController->GetPawn();
+	SpawnParams.Owner = Controller;
+	SpawnParams.Instigator = Controller->GetPawn();
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
 	ATank* NewTank = GetWorld()->SpawnActor<ATank>(ClassToSpawn, SpawnLocation, SpawnRotation, SpawnParams);
@@ -244,8 +296,8 @@ void ANetworkGameModeBase::SpawnTankForPlayer(APlayerController* PlayerControlle
 	NewTank->SetSlotId(SlotId);
 	NewTank->SetTeamId(NetworkPS->GetTeamId());
 
-	PlayerController->Possess(NewTank);
-	InitializeSpawnedTank(NewTank, PlayerController, NetworkPS, true);
+	Controller->Possess(NewTank);
+	InitializeSpawnedTank(NewTank, Controller, NetworkPS, true);
 	ActiveTanks[SlotId] = NewTank;
 
 	UE_LOG(LogTemp, Display, TEXT("NetworkGameModeBase: spawned Tank %s for SlotId=%d TeamId=%d"),
@@ -254,14 +306,14 @@ void ANetworkGameModeBase::SpawnTankForPlayer(APlayerController* PlayerControlle
 		NetworkPS->GetTeamId());
 }
 
-void ANetworkGameModeBase::InitializeSpawnedTank(ATank* NewTank, APlayerController* PlayerController, ANetworkPlayerStateBase* NetworkPS, bool bResetResources)
+void ANetworkGameModeBase::InitializeSpawnedTank(ATank* NewTank, AController* Controller, ANetworkPlayerStateBase* NetworkPS, bool bResetResources)
 {
-	if (!NewTank || !PlayerController || !NetworkPS)
+	if (!NewTank || !Controller || !NetworkPS)
 	{
 		return;
 	}
 
-	NewTank->SetOwner(PlayerController);
+	NewTank->SetOwner(Controller);
 	NewTank->SetSlotId(NetworkPS->GetSlotId());
 	NewTank->SetTeamId(NetworkPS->GetTeamId());
 	NewTank->SetIsAlive(true);
@@ -287,7 +339,7 @@ void ANetworkGameModeBase::InitializeSpawnedTank(ATank* NewTank, APlayerControll
 
 	NewTank->SetPlayerEnabled(true);
 
-	if (ATankPlayerController* TankPC = Cast<ATankPlayerController>(PlayerController))
+	if (ATankPlayerController* TankPC = Cast<ATankPlayerController>(Controller))
 	{
 		if (TankPC->IsLocalController())
 		{
@@ -336,11 +388,11 @@ void ANetworkGameModeBase::HandleNetworkTankKilled(ATank* DeadTank, ATank* Kille
 		return;
 	}
 
-	APlayerController* DeadPlayerController = Cast<APlayerController>(DeadTank->GetController());
-	ANetworkPlayerStateBase* NetworkPS = DeadPlayerController ? DeadPlayerController->GetPlayerState<ANetworkPlayerStateBase>() : DeadTank->GetPlayerState<ANetworkPlayerStateBase>();
-	if (!DeadPlayerController && NetworkPS)
+	AController* DeadController = DeadTank->GetController();
+	ANetworkPlayerStateBase* NetworkPS = DeadController ? DeadController->GetPlayerState<ANetworkPlayerStateBase>() : DeadTank->GetPlayerState<ANetworkPlayerStateBase>();
+	if (!DeadController && NetworkPS)
 	{
-		DeadPlayerController = Cast<APlayerController>(NetworkPS->GetOwner());
+		DeadController = Cast<AController>(NetworkPS->GetOwner());
 	}
 
 	const int32 SlotId = NetworkPS ? NetworkPS->GetSlotId() : DeadTank->GetSlotId();
@@ -357,14 +409,14 @@ void ANetworkGameModeBase::HandleNetworkTankKilled(ATank* DeadTank, ATank* Kille
 		*GetNameSafe(KillerTank),
 		SlotId);
 
-	if (ATankPlayerController* DeadTankPC = Cast<ATankPlayerController>(DeadPlayerController))
+	if (ATankPlayerController* DeadTankPC = Cast<ATankPlayerController>(DeadController))
 	{
 		DeadTankPC->ShowDeathScreenForOwner(RespawnDelay);
 	}
 
 	if (ShouldRespawnPlayer(NetworkPS))
 	{
-		ScheduleRespawn(DeadPlayerController);
+		ScheduleRespawn(DeadController);
 	}
 
 	CheckNetworkGameOver();
@@ -374,37 +426,37 @@ void ANetworkGameModeBase::CheckNetworkGameOver()
 {
 }
 
-void ANetworkGameModeBase::ScheduleRespawn(APlayerController* PlayerController)
+void ANetworkGameModeBase::ScheduleRespawn(AController* Controller)
 {
-	if (!PlayerController)
+	if (!Controller)
 	{
 		return;
 	}
 
 	if (RespawnDelay <= 0.0f)
 	{
-		RespawnPlayer(PlayerController);
+		RespawnPlayer(Controller);
 		return;
 	}
 
 	FTimerHandle RespawnTimerHandle;
 	FTimerDelegate RespawnDelegate;
-	TWeakObjectPtr<APlayerController> WeakPlayerController(PlayerController);
-	RespawnDelegate.BindWeakLambda(this, [this, WeakPlayerController]()
+	TWeakObjectPtr<AController> WeakController(Controller);
+	RespawnDelegate.BindWeakLambda(this, [this, WeakController]()
 	{
-		if (APlayerController* ValidPlayerController = WeakPlayerController.Get())
+		if (AController* ValidController = WeakController.Get())
 		{
-			RespawnPlayer(ValidPlayerController);
+			RespawnPlayer(ValidController);
 		}
 	});
 
 	GetWorldTimerManager().SetTimer(RespawnTimerHandle, RespawnDelegate, RespawnDelay, false);
 }
 
-void ANetworkGameModeBase::RespawnPlayer(APlayerController* PlayerController)
+void ANetworkGameModeBase::RespawnPlayer(AController* Controller)
 {
-	ANetworkPlayerStateBase* NetworkPS = PlayerController ? PlayerController->GetPlayerState<ANetworkPlayerStateBase>() : nullptr;
-	if (!PlayerController || !NetworkPS)
+	ANetworkPlayerStateBase* NetworkPS = Controller ? Controller->GetPlayerState<ANetworkPlayerStateBase>() : nullptr;
+	if (!Controller || !NetworkPS)
 	{
 		return;
 	}
@@ -414,7 +466,7 @@ void ANetworkGameModeBase::RespawnPlayer(APlayerController* PlayerController)
 		return;
 	}
 
-	if (ATankPlayerController* TankPC = Cast<ATankPlayerController>(PlayerController))
+	if (ATankPlayerController* TankPC = Cast<ATankPlayerController>(Controller))
 	{
 		TankPC->HideDeathScreenForOwner();
 	}
@@ -433,20 +485,20 @@ void ANetworkGameModeBase::RespawnPlayer(APlayerController* PlayerController)
 	}
 	if (!OldTank)
 	{
-		OldTank = Cast<ATank>(PlayerController->GetPawn());
+		OldTank = Cast<ATank>(Controller->GetPawn());
 	}
 
 	if (OldTank && IsValid(OldTank))
 	{
 		OldTank->OnKilled.RemoveDynamic(this, &ANetworkGameModeBase::HandleTankKilled);
-		if (PlayerController->GetPawn() == OldTank)
+		if (Controller->GetPawn() == OldTank)
 		{
-			PlayerController->UnPossess();
+			Controller->UnPossess();
 		}
 		OldTank->Destroy();
 	}
 
-	SpawnTankForPlayer(PlayerController);
+	SpawnTankForController(Controller);
 }
 
 void ANetworkGameModeBase::RefreshConnectedPlayerCount() const
@@ -456,6 +508,88 @@ void ANetworkGameModeBase::RefreshConnectedPlayerCount() const
 		const int32 PlayerCount = GameState ? GameState->PlayerArray.Num() : 0;
 		NetworkGS->SetConnectedPlayerCount(PlayerCount);
 	}
+}
+
+void ANetworkGameModeBase::SpawnConfiguredAIPlayers()
+{
+	if (!HasAuthority() || AICount <= 0)
+	{
+		return;
+	}
+
+	const int32 FirstAISlot = GetMaxHumanPlayerSlots();
+	for (int32 SlotId = FirstAISlot; SlotId < MaxNetworkPlayers; ++SlotId)
+	{
+		SpawnAIForSlot(SlotId);
+	}
+
+	RefreshConnectedPlayerCount();
+}
+
+void ANetworkGameModeBase::SpawnAIForSlot(int32 SlotId)
+{
+	if (!GetWorld() || SlotId < 0 || SlotId >= MaxNetworkPlayers || IsSlotOccupied(SlotId))
+	{
+		return;
+	}
+
+	TSubclassOf<AAIBotPlayerController> ClassToSpawn = AIControllerClass;
+	if (!ClassToSpawn)
+	{
+		ClassToSpawn = AAIBotPlayerController::StaticClass();
+	}
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	AAIBotPlayerController* AIController = GetWorld()->SpawnActor<AAIBotPlayerController>(
+		ClassToSpawn,
+		FVector::ZeroVector,
+		FRotator::ZeroRotator,
+		SpawnParams);
+
+	if (!AIController)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("NetworkGameModeBase: failed to spawn AI controller for SlotId=%d"), SlotId);
+		return;
+	}
+
+	InitializePlayerIdentity(AIController, SlotId, true);
+
+	if (ANetworkPlayerStateBase* NetworkPS = AIController->GetPlayerState<ANetworkPlayerStateBase>())
+	{
+		NetworkPS->SetPlayerName(FString::Printf(TEXT("AI_P%d"), SlotId + 1));
+	}
+
+	AIController->ApplyDifficultySettings(NetworkAIDifficulty);
+	SpawnTankForController(AIController);
+
+	UE_LOG(LogTemp, Display, TEXT("NetworkGameModeBase: spawned AI player at SlotId=%d"), SlotId);
+}
+
+int32 ANetworkGameModeBase::GetMaxHumanPlayerSlots() const
+{
+	return FMath::Clamp(MaxNetworkPlayers - AICount, 1, MaxNetworkPlayers);
+}
+
+bool ANetworkGameModeBase::IsSlotOccupied(int32 SlotId) const
+{
+	const AGameStateBase* GS = GameState;
+	if (!GS)
+	{
+		return false;
+	}
+
+	for (APlayerState* PlayerState : GS->PlayerArray)
+	{
+		const ANetworkPlayerStateBase* NetworkPS = Cast<ANetworkPlayerStateBase>(PlayerState);
+		if (NetworkPS && NetworkPS->GetSlotId() == SlotId)
+		{
+			return true;
+		}
+	}
+
+	return false;
 }
 
 ANetworkGameStateBase* ANetworkGameModeBase::GetNetworkGameState() const

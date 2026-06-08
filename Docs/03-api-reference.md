@@ -87,6 +87,23 @@
 | `UBattleBlasterSaveGame` | `CurrentLevelIndex`, `BestLevelRecord` | 保存单人战役进度 |
 | `UBattleBlasterHistorySaveGame` | `MultiBattleHistory`, `NextSequenceId` | 保存多人死斗历史战绩池 |
 
+### 2.4 网络入口类型
+
+| 类型 | 用途 |
+| --- | --- |
+| `EBattleBlasterNetworkConnectionType` | 网络连接方式，当前包含 LAN 和 DedicatedServer |
+| `ENetworkGameModeType` | 网络玩法类型，包含 Deathmatch、TeamDeathmatch、MOBA、TeamMOBA |
+| `FNetworkMatchSettings` | Host 设置结构，包含连接方式、玩法类型、地图、端口、人数、AI 数、目标分和队伍数 |
+| `UBattleBlasterSessionSubsystem::HostNetworkGame(const FNetworkMatchSettings&)` | 根据结构化设置开启 Listen Server |
+| `UBattleBlasterSessionSubsystem::JoinNetworkGame(const FString&, int32)` | 根据 IP 和端口加入网络对局 |
+| `UBattleBlasterSessionSubsystem::BuildTravelOptions(const FNetworkMatchSettings&)` | 根据结构化设置生成 OpenLevel URL Options |
+
+约束:
+
+- UMG 菜单只负责收集输入并填充 `FNetworkMatchSettings`。
+- 具体网络 GameMode 选择和 URL Options 拼接由 `UBattleBlasterSessionSubsystem` 负责。
+- `HostListenServerWithOptions()`、`JoinByIpAndPort()` 仍保留兼容旧调用，但新入口应优先使用结构化接口。
+
 ## 3. Pawn 与战斗
 
 ### 3.1 `UHealthComponent`
@@ -738,6 +755,53 @@ Defense 模式占位类。
 | `AMainMenuGameMode` | 主菜单地图 GameMode |
 | `ATestGameMode` | 测试地图 GameMode |
 
+### 7.7 网络 GameMode
+
+网络玩法统一放在 `Source/BattleBlaster/Modes/Network` 下，不直接复用本地分屏 GameMode。`ANetworkGameModeBase` 是服务器端公共流程基类，具体玩法由子类实现。
+
+| 类 | 主要职责 |
+| --- | --- |
+| `ANetworkGameModeBase` | 网络战斗基类，处理连接、槽位分配、AI 填充、TeamId 分配、Tank Spawn、死亡入口、复活调度 |
+| `ANetworkDeathmatchGameMode` | 网络个人死斗，处理个人分数、目标分、胜负和结束后禁用玩家 |
+| `ANetworkTeamDeathmatchGameMode` | 网络团队死斗，处理队伍分配、友伤过滤、团队分数和团队胜负 |
+| `ANetworkMOBAGameMode` | 网络 MOBA，处理核心塔注册/摧毁、复活条件、淘汰和胜负 |
+| `ANetworkTeamMOBAGameMode` | 网络团队 MOBA，复用网络 MOBA 规则并按队伍分配玩家 |
+
+`ANetworkGameModeBase` 关键钩子:
+
+| 函数 | 用途 |
+| --- | --- |
+| `ChooseTeamIdForSlot(int32)` | 根据服务器分配的 SlotId 推导 TeamId，子类用于实现个人阵营或团队阵营 |
+| `UsesTeamDamageRules()` | 是否启用 TeamId 敌我伤害规则 |
+| `AreTeamIdsHostile(int32, int32)` | 判断两个 TeamId 是否敌对 |
+| `CanTankDamageTank(const ATank*, const ATank*)` | 网络炮弹命中 Tank 前的友伤过滤入口 |
+| `ShouldRespawnPlayer(ANetworkPlayerStateBase*)` | 判断玩家是否还能复活 |
+| `HandleNetworkTankKilled(ATank*, ATank*)` | 具体模式处理死亡、计分、淘汰的入口 |
+| `CheckNetworkGameOver()` | 具体模式检查胜负 |
+
+`ANetworkGameModeBase` 常用网络配置:
+
+| 字段 | 用途 |
+| --- | --- |
+| `MaxNetworkPlayers` | 本局总槽位数，由 Host URL Option `MaxPlayers` 传入 |
+| `AICount` | AI 填充数量，由 Host URL Option `AICount` 传入；AI 占用末尾槽位，不额外扩容 |
+| `AIControllerClass` | 网络 AI 控制器类，默认 `AAIBotPlayerController`，可在蓝图 GameMode 子类中替换 |
+| `NetworkAIDifficulty` | 网络 AI 难度，生成 AI 后调用 `ApplyDifficultySettings()` |
+
+`ANetworkPlayerStateBase` 扩展:
+
+| 字段/函数 | 用途 |
+| --- | --- |
+| `bIsReady` / `IsReady()` | Lobby/准备状态 |
+| `bIsAIPlayer` / `IsAIPlayer()` | 标记该 PlayerState 是否属于服务器生成的 AI |
+
+约束:
+
+- `GameMode` 只存在于服务器，不创建 UMG，不读取本地 Viewport。
+- 客户端 UI 从 `GameState` / `PlayerState` 的复制数据刷新。
+- LAN Listen Server 和未来 Dedicated Server 共用同一套网络玩法类。
+- 网络 AI 和真人共用 `SlotId`、`TeamId`、KDA、计分、死亡和复活路径。
+
 ## 8. GameState 与 PlayerState
 
 ### 8.1 `ATankGameState`
@@ -831,7 +895,25 @@ Stage 状态。
 | `SetCurrentStageId(int32)` / `GetCurrentStageId()` | 设置/读取当前关卡 ID |
 | `SetTotalWaves(int32)` / `GetTotalWaves()` | 设置/读取总波次 |
 
-### 8.6 PlayerState
+### 8.6 网络 GameState
+
+网络 GameState 是客户端 UI 的主要数据来源。服务器写入，客户端读取复制值并响应委托刷新。
+
+| 类 | 主要复制状态 |
+| --- | --- |
+| `ANetworkGameStateBase` | `ConnectedPlayerCount`、`MaxNetworkPlayers`、`bIsMatchOver` |
+| `ANetworkDeathmatchGameState` | `PlayerScores`、`TargetScore`、`WinnerSlotId`、`MatchElapsedSeconds`、`ScoreStateRevision` |
+| `ANetworkTeamDeathmatchGameState` | `TeamScores`、`WinningTeamId`，同时镜像团队分数到继承的 `PlayerScores` 以兼容部分死斗流程 |
+| `ANetworkMOBAGameState` | `AliveCoreCountsByTeam`、`bTeamEliminated`、`WinningTeamId`、`MatchElapsedSeconds`、`MOBAStateRevision` |
+
+常用委托:
+
+| 委托 | 用途 |
+| --- | --- |
+| `ANetworkDeathmatchGameState::OnScoreStateChanged` | 分数、目标分、胜者或时间变化后刷新死斗/团队死斗 UI |
+| `ANetworkMOBAGameState::OnMOBAStateChanged` | 核心塔、淘汰、胜者或时间变化后刷新 MOBA 顶部状态 UI |
+
+### 8.7 PlayerState
 
 | 类 | 主要职责 |
 | --- | --- |
@@ -901,6 +983,34 @@ Stage 状态。
 - 本地分屏 HUD 应添加到对应玩家屏幕。
 - 不要默认只更新 Player 0。
 - 当前暂停逻辑主要由 Player 0 控制。
+
+### 9.1.1 `ANetworkPlayerControllerBase`
+
+网络模式专用 PlayerController，继承 `ATankPlayerController`，保留共享 HUD、死亡黑屏、暂停输入等能力，并新增网络比分/状态 UI 管理。
+
+关键字段:
+
+| 字段 | 用途 |
+| --- | --- |
+| `ScoresWidgetClass` / `ScoresWidget` | 网络个人死斗顶部比分 UI，默认使用 `UCppShowScoresWidget` |
+| `TeamScoresWidgetClass` / `TeamScoresWidget` | 网络团队死斗顶部团队分数 UI，默认使用 `UNetworkTeamScoresWidget` |
+| `MOBAStateWidgetClass` / `MOBAStateWidget` | 网络 MOBA / 团队 MOBA 顶部核心塔状态 UI，默认使用 `UNetworkMOBAStateWidget` |
+| `DeathmatchGameOverWidgetClass` / `DeathmatchGameOverWidget` | 网络死斗/团队死斗结算 UI |
+
+常用接口:
+
+| 函数 | 用途 |
+| --- | --- |
+| `InitializeNetworkScoreUI()` | 本地 Controller 根据当前 GameState 自动创建对应网络顶部 UI |
+| `RefreshNetworkScoreUI()` | 从复制的 GameState / PlayerState 刷新 UI |
+| `ShowNetworkDeathmatchGameOver(int32)` | 显示网络死斗结算界面 |
+
+行为:
+
+- 如果当前 GameState 是 `ANetworkTeamDeathmatchGameState`，创建 `TeamScoresWidgetClass`。
+- 如果当前 GameState 是 `ANetworkMOBAGameState`，创建 `MOBAStateWidgetClass`。
+- 如果当前 GameState 是 `ANetworkDeathmatchGameState`，创建 `ScoresWidgetClass`。
+- UI 创建发生在本地 PlayerController，GameMode 不直接创建 UMG。
 
 ### 9.2 `AUIPlayerController`
 
@@ -983,6 +1093,26 @@ Stage 状态。
 - GameMode/GameState 在 Turret 状态变化时更新 UI。
 - 核心塔摧毁后隐藏或置灰对应核心塔图标。
 - 淘汰、死亡和胜利 UI 由 PlayerController 与 GameMode 协作触发。
+
+### 9.7 网络模式 UI
+
+| 类 | 主要职责 |
+| --- | --- |
+| `UCppShowScoresWidget` | 网络个人死斗顶部比分 UI，显示目标分、时间、各玩家分数进度条，本地玩家高亮 |
+| `UNetworkTeamScoresWidget` | 网络团队死斗顶部团队分数 UI，显示目标分、时间、各队分数进度条，本队高亮 |
+| `UNetworkMOBAStateWidget` | 网络 MOBA 顶部状态 UI，显示各队核心塔数量和 `ALIVE` / `CORE DOWN` / `ELIMINATED` |
+| `UNetworkDeathmatchGameOverWidget` | 网络死斗/团队死斗结算 UI，从网络 GameState 和 PlayerState 读取胜者、比分、KDA |
+| `UNetworkMenuWidgetBase` | 网络菜单基类，提供 C++ 默认布局和子菜单打开能力 |
+| `UNetworkModeSelectWidget` | 网络入口，选择 LAN Game / Server Game |
+| `ULANMenuWidget` | LAN 分支，进入 Host / Join |
+| `ULANHostSettingsWidget` | LAN Host 设置，选择模式、人数、AI 数、地图、目标分和端口 |
+| `ULANJoinWidget` | LAN Join 输入 IP 和 Port |
+
+约束:
+
+- 网络顶部 UI 默认由 `ANetworkPlayerControllerBase` 自动创建，也可以在蓝图子类中替换 WidgetClass。
+- Team Deathmatch 和 MOBA 不再复用个人死斗比分 UI。
+- 网络菜单 C++ 类是正式逻辑入口，不是一次性临时类；后续 UMG 蓝图可继承这些类替换表现层。
 
 ## 10. 关键跨类流程
 

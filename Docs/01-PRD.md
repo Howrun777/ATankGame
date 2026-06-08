@@ -1,15 +1,15 @@
 # BattleBlaster 产品需求文档
 
-> 版本: v1.1
+> 版本: v1.2
 > 状态: 以当前代码实现为准，兼顾后续规划
-> 最后更新: 2026-05-15
+> 最后更新: 2026-06-05
 > 相关文档: `Docs/02-developer-guide.md`, `Docs/03-api-reference.md`
 
 ## 1. 产品定位
 
-BattleBlaster 是一款本地分屏坦克动作游戏，核心体验是 1-4 名玩家在同一台设备上进行快节奏炮战。游戏目前围绕坦克操控、炮弹碰撞、Buff、可破坏场景、AI 敌人和多模式规则展开。
+BattleBlaster 是一款以本地分屏为核心、正在扩展联网玩法的坦克动作游戏。基础体验仍然是 1-4 名玩家在同一台设备上进行快节奏炮战；当前代码同时包含一个独立的网络模块，用于局域网 Listen Server、手动 IP 加入和后续 Dedicated Server 扩展。
 
-当前项目不是联网游戏，现有多人能力以本地多人、本地分屏、手柄/键盘输入映射为主。未来如果要扩展在线联机，需要单独设计复制、同步、预测和服务器权威规则。
+联网模块不直接改造旧的本地分屏模式，而是在 `Modes/Network` 下独立实现网络玩法规则。本地 Free For All、Team Battle、MOBA、Stage 仍按本地/单机架构运行；网络 Deathmatch、Team Deathmatch、MOBA、Team MOBA 使用服务器权威、复制状态和本地 PlayerController UI。
 
 ## 2. 当前实现范围
 
@@ -24,10 +24,21 @@ BattleBlaster 是一款本地分屏坦克动作游戏，核心体验是 1-4 名�
 | Defense | 占位 | 菜单入口存在，但玩法代码尚未实现 |
 | Test | 已实现/开发用 | 用于调试地图和基础系统验证 |
 
-### 2.2 暂未实现或非目标
+### 2.2 网络模块当前范围
+
+| 网络能力 | 当前状态 | 说明 |
+| --- | --- | --- |
+| LAN Host / Join | 已实现基础流程 | C++ 网络菜单支持 Host Listen Server、输入 IP:Port 加入 |
+| Network Deathmatch | 已实现基础玩法 | 支持 SlotId/TeamId、服务器生成 Tank、移动、开火、伤害、复活、比分、结算 |
+| Network Team Deathmatch | 已实现基础规则 | 支持队伍分配、友伤过滤、团队分数、团队胜负和团队分数 UI |
+| Network MOBA | 已实现基础规则 | 支持核心塔注册/摧毁同步、核心塔倒后死亡淘汰、最终胜负和核心塔状态 UI |
+| Network Team MOBA | 已实现基础规则 | 继承网络 MOBA 规则，按队伍分配 TeamId |
+| Dedicated Server | 规划中 | 当前网络代码按 Dedicated Server 兼容原则写，但尚未完成服务器目标、部署和外网验证 |
+
+### 2.3 暂未实现或非目标
 
 - Defense 模式目前没有完整玩法规则和运行时代码。
-- 当前项目没有在线联机、大厅匹配、网络同步和远程客户端支持。
+- 当前还没有正式大厅、自动房间搜索、服务器列表、匹配系统和 Dedicated Server 部署流程。
 - 当前 Source 目录仍是扁平结构，功能模块分类是后续迁移目标，不是当前工程事实。
 
 ## 3. 目标玩家与体验
@@ -336,6 +347,13 @@ Defense 后续可以独立设计为:
 - Pass Widget。
 - MOBA 顶部状态。
 
+网络模式额外要求:
+
+- Network Deathmatch 使用独立顶部比分 UI，显示目标分、时间、各玩家分数进度条，并高亮本地玩家。
+- Network Team Deathmatch 使用独立团队分数 UI，显示各队分数进度条，并高亮本地玩家所在队伍。
+- Network MOBA / Network Team MOBA 使用独立核心塔状态 UI，显示各队核心塔数量和 `ALIVE` / `CORE DOWN` / `ELIMINATED` 状态。
+- 网络对局内 UI 必须由本地 PlayerController 或 Widget 创建，不能由 GameMode 直接创建。
+
 本地分屏要求:
 
 - 每个本地玩家拥有自己的 HUD。
@@ -469,6 +487,6 @@ Defense 后续可以独立设计为:
 
 ### 11.3 长期
 
-- 如果需要在线多人，重新设计网络架构。
+- 完善网络模块的 Dedicated Server、服务器列表、LAN 搜索、AI 填充和公网/内网穿透测试。
 - 将跨模式规则抽象为更稳定的数据驱动配置。
 - 建立自动化回归测试地图，覆盖碰撞、Buff、复活和结算。

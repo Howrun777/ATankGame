@@ -37,8 +37,8 @@ void ULANJoinWidget::NativeConstruct()
 
 void ULANJoinWidget::HandleJoinClicked()
 {
-	const FString IP = IPTextBox ? IPTextBox->GetText().ToString() : TEXT("");
-	const FString Port = PortTextBox ? PortTextBox->GetText().ToString() : TEXT("7777");
+	const FString IP = IPTextBox ? IPTextBox->GetText().ToString().TrimStartAndEnd() : TEXT("");
+	const FString PortText = PortTextBox ? PortTextBox->GetText().ToString().TrimStartAndEnd() : TEXT("7777");
 
 	if (IP.IsEmpty())
 	{
@@ -53,7 +53,8 @@ void ULANJoinWidget::HandleJoinClicked()
 	{
 		if (UBattleBlasterSessionSubsystem* SessionSubsystem = GI->GetSubsystem<UBattleBlasterSessionSubsystem>())
 		{
-			SessionSubsystem->JoinByIpAndPort(IP, Port);
+			const int32 ParsedPort = FCString::Atoi(*PortText);
+			SessionSubsystem->JoinNetworkGame(IP, ParsedPort > 0 ? ParsedPort : 7777);
 		}
 	}
 }

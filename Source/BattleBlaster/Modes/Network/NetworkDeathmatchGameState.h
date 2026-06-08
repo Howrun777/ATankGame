@@ -42,7 +42,7 @@ public:
 	void SetWinnerSlotId(int32 SlotId);
 	void IncrementMatchElapsedSeconds();
 
-private:
+protected:
 	UFUNCTION()
 	void OnRep_ScoreState();
 

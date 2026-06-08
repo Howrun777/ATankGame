@@ -1,12 +1,15 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Core/Networking/BattleBlasterNetworkTypes.h"
 #include "Modes/Network/UI/Menu/NetworkMenuWidgetBase.h"
 #include "LANHostSettingsWidget.generated.h"
 
 class UBattleBlasterSessionSubsystem;
 class UButton;
 class UEditableTextBox;
+class UImage;
+class UNetworkMapSelectWidget;
 class UTextBlock;
 
 UCLASS()
@@ -17,6 +20,9 @@ class BATTLEBLASTER_API ULANHostSettingsWidget : public UNetworkMenuWidgetBase
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeConstruct() override;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network|Maps")
+	TSubclassOf<UNetworkMapSelectWidget> MapSelectWidgetClass;
 
 private:
 	UPROPERTY()
@@ -32,7 +38,13 @@ private:
 	UTextBlock* TargetScoreValueText = nullptr;
 
 	UPROPERTY()
-	UEditableTextBox* MapNameTextBox = nullptr;
+	UTextBlock* SelectedMapNameText = nullptr;
+
+	UPROPERTY()
+	UTextBlock* SelectedMapDetailsText = nullptr;
+
+	UPROPERTY()
+	UImage* SelectedMapPreviewImage = nullptr;
 
 	UPROPERTY()
 	UEditableTextBox* PortTextBox = nullptr;
@@ -65,6 +77,9 @@ private:
 	UButton* ScorePlusButton = nullptr;
 
 	UPROPERTY()
+	UButton* ChangeMapButton = nullptr;
+
+	UPROPERTY()
 	UButton* StartHostButton = nullptr;
 
 	UPROPERTY()
@@ -74,6 +89,7 @@ private:
 	int32 PlayerCount = 2;
 	int32 AICount = 0;
 	int32 TargetScore = 7;
+	FNetworkMapInfo SelectedMap;
 
 	const TArray<FString> ModeNames = { TEXT("Deathmatch"), TEXT("TeamDeathmatch"), TEXT("MOBA"), TEXT("TeamMOBA") };
 
@@ -102,8 +118,18 @@ private:
 	void HandleScorePlusClicked();
 
 	UFUNCTION()
+	void HandleChangeMapClicked();
+
+	UFUNCTION()
+	void HandleNetworkMapSelected(const FNetworkMapInfo& InSelectedMap);
+
+	UFUNCTION()
 	void HandleStartHostClicked();
 
 	void RefreshValues();
-	FString BuildOptionsString() const;
+	void SelectDefaultMapForCurrentMode();
+	ENetworkGameModeType GetSelectedModeType() const;
+	FText FormatSelectedMapDetails() const;
+	FNetworkMatchSettings BuildMatchSettings() const;
+	static FName ResolveLevelName(const FNetworkMapInfo& MapInfo);
 };
