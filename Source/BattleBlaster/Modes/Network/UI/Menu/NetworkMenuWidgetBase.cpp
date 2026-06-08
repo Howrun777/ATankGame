@@ -20,19 +20,19 @@ namespace
 	constexpr float LabelWidth = 170.0f;
 	constexpr float RowHeight = 52.0f;
 
-	const FLinearColor MenuBackgroundColor(0.014f, 0.015f, 0.018f, 0.97f);
-	const FLinearColor PanelColor(0.040f, 0.043f, 0.050f, 0.98f);
-	const FLinearColor FieldColor(0.082f, 0.087f, 0.098f, 1.0f);
-	const FLinearColor FieldHoverColor(0.105f, 0.112f, 0.126f, 1.0f);
-	const FLinearColor AccentColor(0.11f, 0.64f, 0.58f, 1.0f);
-	const FLinearColor AccentHoverColor(0.15f, 0.74f, 0.67f, 1.0f);
-	const FLinearColor PressedColor(0.07f, 0.42f, 0.38f, 1.0f);
-	const FLinearColor SecondaryButtonColor(0.118f, 0.124f, 0.140f, 1.0f);
-	const FLinearColor SecondaryHoverColor(0.150f, 0.158f, 0.178f, 1.0f);
-	const FLinearColor TextColor(0.92f, 0.94f, 0.96f, 1.0f);
-	const FLinearColor MutedTextColor(0.62f, 0.66f, 0.70f, 1.0f);
-	const FLinearColor NoticePanelColor(0.062f, 0.074f, 0.082f, 0.96f);
-	const FLinearColor DividerColor(0.20f, 0.22f, 0.25f, 0.85f);
+	const FLinearColor MenuStyleBackgroundColor(0.014f, 0.015f, 0.018f, 0.97f);
+	const FLinearColor MenuStylePanelColor(0.040f, 0.043f, 0.050f, 0.98f);
+	const FLinearColor MenuStyleFieldColor(0.082f, 0.087f, 0.098f, 1.0f);
+	const FLinearColor MenuStyleFieldHoverColor(0.105f, 0.112f, 0.126f, 1.0f);
+	const FLinearColor MenuStyleAccentColor(0.11f, 0.64f, 0.58f, 1.0f);
+	const FLinearColor MenuStyleAccentHoverColor(0.15f, 0.74f, 0.67f, 1.0f);
+	const FLinearColor MenuStylePressedColor(0.07f, 0.42f, 0.38f, 1.0f);
+	const FLinearColor MenuStyleSecondaryButtonColor(0.118f, 0.124f, 0.140f, 1.0f);
+	const FLinearColor MenuStyleSecondaryHoverColor(0.150f, 0.158f, 0.178f, 1.0f);
+	const FLinearColor MenuStyleTextColor(0.92f, 0.94f, 0.96f, 1.0f);
+	const FLinearColor MenuStyleMutedTextColor(0.62f, 0.66f, 0.70f, 1.0f);
+	const FLinearColor MenuStyleNoticePanelColor(0.062f, 0.074f, 0.082f, 0.96f);
+	const FLinearColor MenuStyleDividerColor(0.20f, 0.22f, 0.25f, 0.85f);
 
 	void ApplyButtonStyle(UButton* Button, bool bPrimary)
 	{
@@ -46,9 +46,9 @@ namespace
 		FSlateBrush HoveredBrush = Style.Hovered;
 		FSlateBrush PressedBrush = Style.Pressed;
 
-		NormalBrush.TintColor = FSlateColor(bPrimary ? AccentColor : SecondaryButtonColor);
-		HoveredBrush.TintColor = FSlateColor(bPrimary ? AccentHoverColor : SecondaryHoverColor);
-		PressedBrush.TintColor = FSlateColor(PressedColor);
+		NormalBrush.TintColor = FSlateColor(bPrimary ? MenuStyleAccentColor : MenuStyleSecondaryButtonColor);
+		HoveredBrush.TintColor = FSlateColor(bPrimary ? MenuStyleAccentHoverColor : MenuStyleSecondaryHoverColor);
+		PressedBrush.TintColor = FSlateColor(MenuStylePressedColor);
 
 		Style.SetNormal(NormalBrush);
 		Style.SetHovered(HoveredBrush);
@@ -71,8 +71,8 @@ namespace
 		FSlateBrush HoveredBrush = Style.Hovered;
 		FSlateBrush PressedBrush = Style.Pressed;
 
-		NormalBrush.TintColor = FSlateColor(bPrimary ? FLinearColor(0.070f, 0.100f, 0.100f, 1.0f) : SecondaryButtonColor);
-		HoveredBrush.TintColor = FSlateColor(bPrimary ? FLinearColor(0.085f, 0.130f, 0.126f, 1.0f) : SecondaryHoverColor);
+		NormalBrush.TintColor = FSlateColor(bPrimary ? FLinearColor(0.070f, 0.100f, 0.100f, 1.0f) : MenuStyleSecondaryButtonColor);
+		HoveredBrush.TintColor = FSlateColor(bPrimary ? FLinearColor(0.085f, 0.130f, 0.126f, 1.0f) : MenuStyleSecondaryHoverColor);
 		PressedBrush.TintColor = FSlateColor(bPrimary ? FLinearColor(0.052f, 0.080f, 0.080f, 1.0f) : FLinearColor(0.095f, 0.102f, 0.116f, 1.0f));
 
 		Style.SetNormal(NormalBrush);
@@ -97,14 +97,14 @@ namespace
 		FSlateBrush Focused = Style.BackgroundImageFocused;
 
 		Background.TintColor = FSlateColor(FLinearColor(0.030f, 0.033f, 0.040f, 1.0f));
-		Hovered.TintColor = FSlateColor(FieldHoverColor);
+		Hovered.TintColor = FSlateColor(MenuStyleFieldHoverColor);
 		Focused.TintColor = FSlateColor(FLinearColor(0.035f, 0.070f, 0.066f, 1.0f));
 
 		Style.SetBackgroundImageNormal(Background);
 		Style.SetBackgroundImageHovered(Hovered);
 		Style.SetBackgroundImageFocused(Focused);
 		TextBox->WidgetStyle = Style;
-		TextBox->SetForegroundColor(TextColor);
+		TextBox->SetForegroundColor(MenuStyleTextColor);
 		TextBox->SetHintText(FText::GetEmpty());
 	}
 
@@ -130,7 +130,7 @@ UCanvasPanel* UNetworkMenuWidgetBase::BuildMenuRoot(const FString& Title, const 
 	WidgetTree->RootWidget = RootCanvas;
 
 	UImage* Background = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("Background"));
-	Background->SetColorAndOpacity(MenuBackgroundColor);
+	Background->SetColorAndOpacity(MenuStyleBackgroundColor);
 	if (UCanvasPanelSlot* BackgroundSlot = RootCanvas->AddChildToCanvas(Background))
 	{
 		BackgroundSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
@@ -138,7 +138,7 @@ UCanvasPanel* UNetworkMenuWidgetBase::BuildMenuRoot(const FString& Title, const 
 	}
 
 	UBorder* PanelBorder = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("MenuPanel"));
-	PanelBorder->SetBrushColor(PanelColor);
+	PanelBorder->SetBrushColor(MenuStylePanelColor);
 	PanelBorder->SetPadding(FMargin(36.0f, 34.0f));
 	if (UCanvasPanelSlot* PanelSlot = RootCanvas->AddChildToCanvas(PanelBorder))
 	{
@@ -160,7 +160,7 @@ UCanvasPanel* UNetworkMenuWidgetBase::BuildMenuRoot(const FString& Title, const 
 
 	UTextBlock* EyebrowText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("EyebrowText"));
 	EyebrowText->SetText(FText::FromString(TEXT("NETWORK")));
-	StyleText(EyebrowText, 13, AccentColor, ETextJustify::Left);
+	StyleText(EyebrowText, 13, MenuStyleAccentColor, ETextJustify::Left);
 	if (UVerticalBoxSlot* EyebrowSlot = HeaderBox->AddChildToVerticalBox(EyebrowText))
 	{
 		EyebrowSlot->SetHorizontalAlignment(HAlign_Fill);
@@ -169,7 +169,7 @@ UCanvasPanel* UNetworkMenuWidgetBase::BuildMenuRoot(const FString& Title, const 
 
 	UTextBlock* TitleText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("TitleText"));
 	TitleText->SetText(FText::FromString(Title));
-	StyleText(TitleText, 32, TextColor, ETextJustify::Left);
+	StyleText(TitleText, 32, MenuStyleTextColor, ETextJustify::Left);
 	if (UVerticalBoxSlot* TitleSlot = HeaderBox->AddChildToVerticalBox(TitleText))
 	{
 		TitleSlot->SetHorizontalAlignment(HAlign_Fill);
@@ -181,7 +181,7 @@ UCanvasPanel* UNetworkMenuWidgetBase::BuildMenuRoot(const FString& Title, const 
 		UTextBlock* SubtitleText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("SubtitleText"));
 		SubtitleText->SetText(FText::FromString(Subtitle));
 		SubtitleText->SetAutoWrapText(true);
-		StyleText(SubtitleText, 15, MutedTextColor, ETextJustify::Left);
+		StyleText(SubtitleText, 15, MenuStyleMutedTextColor, ETextJustify::Left);
 		if (UVerticalBoxSlot* SubtitleSlot = HeaderBox->AddChildToVerticalBox(SubtitleText))
 		{
 			SubtitleSlot->SetHorizontalAlignment(HAlign_Fill);
@@ -192,7 +192,7 @@ UCanvasPanel* UNetworkMenuWidgetBase::BuildMenuRoot(const FString& Title, const 
 	USizeBox* SeparatorBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("HeaderSeparatorBox"));
 	SeparatorBox->SetHeightOverride(1.0f);
 	UImage* Separator = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("HeaderSeparator"));
-	Separator->SetColorAndOpacity(DividerColor);
+	Separator->SetColorAndOpacity(MenuStyleDividerColor);
 	SeparatorBox->AddChild(Separator);
 	if (UVerticalBoxSlot* SeparatorSlot = PanelBox->AddChildToVerticalBox(SeparatorBox))
 	{
@@ -247,7 +247,7 @@ UButton* UNetworkMenuWidgetBase::AddMenuButton(UVerticalBox* ContentBox, const F
 
 	UTextBlock* LabelText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
 	LabelText->SetText(FText::FromString(Label));
-	StyleText(LabelText, 18, TextColor, ETextJustify::Center);
+	StyleText(LabelText, 18, MenuStyleTextColor, ETextJustify::Center);
 	Button->AddChild(LabelText);
 	ButtonBox->AddChild(Button);
 
@@ -287,7 +287,7 @@ UButton* UNetworkMenuWidgetBase::AddMenuCardButton(UVerticalBox* ContentBox, con
 
 	UTextBlock* TitleText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
 	TitleText->SetText(FText::FromString(Title));
-	StyleText(TitleText, 20, TextColor, ETextJustify::Left);
+	StyleText(TitleText, 20, MenuStyleTextColor, ETextJustify::Left);
 	if (UVerticalBoxSlot* TitleSlot = TextColumn->AddChildToVerticalBox(TitleText))
 	{
 		TitleSlot->SetHorizontalAlignment(HAlign_Fill);
@@ -297,7 +297,7 @@ UButton* UNetworkMenuWidgetBase::AddMenuCardButton(UVerticalBox* ContentBox, con
 	UTextBlock* SubtitleText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
 	SubtitleText->SetText(FText::FromString(Subtitle));
 	SubtitleText->SetAutoWrapText(true);
-	StyleText(SubtitleText, 14, MutedTextColor, ETextJustify::Left);
+	StyleText(SubtitleText, 14, MenuStyleMutedTextColor, ETextJustify::Left);
 	if (UVerticalBoxSlot* SubtitleSlot = TextColumn->AddChildToVerticalBox(SubtitleText))
 	{
 		SubtitleSlot->SetHorizontalAlignment(HAlign_Fill);
@@ -311,7 +311,7 @@ UButton* UNetworkMenuWidgetBase::AddMenuCardButton(UVerticalBox* ContentBox, con
 
 		UTextBlock* TagText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
 		TagText->SetText(FText::FromString(Tag));
-		StyleText(TagText, 12, bPrimary ? TextColor : MutedTextColor, ETextJustify::Center);
+		StyleText(TagText, 12, bPrimary ? MenuStyleTextColor : MenuStyleMutedTextColor, ETextJustify::Center);
 		TagBorder->SetContent(TagText);
 
 		USizeBox* TagBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
@@ -348,7 +348,7 @@ UEditableTextBox* UNetworkMenuWidgetBase::AddEditableTextBox(UVerticalBox* Conte
 	RowBox->SetWidthOverride(ContentWidth);
 	RowBox->SetHeightOverride(RowHeight);
 	UBorder* RowBorder = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
-	RowBorder->SetBrushColor(FieldColor);
+	RowBorder->SetBrushColor(MenuStyleFieldColor);
 	RowBorder->SetPadding(FMargin(16.0f, 6.0f));
 	UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	RowBorder->SetContent(Row);
@@ -362,7 +362,7 @@ UEditableTextBox* UNetworkMenuWidgetBase::AddEditableTextBox(UVerticalBox* Conte
 
 	UTextBlock* LabelText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
 	LabelText->SetText(FText::FromString(Label));
-	StyleText(LabelText, 16, MutedTextColor, ETextJustify::Left);
+	StyleText(LabelText, 16, MenuStyleMutedTextColor, ETextJustify::Left);
 	USizeBox* LabelBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
 	LabelBox->SetWidthOverride(LabelWidth);
 	LabelBox->AddChild(LabelText);
@@ -400,7 +400,7 @@ UTextBlock* UNetworkMenuWidgetBase::AddStepperRow(UVerticalBox* ContentBox, cons
 	RowBox->SetWidthOverride(ContentWidth);
 	RowBox->SetHeightOverride(RowHeight);
 	UBorder* RowBorder = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
-	RowBorder->SetBrushColor(FieldColor);
+	RowBorder->SetBrushColor(MenuStyleFieldColor);
 	RowBorder->SetPadding(FMargin(16.0f, 6.0f));
 	UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	RowBorder->SetContent(Row);
@@ -414,7 +414,7 @@ UTextBlock* UNetworkMenuWidgetBase::AddStepperRow(UVerticalBox* ContentBox, cons
 
 	UTextBlock* LabelText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
 	LabelText->SetText(FText::FromString(Label));
-	StyleText(LabelText, 16, MutedTextColor, ETextJustify::Left);
+	StyleText(LabelText, 16, MenuStyleMutedTextColor, ETextJustify::Left);
 	USizeBox* LabelBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
 	LabelBox->SetWidthOverride(LabelWidth);
 	LabelBox->AddChild(LabelText);
@@ -428,7 +428,7 @@ UTextBlock* UNetworkMenuWidgetBase::AddStepperRow(UVerticalBox* ContentBox, cons
 	ApplyButtonStyle(OutMinusButton, false);
 	UTextBlock* MinusText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
 	MinusText->SetText(FText::FromString(TEXT("-")));
-	StyleText(MinusText, 22, TextColor, ETextJustify::Center);
+	StyleText(MinusText, 22, MenuStyleTextColor, ETextJustify::Center);
 	OutMinusButton->AddChild(MinusText);
 	USizeBox* MinusBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
 	MinusBox->SetWidthOverride(46.0f);
@@ -437,7 +437,7 @@ UTextBlock* UNetworkMenuWidgetBase::AddStepperRow(UVerticalBox* ContentBox, cons
 	Row->AddChildToHorizontalBox(MinusBox);
 
 	UTextBlock* ValueText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
-	StyleText(ValueText, 18, TextColor, ETextJustify::Center);
+	StyleText(ValueText, 18, MenuStyleTextColor, ETextJustify::Center);
 	USizeBox* ValueBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
 	ValueBox->SetWidthOverride(300.0f);
 	ValueBox->AddChild(ValueText);
@@ -451,7 +451,7 @@ UTextBlock* UNetworkMenuWidgetBase::AddStepperRow(UVerticalBox* ContentBox, cons
 	ApplyButtonStyle(OutPlusButton, false);
 	UTextBlock* PlusText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
 	PlusText->SetText(FText::FromString(TEXT("+")));
-	StyleText(PlusText, 22, TextColor, ETextJustify::Center);
+	StyleText(PlusText, 22, MenuStyleTextColor, ETextJustify::Center);
 	OutPlusButton->AddChild(PlusText);
 	USizeBox* PlusBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
 	PlusBox->SetWidthOverride(46.0f);
@@ -474,7 +474,7 @@ UTextBlock* UNetworkMenuWidgetBase::AddNoticeText(UVerticalBox* ContentBox, cons
 	NoticeBox->SetMinDesiredHeight(54.0f);
 
 	UBorder* NoticeBorder = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
-	NoticeBorder->SetBrushColor(NoticePanelColor);
+	NoticeBorder->SetBrushColor(MenuStyleNoticePanelColor);
 	NoticeBorder->SetPadding(FMargin(14.0f, 10.0f));
 
 	UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
@@ -494,7 +494,7 @@ UTextBlock* UNetworkMenuWidgetBase::AddNoticeText(UVerticalBox* ContentBox, cons
 	UTextBlock* TextBlock = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
 	TextBlock->SetText(FText::FromString(Text));
 	TextBlock->SetAutoWrapText(true);
-	StyleText(TextBlock, 16, TextColor, ETextJustify::Left);
+	StyleText(TextBlock, 16, MenuStyleTextColor, ETextJustify::Left);
 	if (UHorizontalBoxSlot* TextSlot = Row->AddChildToHorizontalBox(TextBlock))
 	{
 		TextSlot->SetHorizontalAlignment(HAlign_Fill);
@@ -521,7 +521,7 @@ void UNetworkMenuWidgetBase::AddSectionHeader(UVerticalBox* ContentBox, const FS
 
 	UTextBlock* HeaderText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
 	HeaderText->SetText(FText::FromString(Label));
-	StyleText(HeaderText, 13, AccentColor, ETextJustify::Left);
+	StyleText(HeaderText, 13, MenuStyleAccentColor, ETextJustify::Left);
 
 	USizeBox* HeaderBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
 	HeaderBox->SetWidthOverride(ContentWidth);

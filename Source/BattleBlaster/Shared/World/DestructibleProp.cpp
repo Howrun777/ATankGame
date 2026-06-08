@@ -18,7 +18,7 @@ ADestructibleProp::ADestructibleProp()
 	PrimaryActorTick.bStartWithTickEnabled = false;
 	bReplicates = true;
 	SetReplicateMovement(true);
-	SetNetUpdateFrequency(15.0f);
+	SetNetUpdateFrequency(30.0f);
 	SetMinNetUpdateFrequency(5.0f);
 
 	DefaultSceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("DefaultSceneRoot"));
@@ -138,7 +138,7 @@ void ADestructibleProp::BeginPlay()
 			PropMeshTransformReplicationTimerHandle,
 			this,
 			&ADestructibleProp::UpdateReplicatedPropMeshTransform,
-			0.1f,
+			PropMeshTransformReplicationInterval,
 			true
 		);
 	}
@@ -259,7 +259,19 @@ void ADestructibleProp::UpdateReplicatedPropMeshTransform()
 {
 	if (HasAuthority() && ShouldReplicatePropMeshTransform())
 	{
-		ReplicatedPropMeshTransform = PropMesh->GetComponentTransform();
+		const FTransform CurrentTransform = PropMesh->GetComponentTransform();
+		const float LocationDeltaSquared = FVector::DistSquared(
+			CurrentTransform.GetLocation(),
+			ReplicatedPropMeshTransform.GetLocation());
+		const float RotationDeltaDegrees = CurrentTransform.GetRotation().AngularDistance(
+			ReplicatedPropMeshTransform.GetRotation()) * 180.0f / PI;
+		const float LocationThresholdSquared = PropMeshTransformLocationThreshold * PropMeshTransformLocationThreshold;
+
+		if (LocationDeltaSquared >= LocationThresholdSquared || RotationDeltaDegrees >= PropMeshTransformRotationThresholdDegrees)
+		{
+			ReplicatedPropMeshTransform = CurrentTransform;
+			ForceNetUpdate();
+		}
 	}
 }
 

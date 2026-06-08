@@ -210,7 +210,7 @@ void UNetworkTeamScoresWidget::ApplyTeamBarState(int32 TeamId)
 	const bool bIsLocalTeam = TeamId == LocalTeamId;
 	const bool bIsWinner = TeamId == WinningTeamId;
 	const FLinearColor FillColor = GetFillColorForTeam(TeamId, bIsLocalTeam);
-	const FLinearColor TextColor = bIsLocalTeam || bIsWinner ? LocalTeamTextColor : OtherTeamTextColor;
+	const FLinearColor TeamBarTextColor = bIsLocalTeam || bIsWinner ? LocalTeamTextColor : OtherTeamTextColor;
 	const float Percent = TargetScore > 0
 		? FMath::Clamp(static_cast<float>(Score) / static_cast<float>(TargetScore), 0.0f, 1.0f)
 		: 0.0f;
@@ -223,7 +223,7 @@ void UNetworkTeamScoresWidget::ApplyTeamBarState(int32 TeamId)
 	{
 		const FString Prefix = bIsLocalTeam ? TEXT("YOUR TEAM") : FString::Printf(TEXT("TEAM %d"), TeamId + 1);
 		Widgets.NameText->SetText(FText::FromString(bIsWinner ? FString::Printf(TEXT("%s WINS"), *Prefix) : Prefix));
-		ApplyTextStyle(Widgets.NameText, 13, TextColor, ETextJustify::Center);
+		ApplyTextStyle(Widgets.NameText, 13, TeamBarTextColor, ETextJustify::Center);
 	}
 	if (Widgets.ProgressBar)
 	{
@@ -237,7 +237,7 @@ void UNetworkTeamScoresWidget::ApplyTeamBarState(int32 TeamId)
 	if (Widgets.ScoreText)
 	{
 		Widgets.ScoreText->SetText(FormatScoreText(TeamId, Score));
-		ApplyTextStyle(Widgets.ScoreText, ScoreFontSize, TextColor, ETextJustify::Center);
+		ApplyTextStyle(Widgets.ScoreText, ScoreFontSize, TeamBarTextColor, ETextJustify::Center);
 	}
 }
 

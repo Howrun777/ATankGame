@@ -121,6 +121,15 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network")
 	float PropMeshSmoothDuration = 0.12f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network", meta = (ClampMin = "0.016", UIMin = "0.016"))
+	float PropMeshTransformReplicationInterval = 0.033f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	float PropMeshTransformLocationThreshold = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	float PropMeshTransformRotationThresholdDegrees = 1.0f;
+
 	FTimerHandle PropMeshTransformReplicationTimerHandle;
 
 	// 追踪最后对油桶造成伤害的玩家（用于爆炸时归属击杀）

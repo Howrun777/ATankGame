@@ -233,7 +233,7 @@ void UCppShowScoresWidget::ApplyScoreBarState(int32 SlotId)
 	const int32 Score = CurrentScores.IsValidIndex(SlotId) ? CurrentScores[SlotId] : 0;
 	const bool bIsLocalPlayer = SlotId == LocalPlayerSlotId;
 	const FLinearColor FillColor = GetFillColorForSlot(SlotId, bIsLocalPlayer);
-	const FLinearColor TextColor = bIsLocalPlayer ? LocalPlayerTextColor : OtherPlayerTextColor;
+	const FLinearColor PlayerBarTextColor = bIsLocalPlayer ? LocalPlayerTextColor : OtherPlayerTextColor;
 	const float Percent = TargetScore > 0
 		? FMath::Clamp(static_cast<float>(Score) / static_cast<float>(TargetScore), 0.0f, 1.0f)
 		: 0.0f;
@@ -245,7 +245,7 @@ void UCppShowScoresWidget::ApplyScoreBarState(int32 SlotId)
 	if (Widgets.NameText)
 	{
 		Widgets.NameText->SetText(FText::FromString(FString::Printf(TEXT("P%d"), SlotId + 1)));
-		ApplyTextStyle(Widgets.NameText, 12, TextColor, ETextJustify::Center);
+		ApplyTextStyle(Widgets.NameText, 12, PlayerBarTextColor, ETextJustify::Center);
 	}
 	if (Widgets.ProgressBar)
 	{
@@ -259,7 +259,7 @@ void UCppShowScoresWidget::ApplyScoreBarState(int32 SlotId)
 	if (Widgets.ScoreText)
 	{
 		Widgets.ScoreText->SetText(FormatScoreText(SlotId, Score));
-		ApplyTextStyle(Widgets.ScoreText, ScoreFontSize, TextColor, ETextJustify::Center);
+		ApplyTextStyle(Widgets.ScoreText, ScoreFontSize, PlayerBarTextColor, ETextJustify::Center);
 	}
 }
 

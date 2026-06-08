@@ -24,16 +24,16 @@ namespace
 	constexpr float MapCardWidth = 258.0f;
 	constexpr float MapCardHeight = 168.0f;
 
-	const FLinearColor BackgroundColor(0.014f, 0.015f, 0.018f, 0.97f);
-	const FLinearColor PanelColor(0.040f, 0.043f, 0.050f, 0.98f);
-	const FLinearColor CardColor(0.075f, 0.082f, 0.094f, 1.0f);
-	const FLinearColor CardHoverColor(0.100f, 0.112f, 0.130f, 1.0f);
-	const FLinearColor SelectedBorderColor(0.98f, 0.86f, 0.18f, 1.0f);
-	const FLinearColor HiddenBorderColor(0.0f, 0.0f, 0.0f, 0.0f);
-	const FLinearColor TextColor(0.92f, 0.94f, 0.96f, 1.0f);
-	const FLinearColor MutedTextColor(0.64f, 0.68f, 0.72f, 1.0f);
-	const FLinearColor AccentColor(0.11f, 0.64f, 0.58f, 1.0f);
-	const FLinearColor WarningColor(0.95f, 0.63f, 0.24f, 1.0f);
+	const FLinearColor MapSelectBackgroundColor(0.014f, 0.015f, 0.018f, 0.97f);
+	const FLinearColor MapSelectPanelColor(0.040f, 0.043f, 0.050f, 0.98f);
+	const FLinearColor MapSelectCardColor(0.075f, 0.082f, 0.094f, 1.0f);
+	const FLinearColor MapSelectCardHoverColor(0.100f, 0.112f, 0.130f, 1.0f);
+	const FLinearColor MapSelectSelectedBorderColor(0.98f, 0.86f, 0.18f, 1.0f);
+	const FLinearColor MapSelectHiddenBorderColor(0.0f, 0.0f, 0.0f, 0.0f);
+	const FLinearColor MapSelectTextColor(0.92f, 0.94f, 0.96f, 1.0f);
+	const FLinearColor MapSelectMutedTextColor(0.64f, 0.68f, 0.72f, 1.0f);
+	const FLinearColor MapSelectAccentColor(0.11f, 0.64f, 0.58f, 1.0f);
+	const FLinearColor MapSelectWarningColor(0.95f, 0.63f, 0.24f, 1.0f);
 
 	void ApplyButtonTint(UButton* Button, const FLinearColor& NormalColor, const FLinearColor& HoverColor)
 	{
@@ -118,7 +118,7 @@ void UNetworkMapSelectWidget::BuildDefaultWidgetTree()
 	WidgetTree->RootWidget = GeneratedRootCanvas;
 
 	UImage* Background = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("Background"));
-	Background->SetColorAndOpacity(BackgroundColor);
+	Background->SetColorAndOpacity(MapSelectBackgroundColor);
 	if (UCanvasPanelSlot* BackgroundSlot = GeneratedRootCanvas->AddChildToCanvas(Background))
 	{
 		BackgroundSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
@@ -126,7 +126,7 @@ void UNetworkMapSelectWidget::BuildDefaultWidgetTree()
 	}
 
 	UBorder* PanelBorder = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("MapSelectPanel"));
-	PanelBorder->SetBrushColor(PanelColor);
+	PanelBorder->SetBrushColor(MapSelectPanelColor);
 	PanelBorder->SetPadding(FMargin(32.0f, 28.0f));
 	if (UCanvasPanelSlot* PanelSlot = GeneratedRootCanvas->AddChildToCanvas(PanelBorder))
 	{
@@ -141,7 +141,7 @@ void UNetworkMapSelectWidget::BuildDefaultWidgetTree()
 
 	UTextBlock* TitleText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("TitleText"));
 	TitleText->SetText(FText::FromString(TEXT("Select Map")));
-	ApplyTextStyle(TitleText, 32, TextColor, ETextJustify::Left);
+	ApplyTextStyle(TitleText, 32, MapSelectTextColor, ETextJustify::Left);
 	if (UVerticalBoxSlot* TitleSlot = PanelBox->AddChildToVerticalBox(TitleText))
 	{
 		TitleSlot->SetHorizontalAlignment(HAlign_Fill);
@@ -151,7 +151,7 @@ void UNetworkMapSelectWidget::BuildDefaultWidgetTree()
 	Text_Status = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("Text_Status"));
 	Text_Status->SetText(FText::FromString(TEXT("Choose a map for the selected network mode.")));
 	Text_Status->SetAutoWrapText(true);
-	ApplyTextStyle(Text_Status, 15, MutedTextColor, ETextJustify::Left);
+	ApplyTextStyle(Text_Status, 15, MapSelectMutedTextColor, ETextJustify::Left);
 	if (UVerticalBoxSlot* StatusSlot = PanelBox->AddChildToVerticalBox(Text_Status))
 	{
 		StatusSlot->SetHorizontalAlignment(HAlign_Fill);
@@ -172,7 +172,7 @@ void UNetworkMapSelectWidget::BuildDefaultWidgetTree()
 	for (int32 Index = 0; Index < MapsPerPage; ++Index)
 	{
 		UBorder* OuterBorder = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
-		OuterBorder->SetBrushColor(HiddenBorderColor);
+		OuterBorder->SetBrushColor(MapSelectHiddenBorderColor);
 		OuterBorder->SetPadding(FMargin(3.0f));
 		MapBorders[Index] = OuterBorder;
 
@@ -182,7 +182,7 @@ void UNetworkMapSelectWidget::BuildDefaultWidgetTree()
 		OuterBorder->SetContent(CardSize);
 
 		UButton* Button = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass());
-		ApplyButtonTint(Button, CardColor, CardHoverColor);
+		ApplyButtonTint(Button, MapSelectCardColor, MapSelectCardHoverColor);
 		MapButtons[Index] = Button;
 		CardSize->AddChild(Button);
 
@@ -209,7 +209,7 @@ void UNetworkMapSelectWidget::BuildDefaultWidgetTree()
 
 		UTextBlock* NameText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
 		NameText->SetAutoWrapText(true);
-		ApplyTextStyle(NameText, 18, TextColor, ETextJustify::Center);
+		ApplyTextStyle(NameText, 18, MapSelectTextColor, ETextJustify::Center);
 		LabelPanel->SetContent(NameText);
 		MapTexts[Index] = NameText;
 
@@ -245,7 +245,7 @@ void UNetworkMapSelectWidget::BuildDefaultWidgetTree()
 	ApplyButtonTint(Btn_PrevPage, FLinearColor(0.12f, 0.13f, 0.15f, 1.0f), FLinearColor(0.16f, 0.17f, 0.20f, 1.0f));
 	UTextBlock* PrevText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
 	PrevText->SetText(FText::FromString(TEXT("<")));
-	ApplyTextStyle(PrevText, 20, TextColor, ETextJustify::Center);
+	ApplyTextStyle(PrevText, 20, MapSelectTextColor, ETextJustify::Center);
 	Btn_PrevPage->AddChild(PrevText);
 
 	USizeBox* PrevBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
@@ -256,7 +256,7 @@ void UNetworkMapSelectWidget::BuildDefaultWidgetTree()
 
 	Text_PageNumber = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("Text_PageNumber"));
 	Text_PageNumber->SetText(FText::FromString(TEXT("1 / 1")));
-	ApplyTextStyle(Text_PageNumber, 18, TextColor, ETextJustify::Center);
+	ApplyTextStyle(Text_PageNumber, 18, MapSelectTextColor, ETextJustify::Center);
 	USizeBox* PageTextBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
 	PageTextBox->SetWidthOverride(120.0f);
 	PageTextBox->AddChild(Text_PageNumber);
@@ -270,7 +270,7 @@ void UNetworkMapSelectWidget::BuildDefaultWidgetTree()
 	ApplyButtonTint(Btn_NextPage, FLinearColor(0.12f, 0.13f, 0.15f, 1.0f), FLinearColor(0.16f, 0.17f, 0.20f, 1.0f));
 	UTextBlock* NextText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
 	NextText->SetText(FText::FromString(TEXT(">")));
-	ApplyTextStyle(NextText, 20, TextColor, ETextJustify::Center);
+	ApplyTextStyle(NextText, 20, MapSelectTextColor, ETextJustify::Center);
 	Btn_NextPage->AddChild(NextText);
 
 	USizeBox* NextBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
@@ -391,7 +391,7 @@ void UNetworkMapSelectWidget::UpdatePageDisplay()
 			? StaticEnum<ENetworkGameModeType>()->GetDisplayNameTextByValue(static_cast<int64>(CurrentModeType)).ToString()
 			: TEXT("Network Mode");
 		Text_Status->SetText(FText::FromString(FString::Printf(TEXT("%s maps available: %d"), *ModeLabel, Maps.Num())));
-		ApplyTextStyle(Text_Status, 15, Maps.Num() > 0 ? MutedTextColor : WarningColor, ETextJustify::Left);
+		ApplyTextStyle(Text_Status, 15, Maps.Num() > 0 ? MapSelectMutedTextColor : MapSelectWarningColor, ETextJustify::Left);
 	}
 
 	HighlightSelectedMap();
@@ -410,7 +410,7 @@ void UNetworkMapSelectWidget::HighlightSelectedMap()
 		}
 
 		const int32 GlobalIndex = StartIndex + ButtonIndex;
-		Borders[ButtonIndex]->SetBrushColor(GlobalIndex == SelectedGlobalMapIndex ? SelectedBorderColor : HiddenBorderColor);
+		Borders[ButtonIndex]->SetBrushColor(GlobalIndex == SelectedGlobalMapIndex ? MapSelectSelectedBorderColor : MapSelectHiddenBorderColor);
 	}
 }
 
@@ -434,7 +434,7 @@ void UNetworkMapSelectWidget::ConfirmSelectedMap()
 		if (Text_Status)
 		{
 			Text_Status->SetText(FText::FromString(TEXT("Please select a map first.")));
-			ApplyTextStyle(Text_Status, 15, WarningColor, ETextJustify::Left);
+			ApplyTextStyle(Text_Status, 15, MapSelectWarningColor, ETextJustify::Left);
 		}
 		return;
 	}
@@ -446,7 +446,7 @@ void UNetworkMapSelectWidget::ConfirmSelectedMap()
 			FText::FromString(TEXT("This map supports {0}-{1} players.")),
 			FText::AsNumber(SelectedMap.MinPlayers),
 			FText::AsNumber(SelectedMap.MaxPlayers)));
-		ApplyTextStyle(Text_Status, 15, WarningColor, ETextJustify::Left);
+		ApplyTextStyle(Text_Status, 15, MapSelectWarningColor, ETextJustify::Left);
 		return;
 	}
 
@@ -494,7 +494,7 @@ void UNetworkMapSelectWidget::ApplyMapButtonVisual(int32 ButtonIndex, const FNet
 	}
 	else if (Buttons[ButtonIndex])
 	{
-		ApplyButtonTint(Buttons[ButtonIndex], CardColor, CardHoverColor);
+		ApplyButtonTint(Buttons[ButtonIndex], MapSelectCardColor, MapSelectCardHoverColor);
 	}
 }
 
