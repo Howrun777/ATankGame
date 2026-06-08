@@ -9,6 +9,7 @@ class ANetworkMOBAGameState;
 class ANetworkTeamDeathmatchGameState;
 class UCppShowScoresWidget;
 class UNetworkDeathmatchGameOverWidget;
+class UNetworkJoinMessageWidget;
 class UNetworkMOBAStateWidget;
 class UNetworkTeamScoresWidget;
 
@@ -35,6 +36,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Network|UI")
 	void ShowNetworkDeathmatchGameOver(int32 WinnerSlotId);
 
+	UFUNCTION(BlueprintCallable, Category = "Network|UI")
+	void ShowNetworkJoinMessage(const FString& Message);
+
+	UFUNCTION(Client, Reliable)
+	void ClientShowNetworkJoinMessage(const FString& Message);
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network|UI")
 	TSubclassOf<UCppShowScoresWidget> ScoresWidgetClass;
 
@@ -58,6 +65,12 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Network|UI")
 	UNetworkDeathmatchGameOverWidget* DeathmatchGameOverWidget = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Network|UI")
+	TSubclassOf<UNetworkJoinMessageWidget> JoinMessageWidgetClass;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Network|UI")
+	UNetworkJoinMessageWidget* JoinMessageWidget = nullptr;
 
 private:
 	UPROPERTY()

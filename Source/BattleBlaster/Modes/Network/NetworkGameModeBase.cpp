@@ -124,6 +124,7 @@ void ANetworkGameModeBase::HandleStartingNewPlayer_Implementation(APlayerControl
 			}
 
 			InitializePlayerIdentity(NewPlayer, SlotId, false);
+			BroadcastPlayerJoinedMessage(SlotId);
 		}
 	}
 
@@ -590,6 +591,36 @@ bool ANetworkGameModeBase::IsSlotOccupied(int32 SlotId) const
 	}
 
 	return false;
+}
+
+void ANetworkGameModeBase::BroadcastPlayerJoinedMessage(int32 SlotId) const
+{
+	if (SlotId < 0 || !GetWorld())
+	{
+		return;
+	}
+
+	const FString Message = FString::Printf(TEXT("Player%d Joined Game!"), SlotId + 1);
+
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		ANetworkPlayerControllerBase* NetworkPC = Cast<ANetworkPlayerControllerBase>(It->Get());
+		if (!NetworkPC)
+		{
+			continue;
+		}
+
+		if (NetworkPC->IsLocalController())
+		{
+			NetworkPC->ShowNetworkJoinMessage(Message);
+		}
+		else
+		{
+			NetworkPC->ClientShowNetworkJoinMessage(Message);
+		}
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("NetworkGameModeBase: %s"), *Message);
 }
 
 ANetworkGameStateBase* ANetworkGameModeBase::GetNetworkGameState() const

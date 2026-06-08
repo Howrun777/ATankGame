@@ -7,6 +7,7 @@
 #include "Modes/Network/NetworkTeamDeathmatchGameState.h"
 #include "Modes/Network/UI/CppShowScoresWidget.h"
 #include "Modes/Network/UI/NetworkDeathmatchGameOverWidget.h"
+#include "Modes/Network/UI/NetworkJoinMessageWidget.h"
 #include "Modes/Network/UI/NetworkMOBAStateWidget.h"
 #include "Modes/Network/UI/NetworkTeamScoresWidget.h"
 #include "Shared/UI/BulletsWidget.h"
@@ -71,6 +72,7 @@ ANetworkPlayerControllerBase::ANetworkPlayerControllerBase()
 	ScoresWidgetClass = UCppShowScoresWidget::StaticClass();
 	TeamScoresWidgetClass = UNetworkTeamScoresWidget::StaticClass();
 	MOBAStateWidgetClass = UNetworkMOBAStateWidget::StaticClass();
+	JoinMessageWidgetClass = UNetworkJoinMessageWidget::StaticClass();
 }
 
 void ANetworkPlayerControllerBase::BeginPlay()
@@ -95,6 +97,12 @@ void ANetworkPlayerControllerBase::EndPlay(const EEndPlayReason::Type EndPlayRea
 	{
 		DeathmatchGameOverWidget->RemoveFromParent();
 		DeathmatchGameOverWidget = nullptr;
+	}
+
+	if (IsValid(JoinMessageWidget))
+	{
+		JoinMessageWidget->RemoveFromParent();
+		JoinMessageWidget = nullptr;
 	}
 
 	Super::EndPlay(EndPlayReason);
@@ -282,6 +290,39 @@ void ANetworkPlayerControllerBase::ShowNetworkDeathmatchGameOver(int32 WinnerSlo
 			bShowMouseCursor = true;
 		}
 	}
+}
+
+void ANetworkPlayerControllerBase::ShowNetworkJoinMessage(const FString& Message)
+{
+	if (!IsLocalController() || Message.IsEmpty())
+	{
+		return;
+	}
+
+	if (!JoinMessageWidget)
+	{
+		TSubclassOf<UNetworkJoinMessageWidget> WidgetClass = JoinMessageWidgetClass;
+		if (!WidgetClass)
+		{
+			WidgetClass = UNetworkJoinMessageWidget::StaticClass();
+		}
+
+		JoinMessageWidget = CreateWidget<UNetworkJoinMessageWidget>(this, WidgetClass);
+		if (JoinMessageWidget)
+		{
+			JoinMessageWidget->AddToPlayerScreen(900);
+		}
+	}
+
+	if (JoinMessageWidget)
+	{
+		JoinMessageWidget->ShowMessage(Message);
+	}
+}
+
+void ANetworkPlayerControllerBase::ClientShowNetworkJoinMessage_Implementation(const FString& Message)
+{
+	ShowNetworkJoinMessage(Message);
 }
 
 void ANetworkPlayerControllerBase::HandleDeathmatchScoreStateChanged()

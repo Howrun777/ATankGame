@@ -80,6 +80,7 @@ protected:
 	void SpawnAIForSlot(int32 SlotId);
 	int32 GetMaxHumanPlayerSlots() const;
 	bool IsSlotOccupied(int32 SlotId) const;
+	void BroadcastPlayerJoinedMessage(int32 SlotId) const;
 
 	ANetworkGameStateBase* GetNetworkGameState() const;
 };
